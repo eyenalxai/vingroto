@@ -1,0 +1,46 @@
+import type { PlatformError } from "effect/PlatformError"
+
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Schema from "effect/Schema"
+
+import { AppPaths } from "@/lib/app-paths"
+import { AppConfig, SyncConfig } from "@/lib/config/schema"
+
+const defaultSync = new SyncConfig({ initialDays: 30, intervalMinutes: 5 })
+
+class ConfigFileMissing extends Schema.TaggedError<ConfigFileMissing>()("ConfigFileMissing", {
+  path: Schema.String,
+}) {}
+
+class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", {
+  path: Schema.String,
+  cause: Schema.Defect(),
+}) {}
+
+class ConfigUnreadable extends Schema.TaggedError<ConfigUnreadable>()("ConfigUnreadable", {
+  path: Schema.String,
+  message: Schema.String,
+}) {}
+
+const loadConfig = Effect.fn("Config.load")(function* load() {
+  const paths = yield* AppPaths
+  const fs = yield* FileSystem.FileSystem
+  const unreadable = (error: PlatformError) =>
+    new ConfigUnreadable({ path: paths.config, message: error.message })
+  const exists = yield* fs
+    .exists(paths.config)
+    .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(unreadable(error))))
+  if (!exists) {
+    return yield* new ConfigFileMissing({ path: paths.config })
+  }
+  const raw = yield* fs
+    .readFileString(paths.config)
+    .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(unreadable(error))))
+  const decoded = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AppConfig))(raw).pipe(
+    Effect.mapError((cause) => new ConfigInvalid({ path: paths.config, cause })),
+  )
+  return new AppConfig({ accounts: decoded.accounts, sync: decoded.sync ?? defaultSync })
+})
+
+export { ConfigFileMissing, ConfigInvalid, ConfigUnreadable, defaultSync, loadConfig }

@@ -1,0 +1,10 @@
+preload = ["@opentui/solid/preload"]
+
+[install]
+exact = true
+# Only install newly resolved package versions published at least 3 days ago.
+minimumReleaseAge = 259200
+# Our prerelease-tracked core is excluded so we can follow the Effect 4 release
+# candidates as they ship. Everything else (including all transitive
+# dependencies) stays behind the quarantine window.
+minimumReleaseAgeExcludes = ["effect", "@effect/sql-sqlite-bun", "@effect/platform-bun"]

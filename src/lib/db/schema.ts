@@ -1,0 +1,109 @@
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core"
+
+import type { MailAddress } from "@/lib/mail/address"
+
+const timestamps = {
+  created_at: integer()
+    .notNull()
+    .$default(() => Date.now()),
+  updated_at: integer()
+    .notNull()
+    .$default(() => Date.now())
+    .$onUpdate(() => Date.now()),
+}
+
+const MailboxTable = sqliteTable(
+  "mailbox",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    account_id: text().notNull(),
+    path: text().notNull(),
+    name: text().notNull(),
+    delimiter: text().notNull(),
+    special_use: text(),
+    selectable: integer({ mode: "boolean" }).notNull(),
+    uid_validity: integer(),
+    last_seen_uid: integer()
+      .notNull()
+      .$default(() => 0),
+    synced_at: integer(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("mailbox_account_id_path_unique").on(table.account_id, table.path)],
+)
+
+const MessageTable = sqliteTable(
+  "message",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    account_id: text().notNull(),
+    mailbox_id: integer()
+      .notNull()
+      .references(() => MailboxTable.id, { onDelete: "cascade" }),
+    uid: integer().notNull(),
+    message_id: text(),
+    in_reply_to: text(),
+    references: text({ mode: "json" }).$type<readonly string[]>(),
+    subject: text(),
+    from_name: text(),
+    from_address: text(),
+    to: text({ mode: "json" }).$type<readonly MailAddress[]>(),
+    cc: text({ mode: "json" }).$type<readonly MailAddress[]>(),
+    date: integer(),
+    size: integer(),
+    seen: integer({ mode: "boolean" })
+      .notNull()
+      .$default(() => false),
+    answered: integer({ mode: "boolean" })
+      .notNull()
+      .$default(() => false),
+    flagged: integer({ mode: "boolean" })
+      .notNull()
+      .$default(() => false),
+    draft: integer({ mode: "boolean" })
+      .notNull()
+      .$default(() => false),
+    keywords: text({ mode: "json" }).$type<readonly string[]>(),
+    snippet: text(),
+    has_attachments: integer({ mode: "boolean" })
+      .notNull()
+      .$default(() => false),
+    body_fetched_at: integer(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("message_mailbox_id_uid_unique").on(table.mailbox_id, table.uid),
+    index("message_account_id_date_index").on(table.account_id, table.date),
+  ],
+)
+
+const MessageBodyTable = sqliteTable("message_body", {
+  message_id: integer()
+    .primaryKey()
+    .references(() => MessageTable.id, { onDelete: "cascade" }),
+  text: text(),
+  html: text(),
+  fetched_at: integer().notNull(),
+})
+
+const AttachmentTable = sqliteTable(
+  "attachment",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    message_id: integer()
+      .notNull()
+      .references(() => MessageTable.id, { onDelete: "cascade" }),
+    part: text(),
+    filename: text(),
+    mime_type: text(),
+    size: integer(),
+    content_id: text(),
+    inline: integer({ mode: "boolean" })
+      .notNull()
+      .$default(() => false),
+    ...timestamps,
+  },
+  (table) => [index("attachment_message_id_index").on(table.message_id)],
+)
+
+export { AttachmentTable, MailboxTable, MessageBodyTable, MessageTable }

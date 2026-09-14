@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "vingroto",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.tsx",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix",
+    "tsc": "tsc --noEmit",
+    "check": "bun run format:check && bun run lint && bun run tsc",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.0.0-rc.115",
+    "@effect/sql-sqlite-bun": "4.0.0-rc.115",
+    "@opentui/core": "0.5.11",
+    "@opentui/keymap": "0.5.11",
+    "@opentui/solid": "0.5.11",
+    "drizzle-orm": "1.0.0-rc.5-5935859",
+    "effect": "4.0.0-rc.115",
+    "imapflow": "2.0.2",
+    "nodemailer": "10.0.7",
+    "solid-js": "1.9.12"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "drizzle-kit": "1.0.0-rc.5-5935859",
+    "oxfmt": "0.67.0",
+    "oxlint": "1.82.0",
+    "oxlint-tsgolint": "7.0.2001",
+    "typescript": "7.0.2"
+  }
+}
