@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 
 import type { MailboxInfo } from "@/lib/mail/imap-types"
@@ -38,7 +39,7 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
   infos: readonly MailboxInfo[],
 ) {
   const database = yield* Database
-  const now = Date.now()
+  const now = yield* Clock.currentTimeMillis
   for (const info of infos) {
     yield* database.client
       .insert(MailboxTable)
@@ -69,13 +70,14 @@ const setMailboxSyncState = Effect.fn("Mailbox.setSyncState")(function* setSyncS
   state: MailboxSyncState,
 ) {
   const database = yield* Database
+  const now = yield* Clock.currentTimeMillis
   yield* database.client
     .update(MailboxTable)
     .set({
       uid_validity: state.uidValidity,
       last_seen_uid: state.lastSeenUid,
       synced_at: state.syncedAt,
-      updated_at: Date.now(),
+      updated_at: now,
     })
     .where(eq(MailboxTable.id, mailboxId))
 })

@@ -55,10 +55,19 @@ class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()
       const imap = yield* Imap
 
       const load = Effect.fn("MessageBodies.load")(function* loadBody(request: BodyRequest) {
+        const annotations = {
+          account: request.account.id,
+          mailbox: request.mailboxPath,
+          uid: request.uid,
+        }
         const cached = yield* getMessageBody(request.messageId)
         if (cached !== undefined) {
+          yield* Effect.logDebug("body read from the cache").pipe(Effect.annotateLogs(annotations))
           return { text: cached.text, html: cached.html }
         }
+        yield* Effect.logDebug("body cache miss, downloading").pipe(
+          Effect.annotateLogs(annotations),
+        )
         const source = yield* imap.fetchMessageSource(
           request.account,
           request.mailboxPath,
@@ -67,6 +76,13 @@ class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()
         const parsed = yield* decodeSource(source)
         const body: MessageBody = { text: parsed.text, html: parsed.html }
         yield* storeMessageBody(request.messageId, body, parsed.attachments > 0)
+        yield* Effect.logInfo("body cached").pipe(
+          Effect.annotateLogs({
+            ...annotations,
+            bytes: source.length,
+            attachments: parsed.attachments,
+          }),
+        )
         return body
       })
 

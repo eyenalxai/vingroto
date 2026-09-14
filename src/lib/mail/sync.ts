@@ -1,3 +1,4 @@
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -54,17 +55,21 @@ interface SyncShape {
   ) => Effect.Effect<SyncReport>
 }
 
-const initialWindow = (row: MailboxRow, config: SyncConfig): MailboxWindowRequest => {
+const initialWindow = (row: MailboxRow, config: SyncConfig, now: number): MailboxWindowRequest => {
   return {
     path: row.path,
-    since: new Date(Date.now() - config.initialDays * dayMilliseconds),
+    since: new Date(now - config.initialDays * dayMilliseconds),
     fromUid: undefined,
   }
 }
 
-const toWindowRequest = (row: MailboxRow, config: SyncConfig): MailboxWindowRequest => {
+const toWindowRequest = (
+  row: MailboxRow,
+  config: SyncConfig,
+  now: number,
+): MailboxWindowRequest => {
   if (row.synced_at === null) {
-    return initialWindow(row, config)
+    return initialWindow(row, config, now)
   }
   if (row.last_seen_uid > 0) {
     return { path: row.path, fromUid: row.last_seen_uid + 1, since: undefined }
@@ -115,8 +120,16 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         yield* setMailboxSyncState(row.id, {
           uidValidity: snapshot.uidValidity,
           lastSeenUid,
-          syncedAt: Date.now(),
+          syncedAt: yield* Clock.currentTimeMillis,
         })
+        yield* Effect.logInfo("mailbox synced").pipe(
+          Effect.annotateLogs({
+            account: account.id,
+            mailbox: row.path,
+            fetched: snapshot.messages.length,
+            stored: outcome.inserted,
+          }),
+        )
         yield* emit({
           _tag: "mailbox-done",
           accountId: account.id,
@@ -132,6 +145,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         config: SyncConfig,
         paths: readonly string[] | undefined,
       ) {
+        const now = yield* Clock.currentTimeMillis
         const infos = yield* imap.listMailboxes(account)
         yield* upsertMailboxes(account.id, infos)
         const stored = yield* listAccountMailboxes(account.id)
@@ -141,7 +155,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         const rowsByPath = new Map(stored.map((row) => [row.path, row]))
         const results = yield* imap.fetchMailboxWindows(
           account,
-          targets.map((row) => toWindowRequest(row, config)),
+          targets.map((row) => toWindowRequest(row, config, now)),
         )
         const errors: string[] = []
         const recreated = new Set<number>()
@@ -153,6 +167,13 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           }
           if (result._tag === "error") {
             errors.push(`${result.path}: ${result.message}`)
+            yield* Effect.logWarning("mailbox sync failed").pipe(
+              Effect.annotateLogs({
+                account: account.id,
+                mailbox: result.path,
+                reason: result.message,
+              }),
+            )
             yield* emit({
               _tag: "mailbox-error",
               accountId: account.id,
@@ -163,6 +184,14 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           }
           if (row.uid_validity !== null && row.uid_validity !== result.snapshot.uidValidity) {
             // The server reassigned the UID space: every cached UID for this mailbox is meaningless.
+            yield* Effect.logWarning("uid validity changed, dropping cached messages").pipe(
+              Effect.annotateLogs({
+                account: account.id,
+                mailbox: row.path,
+                previous: row.uid_validity,
+                current: result.snapshot.uidValidity,
+              }),
+            )
             yield* deleteMailboxMessages(row.id)
             yield* setMailboxSyncState(row.id, {
               uidValidity: result.snapshot.uidValidity,
@@ -181,7 +210,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
             account,
             refreshed
               .filter((row) => recreated.has(row.id))
-              .map((row) => initialWindow(row, config)),
+              .map((row) => initialWindow(row, config, now)),
           )
           for (const result of retry) {
             const row = refreshedByPath.get(result.path)
@@ -195,6 +224,13 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         for (const entry of processable) {
           if (entry.result._tag === "error") {
             errors.push(`${entry.result.path}: ${entry.result.message}`)
+            yield* Effect.logWarning("mailbox sync failed").pipe(
+              Effect.annotateLogs({
+                account: account.id,
+                mailbox: entry.result.path,
+                reason: entry.result.message,
+              }),
+            )
             yield* emit({
               _tag: "mailbox-error",
               accountId: account.id,
@@ -207,6 +243,15 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           fetched += outcome.fetched
           storedCount += outcome.stored
         }
+        yield* Effect.logDebug("account synced").pipe(
+          Effect.annotateLogs({
+            account: account.id,
+            mailboxes: targets.length,
+            fetched,
+            stored: storedCount,
+            errors: errors.length,
+          }),
+        )
         const report: SyncReport = {
           accountId: account.id,
           mailboxes: targets.length,

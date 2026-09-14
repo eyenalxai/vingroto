@@ -74,6 +74,24 @@ const guard = <A>(
     Effect.catchTag("TimeoutError", () => Effect.fail(timedOut(account, operation, timeout))),
   )
 
+const withMailboxLock = <A, E, R>(
+  client: ImapFlow,
+  account: AccountConfig,
+  mailboxPath: string,
+  readOnly: boolean,
+  use: Effect.Effect<A, E, R>,
+) =>
+  Effect.acquireUseRelease(
+    guard(account, `select ${mailboxPath}`, commandTimeout, async () =>
+      client.getMailboxLock(mailboxPath, { readOnly }),
+    ),
+    () => use,
+    (lock) =>
+      Effect.sync(() => {
+        lock.release()
+      }),
+  )
+
 const collectUids = (
   client: ImapFlow,
   account: AccountConfig,
@@ -122,11 +140,12 @@ const fetchEnvelopes = (client: ImapFlow, account: AccountConfig, uids: readonly
   })
 
 const fetchMailbox = (client: ImapFlow, account: AccountConfig, request: MailboxWindowRequest) =>
-  Effect.gen(function* openMailboxWindow() {
-    const lock = yield* guard(account, `select ${request.path}`, commandTimeout, async () =>
-      client.getMailboxLock(request.path),
-    )
-    const contents = Effect.gen(function* readMailboxContents() {
+  withMailboxLock(
+    client,
+    account,
+    request.path,
+    false,
+    Effect.gen(function* readMailboxContents() {
       const mailbox = client.mailbox
       if (mailbox === false) {
         return yield* new ImapError({
@@ -144,12 +163,8 @@ const fetchMailbox = (client: ImapFlow, account: AccountConfig, request: Mailbox
         messages,
       }
       return snapshot
-    })
-    const release = Effect.sync(() => {
-      lock.release()
-    })
-    return yield* contents.pipe(Effect.ensuring(release))
-  })
+    }),
+  )
 
 const fetchMailboxResult = (
   client: ImapFlow,
@@ -178,11 +193,12 @@ const readMessageSource = (
   mailboxPath: string,
   uid: number,
 ) =>
-  Effect.gen(function* readSource() {
-    const lock = yield* guard(account, `select ${mailboxPath}`, commandTimeout, async () =>
-      client.getMailboxLock(mailboxPath, { readOnly: true }),
-    )
-    const contents = Effect.gen(function* fetchSource() {
+  withMailboxLock(
+    client,
+    account,
+    mailboxPath,
+    true,
+    Effect.gen(function* fetchSource() {
       const message = yield* guard(account, `fetch message ${uid}`, commandTimeout, async () =>
         client.fetchOne(uid, { source: true }, { uid: true }),
       )
@@ -202,12 +218,8 @@ const readMessageSource = (
         })
       }
       return message.source
-    })
-    const release = Effect.sync(() => {
-      lock.release()
-    })
-    return yield* contents.pipe(Effect.ensuring(release))
-  })
+    }),
+  )
 
 const releaseClient = (account: AccountConfig, client: ImapFlow) =>
   Effect.gen(function* releaseConnection() {
@@ -225,6 +237,13 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
       const credential = yield* Credential
 
       const connect = Effect.fn("Imap.connect")(function* openConnection(account: AccountConfig) {
+        yield* Effect.logDebug("connecting to the IMAP server").pipe(
+          Effect.annotateLogs({
+            account: account.id,
+            host: account.imap.host,
+            port: account.imap.port,
+          }),
+        )
         const username = yield* credential.get(account.username)
         const password = yield* credential.get(account.password)
         const client = new ImapFlow({

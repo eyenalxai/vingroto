@@ -14,13 +14,15 @@ const ServicesLayer = Layer.mergeAll(AppPaths.layer, Credential.layer).pipe(
   Layer.provideMerge(BunServices.layer),
 )
 
-const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideMerge(ServicesLayer))
+// The logger is built alongside the services so anything below it logs to the file instead of stdout.
+const InfraLayer = Layer.mergeAll(ServicesLayer, LoggingLayer.pipe(Layer.provide(ServicesLayer)))
+
+const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideMerge(InfraLayer))
 
 const VingrotoLayer = Layer.mergeAll(
   CoreLayer,
   SyncEngine.layer.pipe(Layer.provide(CoreLayer)),
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
-  LoggingLayer.pipe(Layer.provide(CoreLayer)),
 )
 
 const createAppRuntime = () => ManagedRuntime.make(VingrotoLayer)

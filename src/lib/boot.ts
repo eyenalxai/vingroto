@@ -58,6 +58,13 @@ const boot = Effect.gen(function* boot() {
     }),
   )
 
+  if (config._tag === "error") {
+    yield* Effect.logWarning(`configuration unavailable · ${config.message}`)
+  }
+  if (database._tag === "error") {
+    yield* Effect.logWarning(`database unavailable · ${database.message}`)
+  }
+
   return { paths: { data: paths.dataDir, config: paths.config }, config, database }
 })
 

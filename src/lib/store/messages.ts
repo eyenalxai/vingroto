@@ -1,4 +1,5 @@
 import { and, count, desc, eq, inArray } from "drizzle-orm"
+import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 
 import type { MailAddress } from "@/lib/mail/address"
@@ -108,7 +109,7 @@ const storeMessages = Effect.fn("Message.store")(function* store(input: MessageS
     return outcome
   }
   const database = yield* Database
-  const now = Date.now()
+  const now = yield* Clock.currentTimeMillis
   const uids = input.envelopes.map((envelope) => envelope.uid)
   const known = yield* database.client
     .select({ uid: MessageTable.uid })
@@ -218,7 +219,7 @@ const storeMessageBody = Effect.fn("Message.storeBody")(function* storeBody(
   hasAttachments: boolean,
 ) {
   const database = yield* Database
-  const now = Date.now()
+  const now = yield* Clock.currentTimeMillis
   yield* database.client
     .insert(MessageBodyTable)
     .values({ message_id: messageId, text: body.text, html: body.html, fetched_at: now })

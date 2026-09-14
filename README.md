@@ -58,7 +58,7 @@ Mailboxes are never mirrored in full. Each mailbox is fetched window by window: 
 
 `INBOX` is refreshed on startup and then every `sync.intervalMinutes`, and a mailbox that has never been synced is fetched when it is first selected. `r` syncs the selected scope: a virtual folder syncs every account's `INBOX`, an account its `INBOX`, a mailbox that mailbox.
 
-The database lives in `$XDG_DATA_HOME/vingroto/vingroto.db`, runtime logs in `$XDG_DATA_HOME/vingroto/vingroto.log`.
+The database lives in `$XDG_DATA_HOME/vingroto/vingroto.db`, runtime logs in `$XDG_DATA_HOME/vingroto/vingroto.log`. Logs always go to that file, never to the terminal; `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
 
 ## Reading
 

@@ -33,9 +33,11 @@ class Credential extends Context.Service<Credential, CredentialShape>()(
         if (options?.refresh !== true) {
           const cached = yield* lookupSecret(reference)
           if (Option.isSome(cached)) {
+            yield* Effect.logDebug(`credential served from the keyring · ref=${reference}`)
             return cached.value
           }
         }
+        yield* Effect.logDebug(`credential cache miss · ref=${reference}`)
         const secret = yield* readSecret(reference)
         // The keyring is a cache: a failed store must not break a secret that 1Password just returned.
         yield* storeSecret(reference, secret).pipe(

@@ -28,6 +28,9 @@ class Database extends Context.Service<Database, DatabaseShape>()("vingroto/lib/
           yield* migrate(client, { migrationsFolder })
           // Foreign keys are per-connection in SQLite and drizzle has no pragma API: the one raw statement.
           yield* client.run(sql`PRAGMA foreign_keys = ON`)
+          yield* Effect.logInfo("database ready").pipe(
+            Effect.annotateLogs({ path: paths.database }),
+          )
           return Database.of({ client })
         }),
       ).pipe(Layer.provide(sqliteClientLayer({ filename: paths.database })))

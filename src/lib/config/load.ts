@@ -43,6 +43,9 @@ const loadConfig = Effect.fn("Config.load")(function* load() {
     Effect.mapError((cause) => new ConfigInvalid({ path: paths.config, cause })),
   )
   const config: AppConfig = { accounts: decoded.accounts, sync: decoded.sync ?? defaultSync }
+  yield* Effect.logInfo("configuration loaded").pipe(
+    Effect.annotateLogs({ accounts: config.accounts.length, path: paths.config }),
+  )
   return config
 })
 
