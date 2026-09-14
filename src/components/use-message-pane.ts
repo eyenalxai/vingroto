@@ -43,6 +43,11 @@ const useMessagePane = (options: MessagePaneOptions) => {
         yield* Effect.gen(function* queryMessageRows() {
           const rows = yield* listMessages(mailboxId, messageWindow)
           yield* Effect.sync(() => {
+            // The selection may have moved on while the query ran: never apply rows for another folder.
+            const current = parseFolderKey(options.folderKey())
+            if (current?.kind !== "mailbox" || current.id !== mailboxId) {
+              return
+            }
             setListIsVirtual(false)
             applyMessageRows(rows)
           })
@@ -64,6 +69,9 @@ const useMessagePane = (options: MessagePaneOptions) => {
         yield* Effect.gen(function* queryVirtualMessageRows() {
           const rows = yield* listVirtualMessages(kind, messageWindow)
           yield* Effect.sync(() => {
+            if (parseFolderKey(options.folderKey())?.kind !== kind) {
+              return
+            }
             setListIsVirtual(true)
             applyMessageRows(rows)
           })
