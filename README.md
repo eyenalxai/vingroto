@@ -38,6 +38,24 @@ bun start
 
 `username` and `password` are 1Password references, never literals. Each value is read with `op read` and then cached in the OS keyring, so 1Password only prompts when the keyring entry is missing.
 
+## Syncing
+
+Mailboxes are never mirrored in full. Each mailbox is fetched window by window: one that has never been synced gets a date window (`sync.initialDays`), and afterwards only messages above the last seen UID are fetched. When a server reassigns a mailbox's UID validity, the cached window for that mailbox is dropped and rebuilt from the date window.
+
+`INBOX` is refreshed on startup and then every `sync.intervalMinutes`; a mailbox that has never been synced is fetched when it is first selected.
+
+The database lives in `$XDG_DATA_HOME/vingroto/vingroto.db`, runtime logs in `$XDG_DATA_HOME/vingroto/vingroto.log`.
+
+## Keys
+
+| Key                    | Action                                       |
+| ---------------------- | -------------------------------------------- |
+| `q`, `ctrl+c`          | quit                                         |
+| `tab`                  | switch between the mailbox and message panes |
+| `up`, `down`, `j`, `k` | move the selection                           |
+| `r`                    | sync the selected mailbox                    |
+| `escape`               | jump back to the mailbox pane                |
+
 ## Commands
 
 ```sh

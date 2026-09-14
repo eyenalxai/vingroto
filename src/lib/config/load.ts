@@ -4,8 +4,10 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 
+import type { AppConfig } from "@/lib/config/schema"
+
 import { AppPaths } from "@/lib/app-paths"
-import { AppConfig, SyncConfig } from "@/lib/config/schema"
+import { AppConfigFile, SyncConfig } from "@/lib/config/schema"
 
 const defaultSync = new SyncConfig({ initialDays: 30, intervalMinutes: 5 })
 
@@ -37,10 +39,11 @@ const loadConfig = Effect.fn("Config.load")(function* load() {
   const raw = yield* fs
     .readFileString(paths.config)
     .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(unreadable(error))))
-  const decoded = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AppConfig))(raw).pipe(
+  const decoded = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AppConfigFile))(raw).pipe(
     Effect.mapError((cause) => new ConfigInvalid({ path: paths.config, cause })),
   )
-  return new AppConfig({ accounts: decoded.accounts, sync: decoded.sync ?? defaultSync })
+  const config: AppConfig = { accounts: decoded.accounts, sync: decoded.sync ?? defaultSync }
+  return config
 })
 
 export { ConfigFileMissing, ConfigInvalid, ConfigUnreadable, defaultSync, loadConfig }

@@ -22,9 +22,14 @@ class SyncConfig extends Schema.Class<SyncConfig>("SyncConfig")({
   intervalMinutes: Schema.Int,
 }) {}
 
-class AppConfig extends Schema.Class<AppConfig>("AppConfig")({
+class AppConfigFile extends Schema.Class<AppConfigFile>("AppConfigFile")({
   accounts: Schema.Array(AccountConfig),
   sync: Schema.optional(SyncConfig),
 }) {}
 
-export { AccountConfig, AppConfig, ServerConfig, SyncConfig }
+interface AppConfig {
+  readonly accounts: readonly AccountConfig[]
+  readonly sync: SyncConfig
+}
+
+export { AccountConfig, AppConfigFile, ServerConfig, SyncConfig, type AppConfig }

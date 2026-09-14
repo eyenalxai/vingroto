@@ -7,6 +7,7 @@ import { AppPaths } from "@/lib/app-paths"
 import { loadConfig } from "@/lib/config/load"
 import { Database } from "@/lib/db/database"
 import { MailboxTable } from "@/lib/db/schema"
+import { describeError } from "@/lib/errors"
 
 interface BootReport {
   readonly paths: {
@@ -21,8 +22,6 @@ interface BootReport {
     | { readonly _tag: "error"; readonly message: string }
 }
 
-const describe = (error: unknown) => (error instanceof Error ? error.message : String(error))
-
 const boot = Effect.gen(function* boot() {
   const paths = yield* AppPaths
 
@@ -34,7 +33,9 @@ const boot = Effect.gen(function* boot() {
     Effect.map((mailboxes) => {
       return { _tag: "ok" as const, mailboxes }
     }),
-    Effect.catch((error) => Effect.succeed({ _tag: "error" as const, message: describe(error) })),
+    Effect.catch((error) =>
+      Effect.succeed({ _tag: "error" as const, message: describeError(error) }),
+    ),
   )
 
   const config = yield* loadConfig().pipe(
@@ -50,7 +51,7 @@ const boot = Effect.gen(function* boot() {
       ConfigInvalid: (error) =>
         Effect.succeed({
           _tag: "error" as const,
-          message: `invalid config at ${error.path}: ${describe(error.cause)}`,
+          message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
         }),
       ConfigUnreadable: (error) =>
         Effect.succeed({ _tag: "error" as const, message: error.message }),
