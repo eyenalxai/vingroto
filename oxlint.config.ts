@@ -37,7 +37,7 @@ const baseRules: RuleConfig = {
   "no-ternary": "off",
   "no-continue": "off",
   "prefer-destructuring": "off",
-  "no-console": "off",
+  "no-console": "error",
   "no-warning-comments": "off",
   "max-params": "off",
   "max-lines-per-function": "off",

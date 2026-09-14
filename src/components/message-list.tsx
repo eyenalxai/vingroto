@@ -1,30 +1,22 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 
-import { For, createEffect, createSignal } from "solid-js"
+import { For, Show, createEffect, createSignal } from "solid-js"
 
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MessageRow } from "@/lib/store/messages"
+import type { MessageListItem } from "@/lib/store/messages"
 
 import { formatMessageDate, senderLabel, truncate } from "@/lib/format"
 import { theme } from "@/lib/theme"
 
 interface MessageListProps {
-  readonly mailbox: MailboxRow | undefined
-  readonly messages: readonly MessageRow[]
+  readonly title: string
+  readonly messages: readonly MessageListItem[]
   readonly selectedId: number | undefined
   readonly focused: boolean
+  readonly showMailbox: boolean
 }
 
 const MessageList = (props: MessageListProps) => {
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
-
-  const title = () => {
-    const mailbox = props.mailbox
-    if (mailbox === undefined) {
-      return "messages"
-    }
-    return `${mailbox.name} · ${props.messages.length}`
-  }
 
   createEffect(() => {
     const box = scrollBox()
@@ -40,7 +32,7 @@ const MessageList = (props: MessageListProps) => {
       flexDirection="column"
       border
       borderColor={props.focused ? theme.accent : theme.border}
-      title={title()}
+      title={props.title}
       titleColor={props.focused ? theme.accent : theme.muted}
     >
       <scrollbox
@@ -75,6 +67,11 @@ const MessageList = (props: MessageListProps) => {
                     {truncate(senderLabel(message.fromName, message.fromAddress), 20)}
                   </text>
                 </box>
+                <Show when={props.showMailbox}>
+                  <box width={12}>
+                    <text fg={rowColor()}>{truncate(message.mailboxName, 10)}</text>
+                  </box>
+                </Show>
                 <box flexGrow={1}>
                   <text fg={rowColor()}>{truncate(subject(), 120)}</text>
                 </box>
@@ -87,4 +84,4 @@ const MessageList = (props: MessageListProps) => {
   )
 }
 
-export { MessageList }
+export { MessageList, type MessageListProps }

@@ -25,6 +25,7 @@ const connectTimeout = Duration.seconds(30)
 const commandTimeout = Duration.minutes(2)
 const logoutTimeout = Duration.seconds(10)
 const fetchBatchSize = 200
+const maxSourceBytes = 32 * 1024 * 1024
 
 const envelopeQuery: FetchQueryObject = {
   uid: true,
@@ -42,6 +43,11 @@ interface ImapShape {
     account: AccountConfig,
     requests: readonly MailboxWindowRequest[],
   ) => Effect.Effect<readonly MailboxWindowResult[], ImapServiceError>
+  readonly fetchMessageSource: (
+    account: AccountConfig,
+    mailboxPath: string,
+    uid: number,
+  ) => Effect.Effect<Buffer, ImapServiceError>
 }
 
 const toImapError = (account: AccountConfig, operation: string, cause: unknown) =>
@@ -166,6 +172,43 @@ const fetchMailboxResult = (
     return outcome
   })
 
+const readMessageSource = (
+  client: ImapFlow,
+  account: AccountConfig,
+  mailboxPath: string,
+  uid: number,
+) =>
+  Effect.gen(function* readSource() {
+    const lock = yield* guard(account, `select ${mailboxPath}`, commandTimeout, async () =>
+      client.getMailboxLock(mailboxPath, { readOnly: true }),
+    )
+    const contents = Effect.gen(function* fetchSource() {
+      const message = yield* guard(account, `fetch message ${uid}`, commandTimeout, async () =>
+        client.fetchOne(uid, { source: true }, { uid: true }),
+      )
+      if (message === false || message === undefined || message.source === undefined) {
+        return yield* new ImapError({
+          accountId: account.id,
+          operation: `fetch message ${uid}`,
+          message: `message ${uid} could not be read from ${mailboxPath}`,
+        })
+      }
+      if (message.source.length > maxSourceBytes) {
+        const limit = Math.round(maxSourceBytes / (1024 * 1024))
+        return yield* new ImapError({
+          accountId: account.id,
+          operation: `fetch message ${uid}`,
+          message: `message ${uid} is larger than ${limit} MB`,
+        })
+      }
+      return message.source
+    })
+    const release = Effect.sync(() => {
+      lock.release()
+    })
+    return yield* contents.pipe(Effect.ensuring(release))
+  })
+
 const releaseClient = (account: AccountConfig, client: ImapFlow) =>
   Effect.gen(function* releaseConnection() {
     yield* guard(account, "logout", logoutTimeout, async () => client.logout()).pipe(
@@ -220,6 +263,8 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
               { concurrency: 1 },
             ),
           ),
+        fetchMessageSource: (account, mailboxPath, uid) =>
+          withClient(account, (client) => readMessageSource(client, account, mailboxPath, uid)),
       })
     }),
   )

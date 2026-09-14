@@ -16,10 +16,17 @@ interface MailSyncOptions {
 const useMailSyncing = (options: MailSyncOptions) => {
   const [syncing, setSyncing] = createSignal(false)
 
-  const syncWindow = (paths: readonly string[] | undefined) => {
+  const syncWindow = (paths: readonly string[] | undefined, accountId?: string) => {
     untrack(() => {
       const config = options.config()
       if (config === undefined || syncing()) {
+        return
+      }
+      const accounts =
+        accountId === undefined
+          ? config.accounts
+          : config.accounts.filter((account) => account.id === accountId)
+      if (accounts.length === 0) {
         return
       }
       setSyncing(true)
@@ -27,9 +34,12 @@ const useMailSyncing = (options: MailSyncOptions) => {
         paths === undefined ? "syncing every mailbox" : `syncing ${paths.join(", ")}`,
       )
       const program = Effect.gen(function* runSync() {
+        yield* Effect.logInfo(
+          `sync requested · paths=${paths?.join(",") ?? "all"} · account=${accountId ?? "all"}`,
+        )
         const sync = yield* SyncEngine
         const reports = yield* Effect.all(
-          config.accounts.map((account) => sync.syncMailboxes(account, config.sync, paths)),
+          accounts.map((account) => sync.syncMailboxes(account, config.sync, paths)),
           { concurrency: 1 },
         )
         const errors: string[] = []
@@ -47,6 +57,9 @@ const useMailSyncing = (options: MailSyncOptions) => {
               : `synced · ${stored} new message(s)`,
           )
         })
+        yield* errors.length > 0
+          ? Effect.logWarning(`sync failed · ${errors.join(" · ")}`)
+          : Effect.logInfo(`sync finished · stored=${stored}`)
       }).pipe(
         Effect.ensuring(
           Effect.sync(() => {
