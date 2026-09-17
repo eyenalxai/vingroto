@@ -4,7 +4,7 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import type { MessageDetail } from "@/lib/store/messages"
 
-import { addressList, formatBytes, formatMessageDateTime, htmlToText, truncate } from "@/lib/format"
+import { addressList, formatBytes, formatMessageDateTime, htmlToText } from "@/lib/format"
 import { theme } from "@/lib/theme"
 
 type BodyState =
@@ -103,8 +103,6 @@ const MessageView = (props: MessageViewProps) => {
       flexDirection="column"
       border
       borderColor={props.focused ? theme.accent : theme.border}
-      title={truncate(props.detail?.subject ?? "message", 40)}
-      titleColor={props.focused ? theme.accent : theme.muted}
     >
       <Show
         when={props.detail}
