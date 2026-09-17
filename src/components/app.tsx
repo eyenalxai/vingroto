@@ -1,6 +1,7 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { Effect } from "effect"
 import { Show, createEffect, createMemo, createResource, createSignal } from "solid-js"
 
 import type { Pane } from "@/components/pane-layout"
@@ -22,6 +23,7 @@ import { useAppKeys } from "@/components/use-app-keys"
 import { useMailStore } from "@/components/use-mail-store"
 import { useMailSyncing } from "@/components/use-mail-syncing"
 import { boot } from "@/lib/boot"
+import { openExternal } from "@/lib/external"
 
 const App = () => {
   const runtime = useRuntime()
@@ -76,6 +78,19 @@ const App = () => {
     const row = store.selectedFolderRow()
     return `${row?.label ?? "messages"} · ${store.messages().length}`
   })
+
+  const openLink = (url: string) => {
+    const program = Effect.gen(function* openLinkInBrowser() {
+      yield* openExternal(url).pipe(
+        Effect.catch((error) =>
+          Effect.sync(() => {
+            setStatus(`could not open link · ${error.message}`)
+          }),
+        ),
+      )
+    })
+    runtime.runFork(program)
+  }
 
   useAppKeys({
     renderer,
@@ -141,6 +156,7 @@ const App = () => {
                   body={store.body()}
                   focused={pane() === "reader"}
                   accountLabels={accountLabels()}
+                  onOpenLink={openLink}
                   onScrollRef={(box) => {
                     setReaderScroll(box)
                   }}

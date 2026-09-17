@@ -1,10 +1,13 @@
-import type { ScrollBoxRenderable } from "@opentui/core"
+import type { MouseEvent, ScrollBoxRenderable } from "@opentui/core"
 
+import { MouseButton } from "@opentui/core"
+import { useRenderer } from "@opentui/solid"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import type { MessageDetail } from "@/lib/store/messages"
 
 import { addressList, formatBytes, formatMessageDateTime, htmlToText } from "@/lib/format"
+import { splitLinks } from "@/lib/link"
 import { theme } from "@/lib/theme"
 
 type BodyState =
@@ -23,7 +26,10 @@ interface MessageViewProps {
   readonly focused: boolean
   readonly accountLabels: ReadonlyMap<string, string>
   readonly onScrollRef: (box: ScrollBoxRenderable) => void
+  readonly onOpenLink: (url: string) => void
 }
+
+const leftMouseButton: number = MouseButton.LEFT
 
 const messageBodyText = (state: BodyState | undefined): string => {
   if (state === undefined || state._tag === "loading") {
@@ -66,6 +72,7 @@ const flagsValue = (detail: MessageDetail): string => {
 }
 
 const MessageView = (props: MessageViewProps) => {
+  const renderer = useRenderer()
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
   const headerLines = createMemo<readonly HeaderLine[]>(() => {
@@ -88,6 +95,18 @@ const MessageView = (props: MessageViewProps) => {
       { label: "Flags", value: flagsValue(detail) },
     ]
   })
+
+  const bodySegments = createMemo(() => splitLinks(messageBodyText(props.body)))
+
+  const handleBodyMouseDown = (event: MouseEvent) => {
+    if (event.button !== leftMouseButton) {
+      return
+    }
+    const url = renderer.getLinkAt(event.x, event.y)
+    if (url !== null) {
+      props.onOpenLink(url)
+    }
+  }
 
   createEffect(() => {
     const detail = props.detail
@@ -145,8 +164,18 @@ const MessageView = (props: MessageViewProps) => {
               paddingLeft={1}
               paddingRight={1}
             >
-              <text fg={theme.text} wrapMode="word">
-                {messageBodyText(props.body)}
+              <text fg={theme.text} wrapMode="word" onMouseDown={handleBodyMouseDown}>
+                <For each={bodySegments()}>
+                  {(segment) =>
+                    segment.url === undefined ? (
+                      segment.text
+                    ) : (
+                      <a href={segment.url} style={{ fg: theme.accent, underline: true }}>
+                        {segment.text}
+                      </a>
+                    )
+                  }
+                </For>
               </text>
             </scrollbox>
           </box>

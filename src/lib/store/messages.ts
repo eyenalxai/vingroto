@@ -51,7 +51,9 @@ interface MessageStoreOutcome {
   readonly updated: number
 }
 
-type VirtualFolderKind = "all" | "unread"
+type VirtualFolderScope =
+  | { readonly kind: "all" }
+  | { readonly kind: "unread"; readonly accountId: string | undefined }
 
 const listColumns = {
   id: MessageTable.id,
@@ -151,23 +153,21 @@ const listMessages = Effect.fn("Message.list")(function* list(mailboxId: number,
 })
 
 const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtual(
-  kind: VirtualFolderKind,
+  scope: VirtualFolderScope,
   limit: number,
 ) {
   const database = yield* Database
-  if (kind === "unread") {
-    return yield* database.client
-      .select(listColumns)
-      .from(MessageTable)
-      .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
-      .where(eq(MessageTable.seen, false))
-      .orderBy(desc(MessageTable.date), desc(MessageTable.uid))
-      .limit(limit)
-  }
+  const filters =
+    scope.kind === "unread"
+      ? scope.accountId === undefined
+        ? [eq(MessageTable.seen, false)]
+        : [eq(MessageTable.seen, false), eq(MessageTable.account_id, scope.accountId)]
+      : []
   return yield* database.client
     .select(listColumns)
     .from(MessageTable)
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
+    .where(filters.length === 0 ? undefined : and(...filters))
     .orderBy(desc(MessageTable.date), desc(MessageTable.uid))
     .limit(limit)
 })
@@ -235,5 +235,5 @@ export {
   type MessageDetail,
   type MessageListItem,
   type MessageStoreOutcome,
-  type VirtualFolderKind,
+  type VirtualFolderScope,
 }

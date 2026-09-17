@@ -1,8 +1,8 @@
 import type { AccountConfig } from "@/lib/config/schema"
 import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts, VirtualFolderKind } from "@/lib/store/messages"
+import type { MailboxCounts, VirtualFolderScope } from "@/lib/store/messages"
 
-type FolderRowKind = "virtual" | "account" | "mailbox"
+type FolderRowKind = "global" | "account" | "unread" | "mailbox"
 type FolderCountTone = "unread" | "muted"
 
 interface FolderRow {
@@ -17,9 +17,7 @@ interface FolderRow {
   readonly mailboxPath: string | undefined
 }
 
-type FolderTarget =
-  | { readonly kind: VirtualFolderKind }
-  | { readonly kind: "mailbox"; readonly id: number }
+type FolderTarget = VirtualFolderScope | { readonly kind: "mailbox"; readonly id: number }
 
 interface FolderTreeInput {
   readonly accounts: readonly AccountConfig[]
@@ -29,6 +27,8 @@ interface FolderTreeInput {
   readonly collapsed: ReadonlySet<string>
 }
 
+const accountUnreadPrefix = "virtual:unread:"
+
 const parseFolderKey = (key: string | undefined): FolderTarget | undefined => {
   if (key === undefined) {
     return undefined
@@ -37,7 +37,11 @@ const parseFolderKey = (key: string | undefined): FolderTarget | undefined => {
     return { kind: "all" }
   }
   if (key === "virtual:unread") {
-    return { kind: "unread" }
+    return { kind: "unread", accountId: undefined }
+  }
+  if (key.startsWith(accountUnreadPrefix)) {
+    const accountId = key.slice(accountUnreadPrefix.length)
+    return accountId.length === 0 ? undefined : { kind: "unread", accountId }
   }
   if (key.startsWith("mailbox:")) {
     const id = Number(key.slice("mailbox:".length))
@@ -50,7 +54,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
   const rows: FolderRow[] = [
     {
       key: "virtual:all",
-      kind: "virtual",
+      kind: "global",
       label: "All emails",
       marker: "",
       indented: false,
@@ -61,7 +65,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
     },
     {
       key: "virtual:unread",
-      kind: "virtual",
+      kind: "global",
       label: "All unread",
       marker: "",
       indented: false,
@@ -92,6 +96,17 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
     if (folded) {
       continue
     }
+    rows.push({
+      key: `${accountUnreadPrefix}${account.id}`,
+      kind: "unread",
+      label: "Unread",
+      marker: "",
+      indented: true,
+      count: unread,
+      tone: "unread",
+      accountId: account.id,
+      mailboxPath: undefined,
+    })
     for (const row of siblings) {
       rows.push({
         key: `mailbox:${row.id}`,

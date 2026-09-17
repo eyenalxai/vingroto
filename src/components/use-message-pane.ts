@@ -4,7 +4,7 @@ import { createEffect, createMemo, createSignal, onCleanup, untrack } from "soli
 import type { BodyState } from "@/components/message-view"
 import type { AppConfig } from "@/lib/config/schema"
 import type { AppRuntime } from "@/lib/runtime"
-import type { MessageDetail, MessageListItem, VirtualFolderKind } from "@/lib/store/messages"
+import type { MessageDetail, MessageListItem } from "@/lib/store/messages"
 
 import { describeError } from "@/lib/errors"
 import { MessageBodies } from "@/lib/mail/bodies"
@@ -37,38 +37,22 @@ const useMessagePane = (options: MessagePaneOptions) => {
     }
   }
 
-  const loadMessages = (mailboxId: number) => {
+  const loadFolderMessages = () => {
     untrack(() => {
+      const key = options.folderKey()
+      const target = parseFolderKey(key)
+      if (key === undefined || target === undefined) {
+        return
+      }
       const program = Effect.gen(function* loadMessageRows() {
         yield* Effect.gen(function* queryMessageRows() {
-          const rows = yield* listMessages(mailboxId, messageWindow)
+          const rows =
+            target.kind === "mailbox"
+              ? yield* listMessages(target.id, messageWindow)
+              : yield* listVirtualMessages(target, messageWindow)
           yield* Effect.sync(() => {
             // The selection may have moved on while the query ran: never apply rows for another folder.
-            const current = parseFolderKey(options.folderKey())
-            if (current?.kind !== "mailbox" || current.id !== mailboxId) {
-              return
-            }
-            applyMessageRows(rows)
-          })
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              options.onStatus(`database error · ${describeError(error)}`)
-            }),
-          ),
-        )
-      })
-      options.runtime.runFork(program)
-    })
-  }
-
-  const loadVirtualMessages = (kind: VirtualFolderKind) => {
-    untrack(() => {
-      const program = Effect.gen(function* loadVirtualMessageRows() {
-        yield* Effect.gen(function* queryVirtualMessageRows() {
-          const rows = yield* listVirtualMessages(kind, messageWindow)
-          yield* Effect.sync(() => {
-            if (parseFolderKey(options.folderKey())?.kind !== kind) {
+            if (options.folderKey() !== key) {
               return
             }
             applyMessageRows(rows)
@@ -174,27 +158,12 @@ const useMessagePane = (options: MessagePaneOptions) => {
   }
 
   const reloadCurrent = () => {
-    const target = parseFolderKey(options.folderKey())
-    if (target === undefined) {
-      return
-    }
-    if (target.kind === "mailbox") {
-      loadMessages(target.id)
-      return
-    }
-    loadVirtualMessages(target.kind)
+    loadFolderMessages()
   }
 
   createEffect(() => {
-    const target = parseFolderKey(options.folderKey())
-    if (target === undefined) {
-      return
-    }
-    if (target.kind === "mailbox") {
-      loadMessages(target.id)
-      return
-    }
-    loadVirtualMessages(target.kind)
+    options.folderKey()
+    loadFolderMessages()
   })
 
   createEffect(() => {

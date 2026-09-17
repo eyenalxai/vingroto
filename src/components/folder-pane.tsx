@@ -25,8 +25,8 @@ const badgeLabel = (count: number | undefined) => {
 const FolderPane = (props: FolderPaneProps) => {
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
-  const virtualRows = () => props.rows.filter((row) => row.kind === "virtual")
-  const treeRows = () => props.rows.filter((row) => row.kind !== "virtual")
+  const virtualRows = () => props.rows.filter((row) => row.kind === "global")
+  const treeRows = () => props.rows.filter((row) => row.kind !== "global")
 
   createEffect(() => {
     const box = scrollBox()

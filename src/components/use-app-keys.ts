@@ -52,11 +52,11 @@ const useAppKeys = (options: AppKeysOptions) => {
 
   const syncCurrent = () => {
     const row = options.store.selectedFolderRow()
-    if (row === undefined || row.kind === "virtual") {
+    if (row === undefined || row.kind === "global") {
       options.syncWindow(["INBOX"])
       return
     }
-    if (row.kind === "account") {
+    if (row.kind === "account" || row.kind === "unread") {
       options.syncWindow(["INBOX"], row.accountId)
       return
     }
