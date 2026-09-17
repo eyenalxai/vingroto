@@ -84,7 +84,7 @@ const emptyReport = (account: AccountConfig): SyncReport => {
 
 const describeSyncEvent = (event: SyncEvent) => {
   if (event._tag === "mailbox-done") {
-    return `${event.path} · ${event.stored} new of ${event.fetched} fetched`
+    return event.stored === 0 ? `${event.path} · up to date` : `${event.path} · ${event.stored} new`
   }
   if (event._tag === "mailbox-error") {
     return `${event.path} · ${event.message}`

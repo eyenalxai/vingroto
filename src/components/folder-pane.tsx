@@ -15,6 +15,13 @@ interface FolderPaneProps {
 
 const rowId = (key: string) => `folder-row-${key.replaceAll(":", "-")}`
 
+const badgeLabel = (count: number | undefined) => {
+  if (count === undefined || count === 0) {
+    return ""
+  }
+  return String(count)
+}
+
 const FolderPane = (props: FolderPaneProps) => {
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
@@ -70,7 +77,7 @@ const FolderPane = (props: FolderPaneProps) => {
                         : theme.muted
                   }
                 >
-                  {row.count > 0 ? String(row.count) : ""}
+                  {badgeLabel(row.count)}
                 </text>
               </box>
             )
@@ -111,7 +118,7 @@ const FolderPane = (props: FolderPaneProps) => {
                         : theme.muted
                   }
                 >
-                  {row.count > 0 ? String(row.count) : ""}
+                  {badgeLabel(row.count)}
                 </text>
               </box>
             )

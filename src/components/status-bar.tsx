@@ -1,3 +1,6 @@
+import { useTerminalDimensions } from "@opentui/solid"
+import { Show } from "solid-js"
+
 import { theme } from "@/lib/theme"
 
 interface StatusBarProps {
@@ -6,16 +9,30 @@ interface StatusBarProps {
   readonly hint: string
 }
 
-const StatusBar = (props: StatusBarProps) => (
-  <box flexDirection="row" justifyContent="space-between" gap={1} paddingLeft={1} paddingRight={1}>
-    <box flexDirection="row" gap={1}>
-      <text fg={props.syncing ? theme.unread : theme.muted}>
-        {props.syncing ? "syncing" : "ready"}
-      </text>
-      <text fg={theme.text}>{props.message}</text>
-    </box>
-    <text fg={theme.muted}>{props.hint}</text>
-  </box>
-)
+const hintMinimumWidth = 80
 
-export { StatusBar }
+const StatusBar = (props: StatusBarProps) => {
+  const dimensions = useTerminalDimensions()
+  const hintVisible = () => dimensions().width >= hintMinimumWidth
+
+  return (
+    <box flexDirection="row" gap={1} paddingLeft={1} paddingRight={1} flexShrink={0}>
+      <text
+        fg={props.syncing ? theme.accent : theme.text}
+        flexBasis={0}
+        flexGrow={1}
+        wrapMode="none"
+        truncate
+      >
+        {props.message}
+      </text>
+      <Show when={hintVisible()}>
+        <text fg={theme.muted} flexShrink={0} wrapMode="none" truncate>
+          {props.hint}
+        </text>
+      </Show>
+    </box>
+  )
+}
+
+export { StatusBar, type StatusBarProps }

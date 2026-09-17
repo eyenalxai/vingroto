@@ -4,7 +4,7 @@ import { For, Show, createEffect, createSignal } from "solid-js"
 
 import type { MessageListItem } from "@/lib/store/messages"
 
-import { formatMessageDate, senderLabel, truncate } from "@/lib/format"
+import { formatMessageDate, senderLabel } from "@/lib/format"
 import { theme } from "@/lib/theme"
 
 interface MessageListProps {
@@ -12,8 +12,11 @@ interface MessageListProps {
   readonly messages: readonly MessageListItem[]
   readonly selectedId: number | undefined
   readonly focused: boolean
-  readonly showMailbox: boolean
 }
+
+const senderColumnWidth = 18
+const senderMinimumWidth = 8
+const subjectMinimumWidth = 10
 
 const MessageList = (props: MessageListProps) => {
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
@@ -43,6 +46,11 @@ const MessageList = (props: MessageListProps) => {
         paddingLeft={1}
         paddingRight={1}
       >
+        <Show when={props.messages.length === 0}>
+          <text fg={theme.muted} wrapMode="none" truncate>
+            no messages
+          </text>
+        </Show>
         <For each={props.messages}>
           {(message) => {
             const isSelected = () => message.id === props.selectedId
@@ -60,20 +68,36 @@ const MessageList = (props: MessageListProps) => {
                 gap={1}
                 backgroundColor={isSelected() ? theme.selectionBackground : undefined}
               >
-                <text fg={rowColor()}>{message.seen ? " " : "•"}</text>
-                <text fg={rowColor()}>{formatMessageDate(message.date)}</text>
-                <box width={22}>
-                  <text fg={rowColor()}>
-                    {truncate(senderLabel(message.fromName, message.fromAddress), 20)}
+                <box width={1} flexShrink={0}>
+                  <text fg={isSelected() ? theme.selectionForeground : theme.accent}>
+                    {message.seen ? " " : "•"}
                   </text>
                 </box>
-                <Show when={props.showMailbox}>
-                  <box width={12}>
-                    <text fg={rowColor()}>{truncate(message.mailboxName, 10)}</text>
-                  </box>
-                </Show>
-                <box flexGrow={1}>
-                  <text fg={rowColor()}>{truncate(subject(), 120)}</text>
+                <box
+                  width={senderColumnWidth}
+                  minWidth={senderMinimumWidth}
+                  flexShrink={1}
+                  overflow="hidden"
+                >
+                  <text fg={rowColor()} wrapMode="none" truncate>
+                    {senderLabel(message.fromName, message.fromAddress)}
+                  </text>
+                </box>
+                <box
+                  flexBasis={0}
+                  flexGrow={1}
+                  minWidth={subjectMinimumWidth}
+                  flexShrink={1}
+                  overflow="hidden"
+                >
+                  <text fg={rowColor()} wrapMode="none" truncate>
+                    {subject()}
+                  </text>
+                </box>
+                <box flexShrink={0}>
+                  <text fg={isSelected() ? theme.selectionForeground : theme.muted} wrapMode="none">
+                    {formatMessageDate(message.date)}
+                  </text>
                 </box>
               </box>
             )

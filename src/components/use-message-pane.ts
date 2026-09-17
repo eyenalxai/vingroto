@@ -22,7 +22,6 @@ interface MessagePaneOptions {
 
 const useMessagePane = (options: MessagePaneOptions) => {
   const [messages, setMessages] = createSignal<readonly MessageListItem[]>([])
-  const [listIsVirtual, setListIsVirtual] = createSignal(false)
   const [detail, setDetail] = createSignal<MessageDetail | undefined>()
   const [body, setBody] = createSignal<BodyState>({ _tag: "empty" })
   const [selectedMessageId, setSelectedMessageId] = createSignal<number | undefined>()
@@ -48,7 +47,6 @@ const useMessagePane = (options: MessagePaneOptions) => {
             if (current?.kind !== "mailbox" || current.id !== mailboxId) {
               return
             }
-            setListIsVirtual(false)
             applyMessageRows(rows)
           })
         }).pipe(
@@ -72,7 +70,6 @@ const useMessagePane = (options: MessagePaneOptions) => {
             if (parseFolderKey(options.folderKey())?.kind !== kind) {
               return
             }
-            setListIsVirtual(true)
             applyMessageRows(rows)
           })
         }).pipe(
@@ -232,7 +229,6 @@ const useMessagePane = (options: MessagePaneOptions) => {
   return {
     body,
     detail,
-    listIsVirtual,
     messages,
     selectedMessage,
     selectedMessageId,

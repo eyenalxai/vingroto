@@ -6,14 +6,14 @@ import type { FolderRow } from "@/lib/mail/folders"
 import type { SyncEvent } from "@/lib/mail/sync"
 import type { AppRuntime } from "@/lib/runtime"
 import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts, VirtualCounts } from "@/lib/store/messages"
+import type { MailboxCounts } from "@/lib/store/messages"
 
 import { useMessagePane } from "@/components/use-message-pane"
 import { describeError } from "@/lib/errors"
 import { buildFolderRows, parseFolderKey } from "@/lib/mail/folders"
 import { SyncEngine, describeSyncEvent } from "@/lib/mail/sync"
 import { listMailboxes } from "@/lib/store/mailboxes"
-import { messageCounts, virtualCounts } from "@/lib/store/messages"
+import { messageCounts, unreadMessageCount } from "@/lib/store/messages"
 
 interface MailStoreOptions {
   readonly runtime: AppRuntime
@@ -24,7 +24,7 @@ interface MailStoreOptions {
 const useMailStore = (options: MailStoreOptions) => {
   const [mailboxes, setMailboxes] = createSignal<readonly MailboxRow[]>([])
   const [counts, setCounts] = createSignal<ReadonlyMap<number, MailboxCounts>>(new Map())
-  const [virtual, setVirtual] = createSignal<VirtualCounts>({ all: 0, unread: 0 })
+  const [unread, setUnread] = createSignal(0)
   const [selectedFolderKey, setSelectedFolderKey] = createSignal<string | undefined>()
   const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<string>>(new Set())
 
@@ -35,7 +35,7 @@ const useMailStore = (options: MailStoreOptions) => {
       accounts: options.config()?.accounts ?? [],
       mailboxes: visibleMailboxes(),
       counts: counts(),
-      virtual: virtual(),
+      unread: unread(),
       collapsed: collapsedAccounts(),
     }),
   )
@@ -78,11 +78,11 @@ const useMailStore = (options: MailStoreOptions) => {
         yield* Effect.gen(function* queryFolderRows() {
           const rows = yield* listMailboxes()
           const counters = yield* messageCounts()
-          const totals = yield* virtualCounts()
+          const unreadTotal = yield* unreadMessageCount()
           yield* Effect.sync(() => {
             setMailboxes(rows)
             setCounts(counters)
-            setVirtual(totals)
+            setUnread(unreadTotal)
             selectInitialFolder()
           })
         }).pipe(
@@ -180,7 +180,7 @@ const useMailStore = (options: MailStoreOptions) => {
     selectedFolderKey,
     selectedFolderRow,
     selectedMailbox,
-    virtual,
+    unread,
     visibleMailboxes,
     loadFolderData,
     moveFolderSelection,

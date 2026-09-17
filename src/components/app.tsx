@@ -128,7 +128,6 @@ const App = () => {
                   messages={store.messages()}
                   selectedId={store.selectedMessageId()}
                   focused={pane() === "list"}
-                  showMailbox={store.listIsVirtual()}
                 />
               </box>
             </Show>

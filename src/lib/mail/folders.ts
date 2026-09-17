@@ -1,6 +1,6 @@
 import type { AccountConfig } from "@/lib/config/schema"
 import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts, VirtualCounts, VirtualFolderKind } from "@/lib/store/messages"
+import type { MailboxCounts, VirtualFolderKind } from "@/lib/store/messages"
 
 type FolderRowKind = "virtual" | "account" | "mailbox"
 type FolderCountTone = "unread" | "muted"
@@ -11,7 +11,7 @@ interface FolderRow {
   readonly label: string
   readonly marker: string
   readonly indented: boolean
-  readonly count: number
+  readonly count: number | undefined
   readonly tone: FolderCountTone
   readonly accountId: string | undefined
   readonly mailboxPath: string | undefined
@@ -25,7 +25,7 @@ interface FolderTreeInput {
   readonly accounts: readonly AccountConfig[]
   readonly mailboxes: readonly MailboxRow[]
   readonly counts: ReadonlyMap<number, MailboxCounts>
-  readonly virtual: VirtualCounts
+  readonly unread: number
   readonly collapsed: ReadonlySet<string>
 }
 
@@ -54,7 +54,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       label: "All emails",
       marker: "",
       indented: false,
-      count: input.virtual.all,
+      count: undefined,
       tone: "muted",
       accountId: undefined,
       mailboxPath: undefined,
@@ -65,7 +65,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       label: "All unread",
       marker: "",
       indented: false,
-      count: input.virtual.unread,
+      count: input.unread,
       tone: "unread",
       accountId: undefined,
       mailboxPath: undefined,

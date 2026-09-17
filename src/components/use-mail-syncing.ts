@@ -31,7 +31,7 @@ const useMailSyncing = (options: MailSyncOptions) => {
       }
       setSyncing(true)
       options.onStatus(
-        paths === undefined ? "syncing every mailbox" : `syncing ${paths.join(", ")}`,
+        paths === undefined ? "syncing all mailboxes" : `syncing ${paths.join(", ")}`,
       )
       const program = Effect.gen(function* runSync() {
         yield* Effect.logInfo(
@@ -50,12 +50,17 @@ const useMailSyncing = (options: MailSyncOptions) => {
             errors.push(message)
           }
         }
+        const failure = errors[0]
+        const status =
+          failure === undefined
+            ? stored === 0
+              ? "up to date"
+              : `synced · ${stored} new`
+            : errors.length > 1
+              ? `sync failed · ${failure} (+${errors.length - 1} more)`
+              : `sync failed · ${failure}`
         yield* Effect.sync(() => {
-          options.onStatus(
-            errors.length > 0
-              ? `sync failed · ${errors.join(" · ")}`
-              : `synced · ${stored} new message(s)`,
-          )
+          options.onStatus(status)
         })
         yield* errors.length > 0
           ? Effect.logWarning(`sync failed · ${errors.join(" · ")}`)

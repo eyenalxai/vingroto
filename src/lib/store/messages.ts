@@ -15,7 +15,6 @@ interface MessageListItem {
   readonly accountId: string
   readonly mailboxId: number
   readonly mailboxPath: string
-  readonly mailboxName: string
   readonly subject: string | null
   readonly fromName: string | null
   readonly fromAddress: string | null
@@ -28,6 +27,7 @@ interface MessageListItem {
 }
 
 interface MessageDetail extends MessageListItem {
+  readonly mailboxName: string
   readonly messageId: string | null
   readonly inReplyTo: string | null
   readonly to: readonly MailAddress[] | null
@@ -38,11 +38,6 @@ interface MessageDetail extends MessageListItem {
 
 interface MailboxCounts {
   readonly total: number
-  readonly unread: number
-}
-
-interface VirtualCounts {
-  readonly all: number
   readonly unread: number
 }
 
@@ -70,7 +65,6 @@ const listColumns = {
   accountId: MessageTable.account_id,
   mailboxId: MessageTable.mailbox_id,
   mailboxPath: MailboxTable.path,
-  mailboxName: MailboxTable.name,
   subject: MessageTable.subject,
   fromName: MessageTable.from_name,
   fromAddress: MessageTable.from_address,
@@ -189,6 +183,7 @@ const getMessage = Effect.fn("Message.get")(function* get(messageId: number) {
   const rows = yield* database.client
     .select({
       ...listColumns,
+      mailboxName: MailboxTable.name,
       messageId: MessageTable.message_id,
       inReplyTo: MessageTable.in_reply_to,
       to: MessageTable.to,
@@ -260,14 +255,13 @@ const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes()
   return result
 })
 
-const virtualCounts = Effect.fn("Message.virtualCounts")(function* countsForVirtualFolders() {
+const unreadMessageCount = Effect.fn("Message.unreadCount")(function* countUnread() {
   const database = yield* Database
-  const totals = yield* database.client.select({ value: count() }).from(MessageTable)
-  const unread = yield* database.client
+  const rows = yield* database.client
     .select({ value: count() })
     .from(MessageTable)
     .where(eq(MessageTable.seen, false))
-  return { all: totals[0]?.value ?? 0, unread: unread[0]?.value ?? 0 }
+  return rows[0]?.value ?? 0
 })
 
 export {
@@ -279,12 +273,11 @@ export {
   messageCounts,
   storeMessageBody,
   storeMessages,
-  virtualCounts,
+  unreadMessageCount,
   type MailboxCounts,
   type MessageBody,
   type MessageDetail,
   type MessageListItem,
   type MessageStoreOutcome,
-  type VirtualCounts,
   type VirtualFolderKind,
 }
