@@ -6,6 +6,7 @@ import * as Schema from "effect/Schema"
 
 import { App } from "@/components/app"
 import { RuntimeProvider } from "@/components/runtime-provider"
+import { ThemeProvider } from "@/components/theme-provider"
 import { createAppRuntime } from "@/lib/runtime"
 
 class StartupError extends Schema.TaggedError<StartupError>()("StartupError", {
@@ -36,7 +37,9 @@ const program = Effect.gen(function* main() {
       render(
         () => (
           <RuntimeProvider runtime={runtime}>
-            <App />
+            <ThemeProvider>
+              <App />
+            </ThemeProvider>
           </RuntimeProvider>
         ),
         renderer,

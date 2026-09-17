@@ -6,6 +6,7 @@ import type { Pane } from "@/components/pane-layout"
 import type { MailStore } from "@/components/use-mail-store"
 
 import { paneOrder } from "@/components/pane-layout"
+import { clearSelection, copySelection, hasSelection } from "@/lib/selection"
 
 interface AppKeysOptions {
   readonly renderer: CliRenderer
@@ -14,6 +15,7 @@ interface AppKeysOptions {
   readonly setPane: (pane: Pane) => void
   readonly readerScroll: () => ScrollBoxRenderable | undefined
   readonly syncWindow: (paths: readonly string[] | undefined, accountId?: string) => void
+  readonly onStatus: (message: string) => void
 }
 
 const useAppKeys = (options: AppKeysOptions) => {
@@ -88,6 +90,26 @@ const useAppKeys = (options: AppKeysOptions) => {
     }
   }
 
+  const handleSelectionKey = (key: KeyEvent): boolean => {
+    if (hasSelection(options.renderer)) {
+      if (key.ctrl && key.name === "c") {
+        const outcome = copySelection(options.renderer)
+        if (outcome === "copied") {
+          options.onStatus("selection copied to the clipboard")
+        } else if (outcome === "unsupported") {
+          options.onStatus("this terminal cannot write to the clipboard")
+        }
+        return true
+      }
+      if (key.name === "escape") {
+        clearSelection(options.renderer)
+        return true
+      }
+      clearSelection(options.renderer)
+    }
+    return false
+  }
+
   const handleActionKey = (key: KeyEvent): boolean => {
     if ((key.ctrl && key.name === "c") || (key.name === "q" && !key.ctrl)) {
       options.renderer.destroy()
@@ -155,6 +177,9 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   useKeyboard((key: KeyEvent) => {
+    if (handleSelectionKey(key)) {
+      return
+    }
     if (handleActionKey(key)) {
       return
     }

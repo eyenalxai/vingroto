@@ -2,13 +2,14 @@ import { Show } from "solid-js"
 
 import type { BootReport } from "@/lib/boot"
 
-import { theme } from "@/lib/theme"
+import { useTheme } from "@/components/theme-provider"
 
 interface StartupScreenProps {
   readonly report: BootReport | undefined
 }
 
 const StartupScreen = (props: StartupScreenProps) => {
+  const theme = useTheme()
   const failed = () => props.report?.config._tag === "error"
   const message = () => {
     const value = props.report

@@ -4,8 +4,8 @@ import { For, Show, createEffect, createSignal } from "solid-js"
 
 import type { FolderRow } from "@/lib/mail/folders"
 
+import { useTheme } from "@/components/theme-provider"
 import { truncate } from "@/lib/format"
-import { theme } from "@/lib/theme"
 
 interface FolderPaneProps {
   readonly rows: readonly FolderRow[]
@@ -23,6 +23,7 @@ const badgeLabel = (count: number | undefined) => {
 }
 
 const FolderPane = (props: FolderPaneProps) => {
+  const theme = useTheme()
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
   const virtualRows = () => props.rows.filter((row) => row.kind === "global")

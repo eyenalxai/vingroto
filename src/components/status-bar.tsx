@@ -1,7 +1,7 @@
 import { useTerminalDimensions } from "@opentui/solid"
 import { Show } from "solid-js"
 
-import { theme } from "@/lib/theme"
+import { useTheme } from "@/components/theme-provider"
 
 interface StatusBarProps {
   readonly message: string
@@ -12,6 +12,7 @@ interface StatusBarProps {
 const hintMinimumWidth = 80
 
 const StatusBar = (props: StatusBarProps) => {
+  const theme = useTheme()
   const dimensions = useTerminalDimensions()
   const hintVisible = () => dimensions().width >= hintMinimumWidth
 

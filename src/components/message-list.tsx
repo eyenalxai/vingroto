@@ -4,8 +4,8 @@ import { For, Show, createEffect, createSignal } from "solid-js"
 
 import type { MessageListItem } from "@/lib/store/messages"
 
+import { useTheme } from "@/components/theme-provider"
 import { formatMessageDate, senderLabel } from "@/lib/format"
-import { theme } from "@/lib/theme"
 
 interface MessageListProps {
   readonly title: string
@@ -19,6 +19,7 @@ const senderMinimumWidth = 8
 const subjectMinimumWidth = 10
 
 const MessageList = (props: MessageListProps) => {
+  const theme = useTheme()
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
   createEffect(() => {

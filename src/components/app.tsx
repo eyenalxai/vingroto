@@ -24,6 +24,7 @@ import { useMailStore } from "@/components/use-mail-store"
 import { useMailSyncing } from "@/components/use-mail-syncing"
 import { boot } from "@/lib/boot"
 import { openExternal } from "@/lib/external"
+import { clearSelection, isCollapsedSelection } from "@/lib/selection"
 
 const App = () => {
   const runtime = useRuntime()
@@ -101,6 +102,9 @@ const App = () => {
     },
     readerScroll,
     syncWindow,
+    onStatus: (value: string) => {
+      setStatus(value)
+    },
   })
 
   createEffect(() => {
@@ -126,7 +130,16 @@ const App = () => {
   })
 
   return (
-    <box width="100%" height="100%" flexDirection="column">
+    <box
+      width="100%"
+      height="100%"
+      flexDirection="column"
+      onMouseUp={() => {
+        if (isCollapsedSelection(renderer)) {
+          clearSelection(renderer)
+        }
+      }}
+    >
       <Show when={appConfig()} fallback={<StartupScreen report={report()} />}>
         <box flexGrow={1} flexDirection="column">
           <box flexGrow={1} flexDirection="row" gap={1}>
