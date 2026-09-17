@@ -53,6 +53,25 @@ type MailboxWindowResult =
   | { readonly _tag: "ok"; readonly path: string; readonly snapshot: MailboxSnapshot }
   | { readonly _tag: "error"; readonly path: string; readonly message: string }
 
+interface MessageSourceRequest {
+  readonly mailboxPath: string
+  readonly uid: number
+}
+
+type MessageSourceResult =
+  | {
+      readonly _tag: "ok"
+      readonly mailboxPath: string
+      readonly uid: number
+      readonly source: Buffer
+    }
+  | {
+      readonly _tag: "error"
+      readonly mailboxPath: string
+      readonly uid: number
+      readonly message: string
+    }
+
 export {
   ImapError,
   type ImapServiceError,
@@ -61,4 +80,6 @@ export {
   type MailboxWindowRequest,
   type MailboxWindowResult,
   type MessageEnvelope,
+  type MessageSourceRequest,
+  type MessageSourceResult,
 }

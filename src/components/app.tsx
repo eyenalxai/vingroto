@@ -61,7 +61,10 @@ const App = () => {
     onStatus: (value: string) => {
       setStatus(value)
     },
-    onSynced: store.loadFolderData,
+    onSynced: () => {
+      store.loadFolderData()
+      store.prefetchUnread()
+    },
     runtime,
   })
 

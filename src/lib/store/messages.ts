@@ -6,8 +6,7 @@ import type { MailAddress } from "@/lib/mail/address"
 import type { MessageEnvelope } from "@/lib/mail/imap-types"
 
 import { Database } from "@/lib/db/database"
-import { MailboxTable, MessageBodyTable, MessageTable } from "@/lib/db/schema"
-import { toSnippet } from "@/lib/format"
+import { MailboxTable, MessageTable } from "@/lib/db/schema"
 
 interface MessageListItem {
   readonly id: number
@@ -39,11 +38,6 @@ interface MessageDetail extends MessageListItem {
 interface MailboxCounts {
   readonly total: number
   readonly unread: number
-}
-
-interface MessageBody {
-  readonly text: string | null
-  readonly html: string | null
 }
 
 interface MessageStoreInput {
@@ -198,41 +192,6 @@ const getMessage = Effect.fn("Message.get")(function* get(messageId: number) {
   return rows[0]
 })
 
-const getMessageBody = Effect.fn("Message.getBody")(function* getBody(messageId: number) {
-  const database = yield* Database
-  const rows = yield* database.client
-    .select({ text: MessageBodyTable.text, html: MessageBodyTable.html })
-    .from(MessageBodyTable)
-    .where(eq(MessageBodyTable.message_id, messageId))
-    .limit(1)
-  return rows[0]
-})
-
-const storeMessageBody = Effect.fn("Message.storeBody")(function* storeBody(
-  messageId: number,
-  body: MessageBody,
-  hasAttachments: boolean,
-) {
-  const database = yield* Database
-  const now = yield* Clock.currentTimeMillis
-  yield* database.client
-    .insert(MessageBodyTable)
-    .values({ message_id: messageId, text: body.text, html: body.html, fetched_at: now })
-    .onConflictDoUpdate({
-      target: MessageBodyTable.message_id,
-      set: { text: body.text, html: body.html, fetched_at: now },
-    })
-  yield* database.client
-    .update(MessageTable)
-    .set({
-      body_fetched_at: now,
-      snippet: toSnippet(body.text),
-      has_attachments: hasAttachments,
-      updated_at: now,
-    })
-    .where(eq(MessageTable.id, messageId))
-})
-
 const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes() {
   const database = yield* Database
   const totals = yield* database.client
@@ -267,15 +226,12 @@ const unreadMessageCount = Effect.fn("Message.unreadCount")(function* countUnrea
 export {
   deleteMailboxMessages,
   getMessage,
-  getMessageBody,
   listMessages,
   listVirtualMessages,
   messageCounts,
-  storeMessageBody,
   storeMessages,
   unreadMessageCount,
   type MailboxCounts,
-  type MessageBody,
   type MessageDetail,
   type MessageListItem,
   type MessageStoreOutcome,

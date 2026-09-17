@@ -11,6 +11,7 @@ import type { MailboxCounts } from "@/lib/store/messages"
 import { useMessagePane } from "@/components/use-message-pane"
 import { describeError } from "@/lib/errors"
 import { buildFolderRows, parseFolderKey } from "@/lib/mail/folders"
+import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine, describeSyncEvent } from "@/lib/mail/sync"
 import { listMailboxes } from "@/lib/store/mailboxes"
 import { messageCounts, unreadMessageCount } from "@/lib/store/messages"
@@ -97,6 +98,20 @@ const useMailStore = (options: MailStoreOptions) => {
     })
   }
 
+  const prefetchUnread = () => {
+    untrack(() => {
+      const config = options.config()
+      if (config === undefined) {
+        return
+      }
+      const program = Effect.gen(function* prefetchUnreadBodies() {
+        const prefetch = yield* MessagePrefetch
+        yield* prefetch.unread(config.accounts)
+      })
+      options.runtime.runFork(program)
+    })
+  }
+
   const moveFolderSelection = (delta: number) => {
     const rows = folderRows()
     const index = rows.findIndex((row) => row.key === selectedFolderKey())
@@ -152,6 +167,7 @@ const useMailStore = (options: MailStoreOptions) => {
       return
     }
     loadFolderData()
+    prefetchUnread()
   })
 
   createEffect(() => {
@@ -184,6 +200,7 @@ const useMailStore = (options: MailStoreOptions) => {
     visibleMailboxes,
     loadFolderData,
     moveFolderSelection,
+    prefetchUnread,
     toggleAccountRow,
   }
 }

@@ -8,6 +8,7 @@ import { Database } from "@/lib/db/database"
 import { LoggingLayer } from "@/lib/logging"
 import { MessageBodies } from "@/lib/mail/bodies"
 import { Imap } from "@/lib/mail/imap"
+import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine } from "@/lib/mail/sync"
 
 const ServicesLayer = Layer.mergeAll(AppPaths.layer, Credential.layer).pipe(
@@ -23,6 +24,7 @@ const VingrotoLayer = Layer.mergeAll(
   CoreLayer,
   SyncEngine.layer.pipe(Layer.provide(CoreLayer)),
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
+  MessagePrefetch.layer.pipe(Layer.provide(CoreLayer)),
 )
 
 const createAppRuntime = () => ManagedRuntime.make(VingrotoLayer)

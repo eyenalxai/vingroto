@@ -8,7 +8,6 @@ import { addressList, formatBytes, formatMessageDateTime, htmlToText, truncate }
 import { theme } from "@/lib/theme"
 
 type BodyState =
-  | { readonly _tag: "empty" }
   | { readonly _tag: "loading" }
   | { readonly _tag: "error"; readonly message: string }
   | { readonly _tag: "loaded"; readonly text: string | null; readonly html: string | null }
@@ -20,32 +19,29 @@ interface HeaderLine {
 
 interface MessageViewProps {
   readonly detail: MessageDetail | undefined
-  readonly body: BodyState
+  readonly body: BodyState | undefined
   readonly focused: boolean
   readonly accountLabels: ReadonlyMap<string, string>
   readonly onScrollRef: (box: ScrollBoxRenderable) => void
 }
 
-const messageBodyText = (state: BodyState): string => {
-  if (state._tag === "loading") {
+const messageBodyText = (state: BodyState | undefined): string => {
+  if (state === undefined || state._tag === "loading") {
     return "loading message…"
   }
   if (state._tag === "error") {
     return `could not load the message\n\n${state.message}`
   }
-  if (state._tag === "loaded") {
-    if (state.text !== null && state.text.trim().length > 0) {
-      return state.text
-    }
-    if (state.html !== null) {
-      const converted = htmlToText(state.html)
-      if (converted.length > 0) {
-        return converted
-      }
-    }
-    return "(this message has no readable text body)"
+  if (state.text !== null && state.text.trim().length > 0) {
+    return state.text
   }
-  return "press enter to download this message"
+  if (state.html !== null) {
+    const converted = htmlToText(state.html)
+    if (converted.length > 0) {
+      return converted
+    }
+  }
+  return "(this message has no readable text body)"
 }
 
 const senderValue = (detail: MessageDetail): string => {

@@ -3,21 +3,16 @@ import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as Schema from "effect/Schema"
-import PostalMime from "postal-mime"
 
 import type { AccountConfig } from "@/lib/config/schema"
 import type { ImapServiceError } from "@/lib/mail/imap-types"
-import type { MessageBody } from "@/lib/store/messages"
+import type { BodyParseError } from "@/lib/mail/parse"
+import type { MessageBody } from "@/lib/store/bodies"
 
 import { Database } from "@/lib/db/database"
-import { describeError } from "@/lib/errors"
 import { Imap } from "@/lib/mail/imap"
-import { getMessageBody, storeMessageBody } from "@/lib/store/messages"
-
-class BodyParseError extends Schema.TaggedError<BodyParseError>()("BodyParseError", {
-  message: Schema.String,
-}) {}
+import { parseMessageSource } from "@/lib/mail/parse"
+import { getMessageBody, storeMessageBody } from "@/lib/store/bodies"
 
 interface BodyRequest {
   readonly account: AccountConfig
@@ -31,19 +26,6 @@ interface MessageBodiesShape {
     request: BodyRequest,
   ) => Effect.Effect<MessageBody, ImapServiceError | BodyParseError | EffectDrizzleQueryError>
 }
-
-const decodeSource = (source: Buffer) =>
-  Effect.tryPromise({
-    try: async () => {
-      const parsed = await PostalMime.parse(source)
-      return {
-        text: parsed.text ?? null,
-        html: parsed.html ?? null,
-        attachments: parsed.attachments.length,
-      }
-    },
-    catch: (cause) => new BodyParseError({ message: describeError(cause) }),
-  })
 
 class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()(
   "vingroto/lib/mail/MessageBodies",
@@ -73,7 +55,7 @@ class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()
           request.mailboxPath,
           request.uid,
         )
-        const parsed = yield* decodeSource(source)
+        const parsed = yield* parseMessageSource(source)
         const body: MessageBody = { text: parsed.text, html: parsed.html }
         yield* storeMessageBody(request.messageId, body, parsed.attachments > 0)
         yield* Effect.logInfo("body cached").pipe(

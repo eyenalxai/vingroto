@@ -1,5 +1,5 @@
-import { Effect } from "effect"
-import { createEffect, createMemo, createSignal, untrack } from "solid-js"
+import { Effect, Fiber } from "effect"
+import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 
 import type { BodyState } from "@/components/message-view"
 import type { AppConfig } from "@/lib/config/schema"
@@ -9,7 +9,8 @@ import type { MessageDetail, MessageListItem, VirtualFolderKind } from "@/lib/st
 import { describeError } from "@/lib/errors"
 import { MessageBodies } from "@/lib/mail/bodies"
 import { parseFolderKey } from "@/lib/mail/folders"
-import { getMessage, getMessageBody, listMessages, listVirtualMessages } from "@/lib/store/messages"
+import { getMessageBody } from "@/lib/store/bodies"
+import { getMessage, listMessages, listVirtualMessages } from "@/lib/store/messages"
 
 const messageWindow = 500
 
@@ -23,7 +24,7 @@ interface MessagePaneOptions {
 const useMessagePane = (options: MessagePaneOptions) => {
   const [messages, setMessages] = createSignal<readonly MessageListItem[]>([])
   const [detail, setDetail] = createSignal<MessageDetail | undefined>()
-  const [body, setBody] = createSignal<BodyState>({ _tag: "empty" })
+  const [body, setBody] = createSignal<BodyState | undefined>()
   const [selectedMessageId, setSelectedMessageId] = createSignal<number | undefined>()
 
   const selectedMessage = createMemo(() => messages().find((row) => row.id === selectedMessageId()))
@@ -106,80 +107,61 @@ const useMessagePane = (options: MessagePaneOptions) => {
     })
   }
 
-  const loadCachedBody = (messageId: number) => {
-    untrack(() => {
-      const program = Effect.gen(function* loadCachedMessageBody() {
-        yield* Effect.gen(function* queryMessageBody() {
-          const cached = yield* getMessageBody(messageId)
-          yield* Effect.sync(() => {
-            if (selectedMessageId() !== messageId) {
-              return
-            }
-            if (cached === undefined) {
-              setBody({ _tag: "empty" })
-              return
-            }
-            setBody({ _tag: "loaded", text: cached.text, html: cached.html })
-          })
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              options.onStatus(`database error · ${describeError(error)}`)
-            }),
-          ),
-        )
-      })
-      options.runtime.runFork(program)
-    })
+  const applyBody = (messageId: number, state: BodyState) => {
+    if (selectedMessageId() === messageId) {
+      setBody(state)
+    }
   }
 
-  const downloadBody = () => {
+  const loadBody = (messageId: number) =>
     untrack(() => {
-      const message = selectedMessage()
-      const config = options.config()
-      if (message === undefined || config === undefined) {
-        return
-      }
-      const state = body()
-      if (state._tag === "loading" || state._tag === "loaded") {
-        return
-      }
-      const account = config.accounts.find((entry) => entry.id === message.accountId)
-      if (account === undefined) {
-        setBody({
-          _tag: "error",
-          message: `account ${message.accountId} is not part of the configuration`,
-        })
-        return
-      }
-      setBody({ _tag: "loading" })
       const program = Effect.gen(function* loadMessageBody() {
-        yield* Effect.gen(function* fetchMessageBody() {
+        yield* Effect.gen(function* readMessageBody() {
+          const message = messages().find((row) => row.id === messageId)
+          const config = options.config()
+          if (message === undefined || config === undefined) {
+            return
+          }
+          const account = config.accounts.find((entry) => entry.id === message.accountId)
+          if (account === undefined) {
+            yield* Effect.sync(() => {
+              applyBody(messageId, {
+                _tag: "error",
+                message: `account ${message.accountId} is not part of the configuration`,
+              })
+            })
+            return
+          }
+          const cached = yield* getMessageBody(messageId)
+          if (cached !== undefined) {
+            yield* Effect.sync(() => {
+              applyBody(messageId, { _tag: "loaded", text: cached.text, html: cached.html })
+            })
+            return
+          }
+          yield* Effect.sync(() => {
+            applyBody(messageId, { _tag: "loading" })
+          })
           const bodies = yield* MessageBodies
           const loaded = yield* bodies.load({
             account,
             mailboxPath: message.mailboxPath,
-            messageId: message.id,
+            messageId,
             uid: message.uid,
           })
           yield* Effect.sync(() => {
-            if (selectedMessageId() === message.id) {
-              setBody({ _tag: "loaded", text: loaded.text, html: loaded.html })
-            }
+            applyBody(messageId, { _tag: "loaded", text: loaded.text, html: loaded.html })
           })
         }).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              if (selectedMessageId() === message.id) {
-                setBody({ _tag: "error", message: describeError(error) })
-              }
+              applyBody(messageId, { _tag: "error", message: describeError(error) })
             }),
           ),
         )
       })
-      options.runtime.runFork(program)
+      return options.runtime.runFork(program)
     })
-  }
 
   const moveMessageSelection = (delta: number) => {
     const rows = messages()
@@ -219,11 +201,18 @@ const useMessagePane = (options: MessagePaneOptions) => {
     const messageId = selectedMessageId()
     if (messageId === undefined) {
       setDetail()
-      setBody({ _tag: "empty" })
+      setBody(undefined)
       return
     }
     loadDetail(messageId)
-    loadCachedBody(messageId)
+    const fiber = loadBody(messageId)
+    if (fiber === undefined) {
+      return
+    }
+    onCleanup(() => {
+      // Moving the selection cancels a body download that is no longer on screen.
+      options.runtime.runFork(Fiber.interrupt(fiber))
+    })
   })
 
   return {
@@ -232,7 +221,6 @@ const useMessagePane = (options: MessagePaneOptions) => {
     messages,
     selectedMessage,
     selectedMessageId,
-    downloadBody,
     moveMessageSelection,
     reloadCurrent,
   }

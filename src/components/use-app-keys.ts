@@ -77,11 +77,8 @@ const useAppKeys = (options: AppKeysOptions) => {
       return
     }
     if (current === "list") {
-      options.store.downloadBody()
       focusNextPane()
-      return
     }
-    options.store.downloadBody()
   }
 
   const toggleFocusedAccount = () => {

@@ -1,7 +1,4 @@
-import type { FetchMessageObject, FetchQueryObject } from "imapflow"
-
 import * as Context from "effect/Context"
-import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { ImapFlow } from "imapflow"
@@ -10,30 +7,21 @@ import type { AccountConfig } from "@/lib/config/schema"
 import type {
   ImapServiceError,
   MailboxInfo,
-  MailboxSnapshot,
   MailboxWindowRequest,
   MailboxWindowResult,
-  MessageEnvelope,
+  MessageSourceRequest,
+  MessageSourceResult,
 } from "@/lib/mail/imap-types"
 
 import { Credential } from "@/lib/credential/service"
-import { describeError } from "@/lib/errors"
-import { toMailboxInfos, toMessageEnvelope } from "@/lib/mail/imap-mapping"
-import { ImapError } from "@/lib/mail/imap-types"
-
-const connectTimeout = Duration.seconds(30)
-const commandTimeout = Duration.minutes(2)
-const logoutTimeout = Duration.seconds(10)
-const fetchBatchSize = 200
-const maxSourceBytes = 32 * 1024 * 1024
-
-const envelopeQuery: FetchQueryObject = {
-  uid: true,
-  envelope: true,
-  flags: true,
-  size: true,
-  internalDate: true,
-}
+import { commandTimeout, connectTimeout, guard, releaseClient } from "@/lib/mail/imap-command"
+import { fetchMailboxResult } from "@/lib/mail/imap-mailbox"
+import { toMailboxInfos } from "@/lib/mail/imap-mapping"
+import {
+  groupRequestsByMailbox,
+  readMailboxSources,
+  readMessageSource,
+} from "@/lib/mail/imap-message"
 
 interface ImapShape {
   readonly listMailboxes: (
@@ -48,187 +36,11 @@ interface ImapShape {
     mailboxPath: string,
     uid: number,
   ) => Effect.Effect<Buffer, ImapServiceError>
+  readonly fetchMessageSources: (
+    account: AccountConfig,
+    requests: readonly MessageSourceRequest[],
+  ) => Effect.Effect<readonly MessageSourceResult[], ImapServiceError>
 }
-
-const toImapError = (account: AccountConfig, operation: string, cause: unknown) =>
-  new ImapError({ accountId: account.id, operation, message: describeError(cause) })
-
-const timedOut = (account: AccountConfig, operation: string, timeout: Duration.Duration) =>
-  new ImapError({
-    accountId: account.id,
-    operation,
-    message: `${operation} timed out after ${Duration.toSeconds(timeout)}s`,
-  })
-
-const guard = <A>(
-  account: AccountConfig,
-  operation: string,
-  timeout: Duration.Duration,
-  run: () => Promise<A>,
-) =>
-  Effect.tryPromise({
-    try: run,
-    catch: (cause: unknown) => toImapError(account, operation, cause),
-  }).pipe(
-    Effect.timeout(timeout),
-    Effect.catchTag("TimeoutError", () => Effect.fail(timedOut(account, operation, timeout))),
-  )
-
-const withMailboxLock = <A, E, R>(
-  client: ImapFlow,
-  account: AccountConfig,
-  mailboxPath: string,
-  readOnly: boolean,
-  use: Effect.Effect<A, E, R>,
-) =>
-  Effect.acquireUseRelease(
-    guard(account, `select ${mailboxPath}`, commandTimeout, async () =>
-      client.getMailboxLock(mailboxPath, { readOnly }),
-    ),
-    () => use,
-    (lock) =>
-      Effect.sync(() => {
-        lock.release()
-      }),
-  )
-
-const collectUids = (
-  client: ImapFlow,
-  account: AccountConfig,
-  request: MailboxWindowRequest,
-  uidNext: number,
-) =>
-  Effect.gen(function* collectMailboxUids() {
-    const fromUid = request.fromUid
-    if (fromUid !== undefined) {
-      if (fromUid >= uidNext) {
-        return []
-      }
-      const found = yield* guard(account, `search ${request.path}`, commandTimeout, async () =>
-        client.search({ uid: `${fromUid}:*` }, { uid: true }),
-      )
-      const uids = found === false || found === undefined ? [] : found
-      return uids.filter((uid) => uid >= fromUid)
-    }
-    const since = request.since
-    if (since === undefined) {
-      return []
-    }
-    const found = yield* guard(account, `search ${request.path}`, commandTimeout, async () =>
-      client.search({ since }, { uid: true }),
-    )
-    return found === false || found === undefined ? [] : found
-  })
-
-const fetchEnvelopes = (client: ImapFlow, account: AccountConfig, uids: readonly number[]) =>
-  Effect.gen(function* fetchMessageEnvelopes() {
-    const messages: MessageEnvelope[] = []
-    for (let index = 0; index < uids.length; index += fetchBatchSize) {
-      const batch = uids.slice(index, index + fetchBatchSize)
-      const fetched = yield* guard(account, "fetch envelopes", commandTimeout, async () => {
-        const collected: FetchMessageObject[] = []
-        for await (const message of client.fetch(batch, envelopeQuery, { uid: true })) {
-          collected.push(message)
-        }
-        return collected
-      })
-      for (const message of fetched) {
-        messages.push(toMessageEnvelope(message))
-      }
-    }
-    return messages
-  })
-
-const fetchMailbox = (client: ImapFlow, account: AccountConfig, request: MailboxWindowRequest) =>
-  withMailboxLock(
-    client,
-    account,
-    request.path,
-    false,
-    Effect.gen(function* readMailboxContents() {
-      const mailbox = client.mailbox
-      if (mailbox === false) {
-        return yield* new ImapError({
-          accountId: account.id,
-          operation: `select ${request.path}`,
-          message: "the mailbox could not be opened",
-        })
-      }
-      const uids = yield* collectUids(client, account, request, mailbox.uidNext)
-      const messages = yield* fetchEnvelopes(client, account, uids)
-      const snapshot: MailboxSnapshot = {
-        path: request.path,
-        uidValidity: Number(mailbox.uidValidity),
-        exists: mailbox.exists,
-        messages,
-      }
-      return snapshot
-    }),
-  )
-
-const fetchMailboxResult = (
-  client: ImapFlow,
-  account: AccountConfig,
-  request: MailboxWindowRequest,
-) =>
-  Effect.gen(function* resolveMailboxWindow() {
-    const outcome = yield* fetchMailbox(client, account, request).pipe(
-      Effect.map((snapshot): MailboxWindowResult => {
-        return { _tag: "ok", path: request.path, snapshot }
-      }),
-      Effect.catch((error) =>
-        Effect.succeed<MailboxWindowResult>({
-          _tag: "error",
-          path: request.path,
-          message: error.message,
-        }),
-      ),
-    )
-    return outcome
-  })
-
-const readMessageSource = (
-  client: ImapFlow,
-  account: AccountConfig,
-  mailboxPath: string,
-  uid: number,
-) =>
-  withMailboxLock(
-    client,
-    account,
-    mailboxPath,
-    true,
-    Effect.gen(function* fetchSource() {
-      const message = yield* guard(account, `fetch message ${uid}`, commandTimeout, async () =>
-        client.fetchOne(uid, { source: true }, { uid: true }),
-      )
-      if (message === false || message === undefined || message.source === undefined) {
-        return yield* new ImapError({
-          accountId: account.id,
-          operation: `fetch message ${uid}`,
-          message: `message ${uid} could not be read from ${mailboxPath}`,
-        })
-      }
-      if (message.source.length > maxSourceBytes) {
-        const limit = Math.round(maxSourceBytes / (1024 * 1024))
-        return yield* new ImapError({
-          accountId: account.id,
-          operation: `fetch message ${uid}`,
-          message: `message ${uid} is larger than ${limit} MB`,
-        })
-      }
-      return message.source
-    }),
-  )
-
-const releaseClient = (account: AccountConfig, client: ImapFlow) =>
-  Effect.gen(function* releaseConnection() {
-    yield* guard(account, "logout", logoutTimeout, async () => client.logout()).pipe(
-      Effect.catch((error) =>
-        Effect.logWarning(`IMAP logout failed for ${account.id}: ${error.message}`),
-      ),
-    )
-  })
 
 class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") {
   static readonly layer = Layer.effect(
@@ -284,6 +96,20 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
           ),
         fetchMessageSource: (account, mailboxPath, uid) =>
           withClient(account, (client) => readMessageSource(client, account, mailboxPath, uid)),
+        fetchMessageSources: (account, requests) => {
+          const groups = groupRequestsByMailbox(requests)
+          if (groups.length === 0) {
+            return Effect.succeed([])
+          }
+          return withClient(account, (client) =>
+            Effect.all(
+              groups.map((group) =>
+                readMailboxSources(client, account, group.mailboxPath, group.uids),
+              ),
+              { concurrency: 1 },
+            ).pipe(Effect.map((chunks) => chunks.flat())),
+          )
+        },
       })
     }),
   )
