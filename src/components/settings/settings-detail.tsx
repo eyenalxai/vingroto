@@ -21,6 +21,7 @@ interface SettingsDetailProps {
   readonly counts: ReadonlyMap<number, MailboxCounts>
   readonly accountProfile: ReturnType<typeof useAccountProfile>
   readonly syncProfile: ReturnType<typeof useSyncProfile>
+  readonly mutingIds: ReadonlySet<number>
 }
 
 const SettingsDetail = (props: SettingsDetailProps) => {
@@ -42,6 +43,8 @@ const SettingsDetail = (props: SettingsDetailProps) => {
             active={props.zone === "detail"}
             valueOf={props.accountProfile.fieldValue}
             onInput={props.accountProfile.input}
+            pending={props.accountProfile.busy()}
+            fieldPending={(id) => props.accountProfile.loading() && id === "username"}
             status={props.accountProfile.busy() ? "saving…" : props.accountProfile.status()}
             statusError={props.accountProfile.statusError()}
             hint="tab field · ⏎ next · ctrl+s save · esc back"
@@ -64,6 +67,7 @@ const SettingsDetail = (props: SettingsDetailProps) => {
           active={props.zone === "detail"}
           valueOf={props.syncProfile.fieldValue}
           onInput={props.syncProfile.input}
+          pending={props.syncProfile.busy()}
           status={props.syncProfile.busy() ? "saving…" : props.syncProfile.status()}
           statusError={props.syncProfile.statusError()}
           hint="tab field · ⏎ next · ctrl+s save · esc back"
@@ -75,8 +79,22 @@ const SettingsDetail = (props: SettingsDetailProps) => {
             mailbox={mailbox()}
             accountLabel={props.accountLabel}
             counts={props.counts.get(mailbox().id)}
+            muting={props.mutingIds.has(mailbox().id)}
           />
         )}
+      </Show>
+      <Show when={props.entry?.kind === "folder-group"}>
+        <box
+          flexGrow={1}
+          flexDirection="column"
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+          gap={1}
+        >
+          <text fg={theme.muted}>folders grouped by account</text>
+          <text fg={theme.muted}>⏎ toggle this group</text>
+        </box>
       </Show>
       <Show when={props.entry?.kind === "add-account"}>
         <box

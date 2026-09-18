@@ -134,18 +134,22 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
       yield* discovery.discover(email).pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
-            setDiscovering(false)
             applyDiscovery(result)
           }),
         ),
         Effect.catch((error) =>
           Effect.sync(() => {
-            setDiscovering(false)
             report(`server detection failed · ${describeError(error)}`, true)
           }),
         ),
       )
-    })
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          setDiscovering(false)
+        }),
+      ),
+    )
     discoveryFiber = runtime.runFork(program)
   }
 
@@ -174,12 +178,17 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
         ),
         Effect.catch((error) =>
           Effect.sync(() => {
-            setBusy(false)
             report(`could not save · ${describeError(error)}`, true)
           }),
         ),
       )
-    })
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          setBusy(false)
+        }),
+      ),
+    )
     runtime.runFork(program)
   }
 
@@ -234,6 +243,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
   return {
     appendPassword,
     applySecret,
+    busy,
     cycleField,
     discovering,
     dispose,

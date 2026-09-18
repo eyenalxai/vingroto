@@ -3,6 +3,7 @@ import { For, Show } from "solid-js"
 import type { FieldDescriptor, FieldId } from "@/components/setup/form-model"
 
 import { FieldRow } from "@/components/setup/form-fields"
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface AccountSetupViewProps {
@@ -12,6 +13,7 @@ interface AccountSetupViewProps {
   readonly focusedId: FieldId | undefined
   readonly valueOf: (id: FieldId) => string
   readonly discovering: boolean
+  readonly busy: boolean
   readonly source: string | undefined
   readonly status: string
   readonly statusError: boolean
@@ -39,11 +41,16 @@ const AccountSetupView = (props: AccountSetupViewProps) => {
         <Show
           when={props.step === "credentials"}
           fallback={
-            <text fg={theme.muted}>
-              {props.discovering
-                ? "detecting mail servers…"
-                : (props.source ?? "servers not detected, enter them below")}
-            </text>
+            <Show
+              when={props.discovering}
+              fallback={
+                <text fg={theme.muted}>
+                  {props.source ?? "servers not detected, enter them below"}
+                </text>
+              }
+            >
+              <Spinner label="detecting mail servers…" />
+            </Show>
           }
         >
           <text fg={theme.muted}>
@@ -64,7 +71,12 @@ const AccountSetupView = (props: AccountSetupViewProps) => {
             )}
           </For>
         </box>
-        <text fg={props.statusError ? theme.error : theme.muted}>{props.status}</text>
+        <Show
+          when={props.busy}
+          fallback={<text fg={props.statusError ? theme.error : theme.muted}>{props.status}</text>}
+        >
+          <Spinner label={props.status} />
+        </Show>
         <text fg={theme.muted}>{props.hint}</text>
       </box>
     </box>

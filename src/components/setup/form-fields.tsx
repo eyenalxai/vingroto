@@ -1,12 +1,14 @@
 import type { FieldDescriptor } from "@/components/setup/form-model"
 
 import { maskSecret, securityLabel } from "@/components/setup/form-model"
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface FieldRowProps<Id extends string> {
   readonly field: FieldDescriptor<Id>
   readonly focused: boolean
   readonly value: string
+  readonly pending?: boolean
   readonly onInput: (value: string) => void
 }
 
@@ -16,6 +18,20 @@ const FieldRow = <Id extends string>(props: FieldRowProps<Id>) => {
   const theme = useTheme()
   const labelColor = () => (props.focused ? theme.accent : theme.muted)
   const valueColor = () => (props.focused ? theme.text : theme.muted)
+  if (props.pending === true) {
+    return (
+      <box flexDirection="row" gap={1}>
+        <box width={labelWidth} flexShrink={0}>
+          <text fg={labelColor()} wrapMode="none" truncate>
+            {props.field.label}
+          </text>
+        </box>
+        <box flexGrow={1} flexDirection="row">
+          <Spinner />
+        </box>
+      </box>
+    )
+  }
   if (props.field.kind === "text") {
     return (
       <box flexDirection="row" gap={1}>

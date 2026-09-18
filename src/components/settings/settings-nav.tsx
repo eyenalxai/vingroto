@@ -1,9 +1,10 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 
-import { For, Show, createEffect, createSignal } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
-import type { SettingsGroup } from "@/components/settings/settings-entries"
+import type { SettingsEntry, SettingsGroup } from "@/components/settings/settings-entries"
 
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { truncate } from "@/lib/format"
 
@@ -11,17 +12,101 @@ interface SettingsNavProps {
   readonly query: string
   readonly onQuery: (value: string) => void
   readonly groups: readonly SettingsGroup[]
+  readonly collapsed: ReadonlySet<string>
+  readonly mutingIds: ReadonlySet<number>
+  readonly mutingAccounts: ReadonlySet<string>
   readonly selectedKey: string | undefined
   readonly searchFocused: boolean
   readonly onSelect: (key: string) => void
   readonly onActivate: (key: string) => void
 }
 
+interface SettingsRowProps {
+  readonly entry: SettingsEntry
+  readonly query: string
+  readonly collapsed: ReadonlySet<string>
+  readonly mutingIds: ReadonlySet<number>
+  readonly mutingAccounts: ReadonlySet<string>
+  readonly selected: boolean
+  readonly onSelect: (key: string) => void
+  readonly onActivate: (key: string) => void
+}
+
 const rowId = (key: string) => `settings-row-${key.replaceAll(":", "-")}`
+
+const groupCollapsed = (entry: SettingsEntry, query: string, collapsed: ReadonlySet<string>) =>
+  entry.kind === "folder-group" && query.trim().length === 0 && collapsed.has(entry.accountId)
+
+const isMuting = (
+  entry: SettingsEntry,
+  mutingIds: ReadonlySet<number>,
+  accounts: ReadonlySet<string>,
+) => {
+  if (entry.kind === "folder") {
+    return mutingIds.has(entry.mailboxId)
+  }
+  if (entry.kind === "folder-group") {
+    return accounts.has(entry.accountId)
+  }
+  return false
+}
+
+const SettingsRow = (props: SettingsRowProps) => {
+  const theme = useTheme()
+  const collapsed = () => groupCollapsed(props.entry, props.query, props.collapsed)
+  const muted = () => props.entry.kind === "folder" && props.entry.muted
+  const textColor = () => {
+    if (props.selected) {
+      return theme.selectionForeground
+    }
+    return props.entry.kind === "folder-group" ? theme.accent : theme.text
+  }
+  const markerColor = () => (props.selected ? theme.selectionForeground : theme.muted)
+  const marker = () => {
+    if (props.entry.kind === "folder-group") {
+      return collapsed() ? "▸" : "▾"
+    }
+    return muted() ? "⊘" : " "
+  }
+  const titleWidth = () => (props.entry.kind === "folder" ? 26 : 28)
+  return (
+    <box
+      id={rowId(props.entry.key)}
+      flexDirection="row"
+      gap={1}
+      paddingLeft={props.entry.kind === "folder" ? 2 : 0}
+      backgroundColor={props.selected ? theme.selectionBackground : undefined}
+      onMouseDown={() => {
+        props.onSelect(props.entry.key)
+        props.onActivate(props.entry.key)
+      }}
+    >
+      <box flexShrink={0}>
+        <Show
+          when={isMuting(props.entry, props.mutingIds, props.mutingAccounts)}
+          fallback={<text fg={markerColor()}>{marker()}</text>}
+        >
+          <Spinner />
+        </Show>
+      </box>
+      <text fg={textColor()} wrapMode="none" truncate>
+        {truncate(props.entry.title, titleWidth())}
+      </text>
+    </box>
+  )
+}
 
 const SettingsNav = (props: SettingsNavProps) => {
   const theme = useTheme()
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
+
+  const selectedIsGroup = createMemo(() =>
+    props.groups.some((group) =>
+      group.entries.some(
+        (entry) => entry.key === props.selectedKey && entry.kind === "folder-group",
+      ),
+    ),
+  )
 
   createEffect(() => {
     const box = scrollBox()
@@ -76,35 +161,18 @@ const SettingsNav = (props: SettingsNavProps) => {
                 </text>
               </box>
               <For each={group.entries}>
-                {(entry) => {
-                  const isSelected = () => entry.key === props.selectedKey
-                  return (
-                    <box
-                      id={rowId(entry.key)}
-                      flexDirection="row"
-                      gap={1}
-                      backgroundColor={isSelected() ? theme.selectionBackground : undefined}
-                      onMouseDown={() => {
-                        props.onSelect(entry.key)
-                        props.onActivate(entry.key)
-                      }}
-                    >
-                      <text
-                        fg={isSelected() ? theme.selectionForeground : theme.muted}
-                        flexShrink={0}
-                      >
-                        {entry.kind === "folder" && entry.muted ? "⊘" : " "}
-                      </text>
-                      <text
-                        fg={isSelected() ? theme.selectionForeground : theme.text}
-                        wrapMode="none"
-                        truncate
-                      >
-                        {truncate(entry.title, 28)}
-                      </text>
-                    </box>
-                  )
-                }}
+                {(entry) => (
+                  <SettingsRow
+                    entry={entry}
+                    query={props.query}
+                    collapsed={props.collapsed}
+                    mutingIds={props.mutingIds}
+                    mutingAccounts={props.mutingAccounts}
+                    selected={entry.key === props.selectedKey}
+                    onSelect={props.onSelect}
+                    onActivate={props.onActivate}
+                  />
+                )}
               </For>
             </>
           )}
@@ -112,7 +180,7 @@ const SettingsNav = (props: SettingsNavProps) => {
       </scrollbox>
       <box paddingLeft={1} paddingRight={1} flexShrink={0}>
         <text fg={theme.muted} wrapMode="none" truncate>
-          ↑↓ move · ⏎ edit · esc close
+          {`↑↓ move · ⏎ ${selectedIsGroup() ? "toggle" : "edit"} · esc close`}
         </text>
       </box>
     </box>

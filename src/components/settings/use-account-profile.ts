@@ -49,9 +49,11 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
   const [status, setStatus] = createSignal("")
   const [statusError, setStatusError] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
+  const [loading, setLoading] = createSignal(false)
   const fields: readonly FieldDescriptor[] = editFields
   let usernameEdited = false
   let loadedUsernameId: string | null = null
+  let loadToken = 0
   let usernameFiber: Fiber.Fiber<unknown, unknown> | null = null
 
   const focusedField = createMemo(() => fields[focusIndex()])
@@ -79,6 +81,9 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
       return
     }
     loadedUsernameId = account.id
+    loadToken += 1
+    const token = loadToken
+    setLoading(true)
     const program = Effect.gen(function* loadStoredUsername() {
       const credential = yield* Credential
       const stored = yield* credential.get(usernameReference(account.id)).pipe(
@@ -96,7 +101,15 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
           setDraft("username", stored)
         }
       })
-    })
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (loadToken === token) {
+            setLoading(false)
+          }
+        }),
+      ),
+    )
     usernameFiber = options.runtime.runFork(program)
   })
 
@@ -239,6 +252,7 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
     focusedField,
     handleKey,
     input,
+    loading,
     save,
     status,
     statusError,

@@ -118,6 +118,7 @@ const AccountSetup = (props: AccountSetupProps) => {
       focusedId={form.focusedField()?.id}
       valueOf={form.fieldValue}
       discovering={form.discovering()}
+      busy={form.busy()}
       source={form.source()}
       status={form.status()}
       statusError={form.statusError()}

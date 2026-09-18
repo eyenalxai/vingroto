@@ -1,7 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import { Effect } from "effect"
 import { createEffect, createMemo, createSignal } from "solid-js"
 
 import type { AccountConfig, SyncConfig } from "@/lib/config/schema"
@@ -14,13 +13,14 @@ import {
   buildSettingsEntries,
   filterSettingsEntries,
   groupSettingsEntries,
+  resolveSelectionKey,
+  visibleSettingsEntries,
 } from "@/components/settings/settings-entries"
 import { SettingsNav } from "@/components/settings/settings-nav"
 import { useAccountProfile } from "@/components/settings/use-account-profile"
+import { useFolderMute } from "@/components/settings/use-folder-mute"
 import { useSyncProfile } from "@/components/settings/use-sync-profile"
 import { useTheme } from "@/components/theme-provider"
-import { describeError } from "@/lib/errors"
-import { setMailboxMuted } from "@/lib/store/mailboxes"
 
 interface SettingsScreenProps {
   readonly accounts: readonly AccountConfig[]
@@ -41,6 +41,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const [query, setQuery] = createSignal("")
   const [zone, setZone] = createSignal<"nav" | "detail">("nav")
   const [status, setStatus] = createSignal("")
+  const [collapsedFolders, setCollapsedFolders] = createSignal<ReadonlySet<string>>(new Set())
   const [selectedKey, setSelectedKey] = createSignal<string | undefined>(
     props.accounts[0] === undefined ? "add-account" : `account:${props.accounts[0].id}`,
   )
@@ -53,16 +54,28 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     }),
   )
   const filtered = createMemo(() => filterSettingsEntries(entries(), query()))
-  const groups = createMemo(() => groupSettingsEntries(filtered()))
-  const selectedEntry = createMemo(() => filtered().find((entry) => entry.key === selectedKey()))
+  const visible = createMemo(() => visibleSettingsEntries(filtered(), collapsedFolders(), query()))
+  const groups = createMemo(() => groupSettingsEntries(visible()))
+  const folderMute = useFolderMute({
+    runtime,
+    onStatus: (message) => {
+      setStatus(message)
+    },
+    onChanged: props.onMailboxChanged,
+  })
+  const mutingAccounts = createMemo(() => {
+    const accounts = new Set<string>()
+    for (const mailbox of props.mailboxes) {
+      if (folderMute.mutingIds().has(mailbox.id)) {
+        accounts.add(mailbox.account_id)
+      }
+    }
+    return accounts
+  })
+  const selectedEntry = createMemo(() => visible().find((entry) => entry.key === selectedKey()))
 
   createEffect(() => {
-    const rows = filtered()
-    const current = selectedKey()
-    if (current !== undefined && rows.some((entry) => entry.key === current)) {
-      return
-    }
-    setSelectedKey((rows[0] ?? entries()[0])?.key)
+    setSelectedKey((current) => resolveSelectionKey(current, visible(), entries()))
   })
 
   const selectedAccount = createMemo(() => {
@@ -113,27 +126,20 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     },
   })
 
-  const toggleMute = (mailboxId: number, name: string, muted: boolean) => {
-    const program = Effect.gen(function* muteFolder() {
-      yield* setMailboxMuted(mailboxId, !muted).pipe(
-        Effect.tap(() =>
-          Effect.sync(() => {
-            setStatus(muted ? `${name} unmuted` : `${name} muted`)
-            props.onMailboxChanged()
-          }),
-        ),
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            setStatus(`could not update the mailbox · ${describeError(error)}`)
-          }),
-        ),
-      )
+  const toggleGroup = (accountId: string) => {
+    setCollapsedFolders((current) => {
+      const next = new Set(current)
+      if (next.has(accountId)) {
+        next.delete(accountId)
+      } else {
+        next.add(accountId)
+      }
+      return next
     })
-    runtime.runFork(program)
   }
 
   const moveSelection = (delta: number) => {
-    const rows = filtered()
+    const rows = visible()
     const index = rows.findIndex((entry) => entry.key === selectedKey())
     const clamped = Math.min(Math.max(index === -1 ? 0 : index + delta, 0), rows.length - 1)
     const next = rows[clamped]
@@ -144,12 +150,16 @@ const SettingsScreen = (props: SettingsScreenProps) => {
 
   const activateEntry = (key: string) => {
     setSelectedKey(key)
-    const entry = filtered().find((candidate) => candidate.key === key)
+    const entry = visible().find((candidate) => candidate.key === key)
     if (entry === undefined) {
       return
     }
     if (entry.kind === "add-account") {
       props.onAddAccount()
+      return
+    }
+    if (entry.kind === "folder-group") {
+      toggleGroup(entry.accountId)
       return
     }
     setZone("detail")
@@ -164,6 +174,14 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     if (event.name === "up") {
       event.preventDefault()
       moveSelection(-1)
+      return true
+    }
+    if (event.name === "space") {
+      const entry = selectedEntry()
+      if (entry?.kind === "folder-group") {
+        event.preventDefault()
+        toggleGroup(entry.accountId)
+      }
       return true
     }
     if (event.name === "tab" || event.name === "return") {
@@ -208,7 +226,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     if (entry?.kind === "folder") {
       if (event.name === "return" || event.name === "space") {
         event.preventDefault()
-        toggleMute(entry.mailboxId, entry.name, entry.muted)
+        folderMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
         return true
       }
       if (event.name === "tab") {
@@ -242,6 +260,9 @@ const SettingsScreen = (props: SettingsScreenProps) => {
             setQuery(value)
           }}
           groups={groups()}
+          collapsed={collapsedFolders()}
+          mutingIds={folderMute.mutingIds()}
+          mutingAccounts={mutingAccounts()}
           selectedKey={selectedKey()}
           searchFocused={zone() === "nav"}
           onSelect={(key) => {
@@ -258,6 +279,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
           counts={props.counts}
           accountProfile={accountProfile}
           syncProfile={syncProfile}
+          mutingIds={folderMute.mutingIds()}
         />
       </box>
       <box flexShrink={0} paddingLeft={2} paddingRight={2}>

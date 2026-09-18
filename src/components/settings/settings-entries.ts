@@ -1,7 +1,7 @@
 import type { AccountConfig, SyncConfig } from "@/lib/config/schema"
 import type { MailboxRow } from "@/lib/store/mailboxes"
 
-import { matchesQuery } from "@/lib/search"
+import { matchesQuery, queryTerms } from "@/lib/search"
 
 type SettingsSection = "Accounts" | "Folders" | "Sync"
 
@@ -15,10 +15,12 @@ interface SettingsEntryBase {
 type SettingsEntry =
   | (SettingsEntryBase & { readonly kind: "add-account" })
   | (SettingsEntryBase & { readonly kind: "account"; readonly accountId: string })
+  | (SettingsEntryBase & { readonly kind: "folder-group"; readonly accountId: string })
   | (SettingsEntryBase & {
       readonly kind: "folder"
       readonly mailboxId: number
       readonly accountId: string
+      readonly parentKey: string
       readonly path: string
       readonly name: string
       readonly muted: boolean
@@ -37,6 +39,8 @@ interface SettingsEntriesInput {
 }
 
 const sectionOrder: readonly SettingsSection[] = ["Accounts", "Folders", "Sync"]
+
+const folderGroupKey = (accountId: string) => `folders:${accountId}`
 
 const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEntry[] => {
   const entries: SettingsEntry[] = [
@@ -62,15 +66,25 @@ const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEnt
     const mailboxes = input.mailboxes
       .filter((row) => row.account_id === account.id && row.selectable)
       .toSorted((left, right) => left.path.localeCompare(right.path))
+    const count = mailboxes.length
+    entries.push({
+      kind: "folder-group",
+      key: folderGroupKey(account.id),
+      section: "Folders",
+      title: account.label,
+      subtitle: `${account.email} · ${String(count)} ${count === 1 ? "folder" : "folders"}`,
+      accountId: account.id,
+    })
     for (const mailbox of mailboxes) {
       entries.push({
         kind: "folder",
         key: `folder:${mailbox.id}`,
         section: "Folders",
         title: mailbox.name,
-        subtitle: `${account.label} · ${mailbox.path}`,
+        subtitle: mailbox.path,
         mailboxId: mailbox.id,
         accountId: account.id,
+        parentKey: folderGroupKey(account.id),
         path: mailbox.path,
         name: mailbox.name,
         muted: mailbox.muted,
@@ -87,13 +101,71 @@ const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEnt
   return entries
 }
 
+const entryHaystack = (entry: SettingsEntry) => `${entry.title} ${entry.subtitle} ${entry.section}`
+
 const filterSettingsEntries = (
   entries: readonly SettingsEntry[],
   query: string,
-): readonly SettingsEntry[] =>
-  entries.filter((entry) =>
-    matchesQuery(`${entry.title} ${entry.subtitle} ${entry.section}`, query),
+): readonly SettingsEntry[] => {
+  if (queryTerms(query).length === 0) {
+    return entries
+  }
+  const directMatches = new Set(
+    entries.filter((entry) => matchesQuery(entryHaystack(entry), query)).map((entry) => entry.key),
   )
+  const groupKeys = new Set<string>()
+  const keptGroups = new Set<string>()
+  for (const entry of entries) {
+    if (entry.kind === "folder-group") {
+      groupKeys.add(entry.key)
+      if (directMatches.has(entry.key)) {
+        keptGroups.add(entry.key)
+      }
+    }
+    if (entry.kind === "folder" && directMatches.has(entry.key)) {
+      keptGroups.add(entry.parentKey)
+    }
+  }
+  return entries.filter((entry) => {
+    if (entry.kind === "folder-group") {
+      return keptGroups.has(entry.key)
+    }
+    if (entry.kind === "folder") {
+      return groupKeys.has(entry.parentKey)
+        ? keptGroups.has(entry.parentKey)
+        : directMatches.has(entry.key)
+    }
+    return directMatches.has(entry.key)
+  })
+}
+
+const visibleSettingsEntries = (
+  entries: readonly SettingsEntry[],
+  collapsedAccounts: ReadonlySet<string>,
+  query: string,
+): readonly SettingsEntry[] => {
+  if (queryTerms(query).length > 0) {
+    return entries
+  }
+  return entries.filter(
+    (entry) => entry.kind !== "folder" || !collapsedAccounts.has(entry.accountId),
+  )
+}
+
+const resolveSelectionKey = (
+  current: string | undefined,
+  visible: readonly SettingsEntry[],
+  all: readonly SettingsEntry[],
+): string | undefined => {
+  if (current !== undefined && visible.some((entry) => entry.key === current)) {
+    return current
+  }
+  const match = all.find((entry) => entry.key === current)
+  if (match?.kind === "folder" && visible.some((entry) => entry.key === match.parentKey)) {
+    return match.parentKey
+  }
+  return visible[0]?.key
+}
 
 const groupSettingsEntries = (entries: readonly SettingsEntry[]): readonly SettingsGroup[] =>
   sectionOrder.flatMap((section) => {
@@ -105,6 +177,8 @@ export {
   buildSettingsEntries,
   filterSettingsEntries,
   groupSettingsEntries,
+  resolveSelectionKey,
+  visibleSettingsEntries,
   type SettingsEntriesInput,
   type SettingsEntry,
   type SettingsGroup,
