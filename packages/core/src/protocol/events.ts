@@ -1,23 +1,25 @@
 import * as Schema from "effect/Schema"
 
+import { AccountId } from "../ids"
+
 const SyncEvent = Schema.Union([
   Schema.TaggedStruct("mailbox-start", {
-    accountId: Schema.String,
+    accountId: AccountId,
     path: Schema.String,
   }),
   Schema.TaggedStruct("mailbox-done", {
-    accountId: Schema.String,
+    accountId: AccountId,
     path: Schema.String,
     fetched: Schema.Int,
     stored: Schema.Int,
   }),
   Schema.TaggedStruct("mailbox-error", {
-    accountId: Schema.String,
+    accountId: AccountId,
     path: Schema.String,
     message: Schema.String,
   }),
   Schema.TaggedStruct("sync-error", {
-    accountId: Schema.String,
+    accountId: AccountId,
     message: Schema.String,
   }),
 ]).pipe(Schema.toTaggedUnion("_tag"))

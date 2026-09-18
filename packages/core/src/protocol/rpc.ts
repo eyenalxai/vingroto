@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema"
 import { Rpc, RpcGroup } from "effect/unstable/rpc"
 
 import { AccountConfig, SyncConfig } from "../config/schema"
+import { AccountId, MailboxId, MessageId } from "../ids"
 import { AccountSave, DiscoveryResult, NewAccount, ServerStatus } from "./accounts"
 import { ServerEvent } from "./events"
 import {
@@ -28,34 +29,34 @@ const ServerRpcs = RpcGroup.make(
     error: ServerError,
   }),
   Rpc.make("getMessage", {
-    payload: { id: Schema.Int },
+    payload: { id: MessageId },
     success: Schema.NullOr(MessageDetail),
     error: ServerError,
   }),
   Rpc.make("loadBody", {
-    payload: { id: Schema.Int },
+    payload: { id: MessageId },
     success: MessageBody,
     error: ServerError,
   }),
   Rpc.make("setSeen", {
-    payload: { ids: Schema.Array(Schema.Int), seen: Schema.Boolean },
+    payload: { ids: Schema.Array(MessageId), seen: Schema.Boolean },
     success: SeenOutcome,
     error: ServerError,
   }),
   Rpc.make("moveMessages", {
-    payload: { ids: Schema.Array(Schema.Int), targetMailboxId: Schema.Int },
+    payload: { ids: Schema.Array(MessageId), targetMailboxId: MailboxId },
     success: MoveOutcome,
     error: ServerError,
   }),
   Rpc.make("setMailboxMuted", {
-    payload: { mailboxId: Schema.Int, muted: Schema.Boolean },
+    payload: { mailboxId: MailboxId, muted: Schema.Boolean },
     success: Schema.Void,
     error: ServerError,
   }),
   Rpc.make("sync", {
     payload: {
       paths: Schema.optionalKey(Schema.Array(Schema.String)),
-      accountId: Schema.optionalKey(Schema.String),
+      accountId: Schema.optionalKey(AccountId),
     },
     success: Schema.Array(SyncReport),
     error: ServerError,
@@ -71,12 +72,12 @@ const ServerRpcs = RpcGroup.make(
     error: ServerError,
   }),
   Rpc.make("updateAccount", {
-    payload: { id: Schema.String, input: AccountSave },
+    payload: { id: AccountId, input: AccountSave },
     success: AccountConfig,
     error: ServerError,
   }),
   Rpc.make("accountUsername", {
-    payload: { id: Schema.String },
+    payload: { id: AccountId },
     success: Schema.NullOr(Schema.String),
     error: ServerError,
   }),

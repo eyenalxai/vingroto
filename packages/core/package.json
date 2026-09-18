@@ -7,6 +7,7 @@
     "./app-paths": "./src/app-paths.ts",
     "./config/schema": "./src/config/schema.ts",
     "./errors": "./src/errors.ts",
+    "./ids": "./src/ids.ts",
     "./logging": "./src/logging.ts",
     "./mail/address": "./src/mail/address.ts",
     "./protocol/accounts": "./src/protocol/accounts.ts",

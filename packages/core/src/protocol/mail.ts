@@ -1,10 +1,11 @@
 import * as Schema from "effect/Schema"
 
+import { AccountId, MailboxId, MessageId, Uid } from "../ids"
 import { MailAddress } from "../mail/address"
 
 const Mailbox = Schema.Struct({
-  id: Schema.Int,
-  account_id: Schema.String,
+  id: MailboxId,
+  account_id: AccountId,
   path: Schema.String,
   name: Schema.String,
   delimiter: Schema.String,
@@ -12,7 +13,7 @@ const Mailbox = Schema.Struct({
   selectable: Schema.Boolean,
   muted: Schema.Boolean,
   uid_validity: Schema.NullOr(Schema.Int),
-  last_seen_uid: Schema.Int,
+  last_seen_uid: Uid,
   synced_at: Schema.NullOr(Schema.Int),
   created_at: Schema.Int,
   updated_at: Schema.Int,
@@ -29,8 +30,8 @@ type MailboxCounts = Schema.Schema.Type<typeof MailboxCounts>
 
 const ListScope = Schema.Union([
   Schema.Struct({ kind: Schema.tag("all") }),
-  Schema.Struct({ kind: Schema.tag("unread"), accountId: Schema.optionalKey(Schema.String) }),
-  Schema.Struct({ kind: Schema.tag("mailbox"), mailboxId: Schema.Int }),
+  Schema.Struct({ kind: Schema.tag("unread"), accountId: Schema.optionalKey(AccountId) }),
+  Schema.Struct({ kind: Schema.tag("mailbox"), mailboxId: MailboxId }),
 ]).pipe(Schema.toTaggedUnion("kind"))
 
 type ListScope = typeof ListScope.Type
@@ -39,7 +40,7 @@ const MailboxSnapshot = Schema.Struct({
   mailboxes: Schema.Array(Mailbox),
   counts: Schema.Array(
     Schema.Struct({
-      mailboxId: Schema.Int,
+      mailboxId: MailboxId,
       counts: MailboxCounts,
     }),
   ),
@@ -49,10 +50,10 @@ const MailboxSnapshot = Schema.Struct({
 type MailboxSnapshot = Schema.Schema.Type<typeof MailboxSnapshot>
 
 const MessageListItem = Schema.Struct({
-  id: Schema.Int,
-  uid: Schema.Int,
-  accountId: Schema.String,
-  mailboxId: Schema.Int,
+  id: MessageId,
+  uid: Uid,
+  accountId: AccountId,
+  mailboxId: MailboxId,
   mailboxPath: Schema.String,
   subject: Schema.NullOr(Schema.String),
   fromName: Schema.NullOr(Schema.String),
@@ -103,7 +104,7 @@ const MoveOutcome = Schema.Struct({
 type MoveOutcome = Schema.Schema.Type<typeof MoveOutcome>
 
 const SyncReport = Schema.Struct({
-  accountId: Schema.String,
+  accountId: AccountId,
   mailboxes: Schema.Int,
   fetched: Schema.Int,
   stored: Schema.Int,

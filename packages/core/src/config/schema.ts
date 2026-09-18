@@ -1,5 +1,7 @@
 import * as Schema from "effect/Schema"
 
+import { AccountId } from "../ids"
+
 const ServerConfig = Schema.Struct({
   host: Schema.String,
   port: Schema.Int,
@@ -9,7 +11,7 @@ const ServerConfig = Schema.Struct({
 type ServerConfig = Schema.Schema.Type<typeof ServerConfig>
 
 const AccountConfig = Schema.Struct({
-  id: Schema.String,
+  id: AccountId,
   label: Schema.String,
   name: Schema.optionalKey(Schema.String),
   email: Schema.String,
