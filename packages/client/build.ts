@@ -4,7 +4,7 @@ import path from "node:path"
 const libc = Bun.env.OPENTUI_LIBC ?? "glibc"
 
 const result = await Bun.build({
-  entrypoints: [path.join(import.meta.dirname, "src/index.tsx")],
+  entrypoints: [path.join(import.meta.dirname, "src/main.ts")],
   plugins: [solidPlugin],
   target: "bun",
   define: {
@@ -14,6 +14,7 @@ const result = await Bun.build({
   },
   compile: {
     outfile: path.join(import.meta.dirname, "dist/vingroto"),
+    assets: [path.join(import.meta.dirname, "../../package.json")],
     autoloadBunfig: false,
     autoloadDotenv: false,
   },

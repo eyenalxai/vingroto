@@ -1,6 +1,5 @@
 import type { CliRenderer, TerminalColors, ThemeMode } from "@opentui/core"
 
-import { BunRuntime } from "@effect/platform-bun"
 import { createCliRenderer } from "@opentui/core"
 import { render } from "@opentui/solid"
 import { describeError } from "@vingroto/core/errors"
@@ -101,4 +100,6 @@ const program = Effect.gen(function* main() {
   })
 })
 
-BunRuntime.runMain(Effect.scoped(program))
+const runTui = Effect.scoped(program)
+
+export { runTui }
