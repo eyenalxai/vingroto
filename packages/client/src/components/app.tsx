@@ -163,11 +163,9 @@ const App = () => {
   const handleAccountSaved = (account: AccountConfig) => {
     setAddingAccount(false)
     setStatus(`account ${account.label} saved · syncing`)
-    const program = Effect.gen(function* reloadAfterSave() {
-      yield* Effect.promise(async () => daemon.refresh())
-      yield* Effect.sync(syncWindow)
-    })
-    runtime.runFork(program)
+    runtime.runFork(
+      Effect.promise(async () => daemon.refresh()).pipe(Effect.andThen(Effect.sync(syncWindow))),
+    )
   }
 
   const handleAccountUpdated = (account: AccountConfig) => {
@@ -194,10 +192,7 @@ const App = () => {
       setStatus(result.message)
       return
     }
-    setMoving({
-      accountLabel: result.accountLabel,
-      mailboxes: result.mailboxes,
-    })
+    setMoving({ accountLabel: result.accountLabel, mailboxes: result.mailboxes })
   }
 
   const autoSyncedMailboxes = new Set<number>()
