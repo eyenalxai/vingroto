@@ -24,53 +24,55 @@ const firstTarget = (records: readonly SrvRecord[]) => {
   return sorted.map((record) => srvTarget(record)).find((target) => target !== undefined)
 }
 
-const srvQuery = (name: string, attempts: string[]): Effect.Effect<readonly SrvRecord[]> =>
-  Effect.gen(function* querySrv() {
-    const exit = yield* Effect.exit(
-      Effect.tryPromise({
-        try: async () => resolveSrv(name),
-        catch: (error) => error,
-      }),
-    )
-    if (Exit.isSuccess(exit)) {
-      return exit.value
-    }
-    attempts.push(`${name}: ${describeError(Cause.squash(exit.cause))}`)
-    return [] as readonly SrvRecord[]
-  })
+const srvQuery = Effect.fn("Discovery.querySrv")(function* querySrv(
+  name: string,
+  attempts: string[],
+): Effect.fn.Return<readonly SrvRecord[]> {
+  const exit = yield* Effect.exit(
+    Effect.tryPromise({
+      try: async () => resolveSrv(name),
+      catch: (error) => error,
+    }),
+  )
+  if (Exit.isSuccess(exit)) {
+    return exit.value
+  }
+  attempts.push(`${name}: ${describeError(Cause.squash(exit.cause))}`)
+  return [] as readonly SrvRecord[]
+})
 
-const srvServers = (domain: string, attempts: string[]): Effect.Effect<PartialServers> =>
-  Effect.gen(function* detectSrv() {
-    const imaps = firstTarget(yield* srvQuery(`_imaps._tcp.${domain}`, attempts))
-    const imap: ServerConfig | undefined =
-      imaps === undefined ? undefined : { host: imaps.host, port: imaps.port, security: "tls" }
-    const plainImap =
-      imap === undefined
-        ? firstTarget(yield* srvQuery(`_imap._tcp.${domain}`, attempts))
-        : undefined
-    const resolvedImap: ServerConfig | undefined =
-      imap ??
-      (plainImap === undefined
-        ? undefined
-        : { host: plainImap.host, port: plainImap.port, security: "starttls" })
-    const submissions = firstTarget(yield* srvQuery(`_submissions._tcp.${domain}`, attempts))
-    const smtp: ServerConfig | undefined =
-      submissions === undefined
-        ? undefined
-        : { host: submissions.host, port: submissions.port, security: "tls" }
-    const plainSmtp =
-      smtp === undefined
-        ? firstTarget(yield* srvQuery(`_submission._tcp.${domain}`, attempts))
-        : undefined
-    const resolvedSmtp: ServerConfig | undefined =
-      smtp ??
-      (plainSmtp === undefined
-        ? undefined
-        : { host: plainSmtp.host, port: plainSmtp.port, security: "starttls" })
-    return {
-      ...(resolvedImap === undefined ? {} : { imap: resolvedImap }),
-      ...(resolvedSmtp === undefined ? {} : { smtp: resolvedSmtp }),
-    }
-  })
+const srvServers = Effect.fn("Discovery.srvServers")(function* detectSrv(
+  domain: string,
+  attempts: string[],
+): Effect.fn.Return<PartialServers> {
+  const imaps = firstTarget(yield* srvQuery(`_imaps._tcp.${domain}`, attempts))
+  const imap: ServerConfig | undefined =
+    imaps === undefined ? undefined : { host: imaps.host, port: imaps.port, security: "tls" }
+  const plainImap =
+    imap === undefined ? firstTarget(yield* srvQuery(`_imap._tcp.${domain}`, attempts)) : undefined
+  const resolvedImap: ServerConfig | undefined =
+    imap ??
+    (plainImap === undefined
+      ? undefined
+      : { host: plainImap.host, port: plainImap.port, security: "starttls" })
+  const submissions = firstTarget(yield* srvQuery(`_submissions._tcp.${domain}`, attempts))
+  const smtp: ServerConfig | undefined =
+    submissions === undefined
+      ? undefined
+      : { host: submissions.host, port: submissions.port, security: "tls" }
+  const plainSmtp =
+    smtp === undefined
+      ? firstTarget(yield* srvQuery(`_submission._tcp.${domain}`, attempts))
+      : undefined
+  const resolvedSmtp: ServerConfig | undefined =
+    smtp ??
+    (plainSmtp === undefined
+      ? undefined
+      : { host: plainSmtp.host, port: plainSmtp.port, security: "starttls" })
+  return {
+    ...(resolvedImap === undefined ? {} : { imap: resolvedImap }),
+    ...(resolvedSmtp === undefined ? {} : { smtp: resolvedSmtp }),
+  }
+})
 
 export { srvServers }
