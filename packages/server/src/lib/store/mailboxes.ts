@@ -40,29 +40,32 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
 ) {
   const database = yield* Database
   const now = yield* Clock.currentTimeMillis
-  for (const info of infos) {
-    yield* database.client
-      .insert(MailboxTable)
-      .values({
-        account_id: accountId,
-        path: info.path,
-        name: info.name,
-        delimiter: info.delimiter,
-        special_use: info.specialUse ?? null,
-        selectable: info.selectable,
-        updated_at: now,
-      })
-      .onConflictDoUpdate({
-        target: [MailboxTable.account_id, MailboxTable.path],
-        set: {
+  yield* Effect.all(
+    infos.map((info) =>
+      database.client
+        .insert(MailboxTable)
+        .values({
+          account_id: accountId,
+          path: info.path,
           name: info.name,
           delimiter: info.delimiter,
           special_use: info.specialUse ?? null,
           selectable: info.selectable,
           updated_at: now,
-        },
-      })
-  }
+        })
+        .onConflictDoUpdate({
+          target: [MailboxTable.account_id, MailboxTable.path],
+          set: {
+            name: info.name,
+            delimiter: info.delimiter,
+            special_use: info.specialUse ?? null,
+            selectable: info.selectable,
+            updated_at: now,
+          },
+        }),
+    ),
+    { discard: true },
+  )
 })
 
 const setMailboxMuted = Effect.fn("Mailbox.setMuted")(function* setMuted(

@@ -29,7 +29,7 @@ class Credential extends Context.Service<Credential, CredentialShape>()(
     Effect.gen(function* makeCredential() {
       const spawner = yield* ChildProcessSpawner
       const get = Effect.fn("Credential.get")(function* get(reference: string) {
-        const cached = yield* lookupSecret(reference)
+        const cached = yield* lookupSecret(spawner, reference)
         if (Option.isSome(cached)) {
           return cached.value
         }
@@ -42,17 +42,12 @@ class Credential extends Context.Service<Credential, CredentialShape>()(
         })
       })
       const set = Effect.fn("Credential.set")(function* set(reference: string, secret: string) {
-        yield* storeSecret(reference, secret)
+        yield* storeSecret(spawner, reference, secret)
         yield* Effect.logDebug("credential stored in the keyring").pipe(
           Effect.annotateLogs({ reference }),
         )
       })
-      const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-        Effect.provideService(effect, ChildProcessSpawner, spawner)
-      return Credential.of({
-        get: (reference) => provide(get(reference)),
-        set: (reference, secret) => provide(set(reference, secret)),
-      })
+      return Credential.of({ get, set })
     }),
   )
 }

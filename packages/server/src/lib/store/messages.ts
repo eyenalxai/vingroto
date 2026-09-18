@@ -75,9 +75,8 @@ const toEnvelopeColumns = (envelope: MessageEnvelope, now: number) => {
 }
 
 const storeMessages = Effect.fn("Message.store")(function* store(input: MessageStoreInput) {
-  const outcome: { inserted: number; updated: number } = { inserted: 0, updated: 0 }
   if (input.envelopes.length === 0) {
-    return outcome
+    return { inserted: 0, updated: 0 }
   }
   const database = yield* Database
   const now = yield* Clock.currentTimeMillis
@@ -103,16 +102,19 @@ const storeMessages = Effect.fn("Message.store")(function* store(input: MessageS
         }),
       )
       .onConflictDoNothing()
-    outcome.inserted = fresh.length
   }
-  for (const envelope of stale) {
-    yield* database.client
-      .update(MessageTable)
-      .set(toEnvelopeColumns(envelope, now))
-      .where(and(eq(MessageTable.mailbox_id, input.mailboxId), eq(MessageTable.uid, envelope.uid)))
-    outcome.updated += 1
-  }
-  return outcome
+  yield* Effect.all(
+    stale.map((envelope) =>
+      database.client
+        .update(MessageTable)
+        .set(toEnvelopeColumns(envelope, now))
+        .where(
+          and(eq(MessageTable.mailbox_id, input.mailboxId), eq(MessageTable.uid, envelope.uid)),
+        ),
+    ),
+    { discard: true },
+  )
+  return { inserted: fresh.length, updated: stale.length }
 })
 
 const deleteMailboxMessages = Effect.fn("Message.deleteForMailbox")(function* deleteForMailbox(

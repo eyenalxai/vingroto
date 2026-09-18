@@ -12,7 +12,7 @@ import * as Semaphore from "effect/Semaphore"
 
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
 
-import { loadConfig } from "@/lib/config/load"
+import { loadConfigFile } from "@/lib/config/load"
 import { ServerEvents } from "@/lib/events"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine } from "@/lib/mail/sync"
@@ -42,10 +42,7 @@ class Scheduler extends Context.Service<Scheduler, SchedulerShape>()(
       const paths = yield* AppPaths
       const fs = yield* FileSystem.FileSystem
       const semaphore = yield* Semaphore.make(1)
-      const readConfig = loadConfig().pipe(
-        Effect.provideService(AppPaths, paths),
-        Effect.provideService(FileSystem.FileSystem, fs),
-      )
+      const readConfig = loadConfigFile(paths.config, fs)
 
       const request = Effect.fn("Scheduler.request")(function* requestSync(input: SyncRequest) {
         return yield* semaphore.withPermits(1)(

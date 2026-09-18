@@ -1,3 +1,5 @@
+import type { MessageBody } from "@vingroto/core/protocol/mail"
+
 import { and, desc, eq, isNull } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -16,11 +18,6 @@ const toSnippet = (text: string | null): string | null => {
     return null
   }
   return compact.slice(0, snippetLength)
-}
-
-interface MessageBody {
-  readonly text: string | null
-  readonly html: string | null
 }
 
 interface PendingBody {
@@ -86,4 +83,5 @@ const listPendingBodies = Effect.fn("Message.listPendingBodies")(function* listP
     .orderBy(desc(MessageTable.date), desc(MessageTable.uid))
 })
 
-export { getMessageBody, listPendingBodies, storeMessageBody, type MessageBody, type PendingBody }
+export { getMessageBody, listPendingBodies, storeMessageBody, type PendingBody }
+export type { MessageBody } from "@vingroto/core/protocol/mail"

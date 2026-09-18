@@ -14,8 +14,8 @@ import type { ConfigWriteError } from "@/lib/config/save"
 import type { SyncSettingsInvalid } from "@/lib/config/sync"
 import type { CredentialError } from "@/lib/credential/service"
 
-import { submitAccount, updateAccount } from "@/lib/config/accounts"
-import { updateSyncSettings } from "@/lib/config/sync"
+import { makeSubmitAccount, makeUpdateAccount } from "@/lib/config/accounts"
+import { makeUpdateSyncSettings } from "@/lib/config/sync"
 import { usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
 import { ServerEvents } from "@/lib/events"
@@ -48,15 +48,12 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
       const paths = yield* AppPaths
       const fs = yield* FileSystem.FileSystem
 
-      const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-        effect.pipe(
-          Effect.provideService(AppPaths, paths),
-          Effect.provideService(FileSystem.FileSystem, fs),
-          Effect.provideService(Credential, credential),
-        )
+      const submit = makeSubmitAccount({ configPath: paths.config, credential, fs })
+      const persistUpdate = makeUpdateAccount({ configPath: paths.config, credential, fs })
+      const persistSyncSettings = makeUpdateSyncSettings(paths.config, fs)
 
       const create = Effect.fn("Accounts.create")(function* createAccount(input: NewAccount) {
-        const account = yield* provide(submitAccount(input))
+        const account = yield* submit(input)
         yield* events.publish({ _tag: "config-changed" })
         yield* scheduler.request({}).pipe(
           Effect.catch((error) =>
@@ -73,15 +70,15 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
         id: string,
         input: AccountSave,
       ) {
-        const account = yield* provide(updateAccount(id, input))
+        const account = yield* persistUpdate(id, input)
         yield* events.publish({ _tag: "config-changed" })
         return account
       })
 
-      const saveSyncSettings = Effect.fn("Accounts.saveSyncSettings")(function* persistSyncSettings(
+      const saveSyncSettings = Effect.fn("Accounts.saveSyncSettings")(function* persistSettings(
         settings: SyncConfig,
       ) {
-        yield* provide(updateSyncSettings(settings))
+        yield* persistSyncSettings(settings)
         yield* events.publish({ _tag: "config-changed" })
       })
 

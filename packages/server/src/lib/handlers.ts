@@ -26,52 +26,44 @@ const Handlers = ServerRpcs.toLayer({
       Effect.mapError(toServerError),
     ),
   loadBody: ({ id }) =>
-    Effect.gen(function* loadMessageBody() {
-      const bodies = yield* MessageBodies
-      return yield* bodies.loadById(id)
-    }).pipe(Effect.mapError(toServerError)),
+    MessageBodies.pipe(
+      Effect.flatMap((bodies) => bodies.loadById(id)),
+      Effect.mapError(toServerError),
+    ),
   setSeen: ({ ids, seen }) =>
-    Effect.gen(function* setSeenMessages() {
-      const actions = yield* MailActions
-      return yield* actions.setSeenByIds(ids, seen)
-    }).pipe(Effect.mapError(toServerError)),
+    MailActions.pipe(
+      Effect.flatMap((actions) => actions.setSeenByIds(ids, seen)),
+      Effect.mapError(toServerError),
+    ),
   moveMessages: ({ ids, targetMailboxId }) =>
-    Effect.gen(function* moveMessages() {
-      const actions = yield* MailActions
-      return yield* actions.moveByIds(ids, targetMailboxId)
-    }).pipe(Effect.mapError(toServerError)),
+    MailActions.pipe(
+      Effect.flatMap((actions) => actions.moveByIds(ids, targetMailboxId)),
+      Effect.mapError(toServerError),
+    ),
   setMailboxMuted: ({ mailboxId, muted }) =>
     updateMailboxMute(mailboxId, muted).pipe(Effect.mapError(toServerError)),
   sync: (payload) =>
-    Effect.gen(function* syncMailboxes() {
-      const scheduler = yield* Scheduler
-      return yield* scheduler.request(payload)
-    }).pipe(Effect.mapError(toServerError)),
-  discover: ({ email }) =>
-    Effect.gen(function* discoverProvider() {
-      const discovery = yield* Discovery
-      return yield* discovery.discover(email)
-    }),
+    Scheduler.pipe(
+      Effect.flatMap((scheduler) => scheduler.request(payload)),
+      Effect.mapError(toServerError),
+    ),
+  discover: ({ email }) => Discovery.pipe(Effect.flatMap((discovery) => discovery.discover(email))),
   createAccount: (input) =>
-    Effect.gen(function* createAccount() {
-      const accounts = yield* Accounts
-      return yield* accounts.create(input)
-    }).pipe(Effect.mapError(toServerError)),
+    Accounts.pipe(
+      Effect.flatMap((accounts) => accounts.create(input)),
+      Effect.mapError(toServerError),
+    ),
   updateAccount: ({ id, input }) =>
-    Effect.gen(function* updateConfiguredAccount() {
-      const accounts = yield* Accounts
-      return yield* accounts.update(id, input)
-    }).pipe(Effect.mapError(toServerError)),
-  accountUsername: ({ id }) =>
-    Effect.gen(function* accountUsername() {
-      const accounts = yield* Accounts
-      return yield* accounts.username(id)
-    }),
+    Accounts.pipe(
+      Effect.flatMap((accounts) => accounts.update(id, input)),
+      Effect.mapError(toServerError),
+    ),
+  accountUsername: ({ id }) => Accounts.pipe(Effect.flatMap((accounts) => accounts.username(id))),
   saveSyncSettings: (settings) =>
-    Effect.gen(function* persistSyncSettings() {
-      const accounts = yield* Accounts
-      yield* accounts.saveSyncSettings(settings)
-    }).pipe(Effect.mapError(toServerError)),
+    Accounts.pipe(
+      Effect.flatMap((accounts) => accounts.saveSyncSettings(settings)),
+      Effect.mapError(toServerError),
+    ),
   events: () => Stream.unwrap(ServerEvents.pipe(Effect.map((events) => events.stream))),
 })
 
