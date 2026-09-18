@@ -1,0 +1,49 @@
+# vingroto
+
+A terminal mail client: an OpenTUI TUI talks to a long-running daemon over a Unix socket. The daemon owns the configuration, the OS keyring, the SQLite cache and every IMAP/SMTP connection.
+
+## Language
+
+**Account**:
+A configured mail identity: label, optional sender name, email, IMAP and SMTP servers. Accounts are matched by email address, and an account's id is that address.
+_Avoid_: Profile, login
+
+**Mailbox**:
+An IMAP mailbox on a server, cached locally with its path, delimiter, special-use flags, UID validity and read state.
+_Avoid_: Folder
+
+**View**:
+A virtual list of messages that is not a mailbox: All emails and All unread, globally or for one account.
+_Avoid_: Virtual folder
+
+**List scope**:
+What the message list shows right now: a view or a mailbox.
+_Avoid_: Filter
+
+**Message**:
+A cached mail header: UID, account, mailbox, subject, sender, date, flags, size and snippet.
+
+**Message detail**:
+A message's envelope fields: message-id, references, recipients, answered and draft state.
+
+**Body**:
+A message's parsed text and HTML parts. Fetched from the server on demand and cached; never part of a sync.
+
+**Prefetch**:
+The daemon's background fetching of bodies for unread messages in unmuted mailboxes. A body that fails once is skipped for the rest of the session.
+
+**Mute**:
+A mailbox marked to be excluded from unread counts, from the Unread views and from prefetching, while staying listed and readable.
+
+**Sync**:
+The daemon fetching new messages into the cache. A mailbox's first sync covers the last `sync.initialDays`; later syncs fetch only messages above its last seen UID. When a server reassigns a mailbox's UID validity, the cached messages are dropped and the mailbox is synced from the date window again.
+
+**Discovery**:
+Detecting a provider's IMAP and SMTP servers for an email address, in order: published provider configuration, DNS SRV records, hostname guess.
+_Avoid_: Autoconfig
+
+**Daemon**:
+The process that owns the config file, the OS keyring, the database and every mail connection. It serves the client's RPC calls and syncs in the background.
+
+**Client**:
+The TUI process. It is stateless: it never reads the config file, the keyring or the database, and it only talks to the daemon over RPC.
