@@ -14,6 +14,9 @@ interface AppPathsShape {
   readonly database: string
   readonly config: string
   readonly socket: string
+  readonly registration: string
+  readonly token: string
+  readonly lock: string
 }
 
 class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
@@ -47,6 +50,9 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
         database: path.join(dataDir, "vingroto.db"),
         config: path.join(configDir, "config.json"),
         socket: path.join(runtimeDir, "server.sock"),
+        registration: path.join(runtimeDir, "server.json"),
+        token: path.join(runtimeDir, "token"),
+        lock: path.join(runtimeDir, "server.lock"),
       })
       yield* fs.makeDirectory(dataDir, { recursive: true })
       yield* fs.makeDirectory(configDir, { recursive: true })
