@@ -1,51 +1,35 @@
-import type { ScrollBoxRenderable } from "@opentui/core"
-
-import { useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { useRenderer } from "@opentui/solid"
 import { Effect } from "effect"
 import { Show, createEffect, createMemo, createResource, createSignal } from "solid-js"
 
-import type { Pane } from "@/components/pane-layout"
 import type { AppConfig, AccountConfig } from "@/lib/config/schema"
+import type { MailboxRow } from "@/lib/store/mailboxes"
 
-import { FolderPane } from "@/components/folder-pane"
-import { describeLeaderHint } from "@/components/leader-key"
-import { MessageList } from "@/components/message-list"
-import { MessageView } from "@/components/message-view"
-import {
-  describePaneHint,
-  folderPaneWidthFor,
-  resolveLayoutMode,
-  visiblePanesFor,
-} from "@/components/pane-layout"
-import { RenameMailbox } from "@/components/rename-mailbox"
+import { MailWorkspace } from "@/components/mail-workspace"
+import { MovePicker } from "@/components/move-picker"
 import { useRuntime } from "@/components/runtime-provider"
+import { SettingsScreen } from "@/components/settings/settings-screen"
 import { AccountSetup } from "@/components/setup/account-setup"
 import { StartupScreen } from "@/components/startup-screen"
-import { StatusBar } from "@/components/status-bar"
-import { useAppKeys } from "@/components/use-app-keys"
 import { useMailStore } from "@/components/use-mail-store"
 import { useMailSyncing } from "@/components/use-mail-syncing"
-import { useMailboxRename } from "@/components/use-mailbox-rename"
 import { boot } from "@/lib/boot"
-import { openExternal } from "@/lib/external"
+import { resolveMoveTargets } from "@/lib/mail/move"
 import { clearSelection, isCollapsedSelection } from "@/lib/selection"
+
+interface MoveTargets {
+  readonly accountLabel: string
+  readonly mailboxes: readonly MailboxRow[]
+}
 
 const App = () => {
   const runtime = useRuntime()
   const renderer = useRenderer()
-  const dimensions = useTerminalDimensions()
   const [report, { refetch }] = createResource(async () => runtime.runPromise(boot))
   const [status, setStatus] = createSignal("loading")
-  const [pane, setPane] = createSignal<Pane>("folders")
   const [addingAccount, setAddingAccount] = createSignal(false)
-  const [readerScroll, setReaderScroll] = createSignal<ScrollBoxRenderable>()
-  const rename = useMailboxRename({
-    runtime,
-    onStatus: (value: string) => {
-      setStatus(value)
-    },
-    onRenamed: async () => refetch(),
-  })
+  const [settingsOpen, setSettingsOpen] = createSignal(false)
+  const [moving, setMoving] = createSignal<MoveTargets | undefined>()
 
   const appConfig = createMemo((): AppConfig | undefined => {
     const value = report()
@@ -69,11 +53,18 @@ const App = () => {
       configError() === undefined &&
       !needsSetup() &&
       !addingAccount() &&
-      rename.target() === undefined,
+      !settingsOpen() &&
+      moving() === undefined,
   )
   const setupVisible = createMemo(
     () =>
-      report() !== undefined && configError() === undefined && (needsSetup() || addingAccount()),
+      report() !== undefined &&
+      configError() === undefined &&
+      !settingsOpen() &&
+      (needsSetup() || addingAccount()),
+  )
+  const settingsVisible = createMemo(
+    () => settingsOpen() && appConfig() !== undefined && !addingAccount(),
   )
 
   const store = useMailStore({
@@ -83,10 +74,6 @@ const App = () => {
       setStatus(value)
     },
   })
-
-  const accountLabels = createMemo<ReadonlyMap<string, string>>(
-    () => new Map(accounts().map((account) => [account.id, account.label])),
-  )
 
   const { startPeriodic, syncWindow, syncing } = useMailSyncing({
     config: appConfig,
@@ -100,27 +87,13 @@ const App = () => {
     runtime,
   })
 
-  const layout = createMemo(() => resolveLayoutMode(dimensions().width))
-  const visiblePanes = createMemo(() => visiblePanesFor(layout(), pane()))
-  const showPane = (target: Pane) => visiblePanes().includes(target)
-
-  const listTitle = createMemo(() => {
-    const row = store.selectedFolderRow()
-    return `${row?.label ?? "messages"} · ${store.messages().length}`
-  })
-
-  const openLink = (url: string) => {
-    const program = Effect.gen(function* openLinkInBrowser() {
-      yield* openExternal(url).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            setStatus(`could not open link · ${error.message}`)
-          }),
-        ),
-      )
+  const reloadConfig = () =>
+    Effect.gen(function* reloadConfiguration() {
+      yield* Effect.promise(async () => refetch())
+      yield* Effect.sync(() => {
+        store.loadFolderData()
+      })
     })
-    runtime.runFork(program)
-  }
 
   const handleAccountSaved = (account: AccountConfig) => {
     setAddingAccount(false)
@@ -134,39 +107,35 @@ const App = () => {
     runtime.runFork(program)
   }
 
-  const beginRename = () => {
-    const accountId = store.selectedFolderRow()?.accountId
-    const account =
-      accountId === undefined ? undefined : accounts().find((entry) => entry.id === accountId)
-    if (account === undefined) {
-      setStatus("select a mailbox to rename")
-      return
-    }
-    rename.begin(account)
+  const handleAccountUpdated = (account: AccountConfig) => {
+    setStatus(`account ${account.label} updated`)
+    runtime.runFork(reloadConfig())
   }
 
-  const keys = useAppKeys({
-    renderer,
-    store,
-    pane,
-    setPane: (value: Pane) => {
-      setPane(value)
-    },
-    readerScroll,
-    syncWindow,
-    onStatus: (value: string) => {
-      setStatus(value)
-    },
-    onAddAccount: () => {
-      setAddingAccount(true)
-    },
-    onRenameMailbox: beginRename,
-    enabled: mainVisible,
-  })
+  const handleSyncSaved = () => {
+    setStatus("sync settings saved")
+    runtime.runFork(reloadConfig())
+  }
 
-  const statusHint = createMemo(() =>
-    keys.leaderActive() ? describeLeaderHint() : describePaneHint(pane()),
-  )
+  const beginAddAccount = () => {
+    setSettingsOpen(false)
+    setAddingAccount(true)
+  }
+
+  const beginMove = () => {
+    const selected = store.selectedMessage()
+    const tagged = store.taggedMessages()
+    const items = tagged.length > 0 ? tagged : selected === undefined ? [] : [selected]
+    const result = resolveMoveTargets(items, accounts(), store.visibleMailboxes())
+    if (result._tag === "error") {
+      setStatus(result.message)
+      return
+    }
+    setMoving({
+      accountLabel: result.accountLabel,
+      mailboxes: result.mailboxes,
+    })
+  }
 
   createEffect(() => {
     const config = appConfig()
@@ -208,44 +177,21 @@ const App = () => {
         <StartupScreen report={report()} />
       </Show>
       <Show when={mainVisible()}>
-        <box flexGrow={1} flexDirection="column">
-          <box flexGrow={1} flexDirection="row" gap={1}>
-            <Show when={showPane("folders")}>
-              <box width={folderPaneWidthFor(layout())} flexDirection="column">
-                <FolderPane
-                  rows={store.folderRows()}
-                  selectedKey={store.selectedFolderKey()}
-                  focused={pane() === "folders"}
-                />
-              </box>
-            </Show>
-            <Show when={showPane("list")}>
-              <box flexGrow={1} flexDirection="column">
-                <MessageList
-                  title={listTitle()}
-                  messages={store.messages()}
-                  selectedId={store.selectedMessageId()}
-                  focused={pane() === "list"}
-                />
-              </box>
-            </Show>
-            <Show when={showPane("reader")}>
-              <box flexGrow={1} flexDirection="column">
-                <MessageView
-                  detail={store.detail()}
-                  body={store.body()}
-                  focused={pane() === "reader"}
-                  accountLabels={accountLabels()}
-                  onOpenLink={openLink}
-                  onScrollRef={(box) => {
-                    setReaderScroll(box)
-                  }}
-                />
-              </box>
-            </Show>
-          </box>
-          <StatusBar message={status()} syncing={syncing()} hint={statusHint()} />
-        </box>
+        <MailWorkspace
+          store={store}
+          accounts={accounts()}
+          syncing={syncing()}
+          status={status()}
+          syncWindow={syncWindow}
+          onStatus={(value) => {
+            setStatus(value)
+          }}
+          onAddAccount={beginAddAccount}
+          onOpenSettings={() => {
+            setSettingsOpen(true)
+          }}
+          onMoveMessages={beginMove}
+        />
       </Show>
       <Show when={setupVisible()}>
         <AccountSetup
@@ -261,13 +207,37 @@ const App = () => {
           }
         />
       </Show>
-      <Show when={rename.target()}>
-        {(target) => (
-          <RenameMailbox
-            initial={target().label}
-            error={rename.error()}
-            onCancel={rename.cancel}
-            onSubmit={rename.submit}
+      <Show when={settingsVisible()}>
+        <Show when={appConfig()}>
+          {(config) => (
+            <SettingsScreen
+              accounts={config().accounts}
+              mailboxes={store.visibleMailboxes()}
+              counts={store.counts()}
+              sync={config().sync}
+              onAddAccount={beginAddAccount}
+              onClose={() => {
+                setSettingsOpen(false)
+              }}
+              onAccountSaved={handleAccountUpdated}
+              onMailboxChanged={store.loadFolderData}
+              onSyncSaved={handleSyncSaved}
+            />
+          )}
+        </Show>
+      </Show>
+      <Show when={moving()}>
+        {(targets) => (
+          <MovePicker
+            accountLabel={targets().accountLabel}
+            mailboxes={targets().mailboxes}
+            onCancel={() => {
+              setMoving(undefined)
+            }}
+            onSelect={(mailbox) => {
+              setMoving(undefined)
+              store.move(mailbox)
+            }}
           />
         )}
       </Show>

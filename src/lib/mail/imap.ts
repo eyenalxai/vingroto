@@ -5,6 +5,7 @@ import { ImapFlow } from "imapflow"
 
 import type { AccountConfig } from "@/lib/config/schema"
 import type {
+  FlagMode,
   ImapServiceError,
   MailboxInfo,
   MailboxWindowRequest,
@@ -15,6 +16,7 @@ import type {
 
 import { passwordReference, usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
+import { moveMessages, updateFlags } from "@/lib/mail/imap-actions"
 import { commandTimeout, connectTimeout, guard, releaseClient } from "@/lib/mail/imap-command"
 import { fetchMailboxResult } from "@/lib/mail/imap-mailbox"
 import { toMailboxInfos } from "@/lib/mail/imap-mapping"
@@ -41,6 +43,19 @@ interface ImapShape {
     account: AccountConfig,
     requests: readonly MessageSourceRequest[],
   ) => Effect.Effect<readonly MessageSourceResult[], ImapServiceError>
+  readonly setFlags: (
+    account: AccountConfig,
+    mailboxPath: string,
+    uids: readonly number[],
+    flags: readonly string[],
+    mode: FlagMode,
+  ) => Effect.Effect<void, ImapServiceError>
+  readonly moveMessages: (
+    account: AccountConfig,
+    sourcePath: string,
+    uids: readonly number[],
+    targetPath: string,
+  ) => Effect.Effect<void, ImapServiceError>
 }
 
 class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") {
@@ -111,6 +126,14 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
             ).pipe(Effect.map((chunks) => chunks.flat())),
           )
         },
+        setFlags: (account, mailboxPath, uids, flags, mode) =>
+          withClient(account, (client) =>
+            updateFlags(client, account, mailboxPath, uids, flags, mode),
+          ),
+        moveMessages: (account, sourcePath, uids, targetPath) =>
+          withClient(account, (client) =>
+            moveMessages(client, account, sourcePath, uids, targetPath),
+          ),
       })
     }),
   )

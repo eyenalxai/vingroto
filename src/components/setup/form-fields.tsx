@@ -3,8 +3,8 @@ import type { FieldDescriptor } from "@/components/setup/form-model"
 import { maskSecret, securityLabel } from "@/components/setup/form-model"
 import { useTheme } from "@/components/theme-provider"
 
-interface FieldRowProps {
-  readonly field: FieldDescriptor
+interface FieldRowProps<Id extends string> {
+  readonly field: FieldDescriptor<Id>
   readonly focused: boolean
   readonly value: string
   readonly onInput: (value: string) => void
@@ -12,7 +12,7 @@ interface FieldRowProps {
 
 const labelWidth = 15
 
-const FieldRow = (props: FieldRowProps) => {
+const FieldRow = <Id extends string>(props: FieldRowProps<Id>) => {
   const theme = useTheme()
   const labelColor = () => (props.focused ? theme.accent : theme.muted)
   const valueColor = () => (props.focused ? theme.text : theme.muted)

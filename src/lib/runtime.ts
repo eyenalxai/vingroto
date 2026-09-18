@@ -6,6 +6,7 @@ import { AppPaths } from "@/lib/app-paths"
 import { Credential } from "@/lib/credential/service"
 import { Database } from "@/lib/db/database"
 import { LoggingLayer } from "@/lib/logging"
+import { MailActions } from "@/lib/mail/actions"
 import { Discovery } from "@/lib/mail/autoconfig"
 import { MessageBodies } from "@/lib/mail/bodies"
 import { Imap } from "@/lib/mail/imap"
@@ -24,6 +25,7 @@ const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideM
 const VingrotoLayer = Layer.mergeAll(
   CoreLayer,
   Discovery.layer,
+  MailActions.layer.pipe(Layer.provide(CoreLayer)),
   SyncEngine.layer.pipe(Layer.provide(CoreLayer)),
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
   MessagePrefetch.layer.pipe(Layer.provide(CoreLayer)),

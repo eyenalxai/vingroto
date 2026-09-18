@@ -22,6 +22,7 @@ const MailboxTable = sqliteTable(
     delimiter: text().notNull(),
     special_use: text(),
     selectable: integer({ mode: "boolean" }).notNull(),
+    muted: integer({ mode: "boolean" }).notNull().default(false),
     uid_validity: integer(),
     last_seen_uid: integer()
       .notNull()

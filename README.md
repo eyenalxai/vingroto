@@ -15,7 +15,7 @@ bun start
 
 ## Accounts
 
-On the first run vingroto asks for an account. Enter the email address and password; the IMAP and SMTP servers are detected automatically (published autoconfiguration, DNS SRV records, then a hostname guess) and can be edited before saving. The mailbox name defaults to the email address and the sender name is optional. Press `ctrl+x a` at any time to add or update an account the same way, and `ctrl+x m` to rename the mailbox the selection belongs to.
+On the first run vingroto asks for an account. Enter the email address and password; the IMAP and SMTP servers are detected automatically (published autoconfiguration, DNS SRV records, then a hostname guess) and can be edited before saving. The mailbox name defaults to the email address and the sender name is optional. Press `ctrl+x a` at any time to add another account the same way, or `ctrl+x s` to edit an existing one in the settings screen.
 
 Credentials are written to the OS keyring (`secret-tool`) and never to disk in plaintext. An account's `username` defaults to its email address.
 
@@ -53,7 +53,20 @@ The window splits into three panes: mailboxes, the message list and the reader. 
 
 The mailbox pane starts with two virtual folders, **All emails** and **All unread**, computed from the cached messages of every account. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable.
 
+Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox is dimmed, marked with `⊘`, and excluded from every unread count, from **All unread** and from body prefetching; its mail is still listed and readable.
+
 `tab` (or `left` / `right`) moves between panes, `escape` steps back.
+
+## Settings
+
+`ctrl+x s` opens a full-screen settings screen: a sidebar with a search box on the left, the selected editor on the right.
+
+- **Accounts** — edit the mailbox name, sender name, username, IMAP and SMTP servers. The email address is fixed; a new password can be entered, otherwise the stored one is kept.
+- **Folders** — mute or unmute any synced mailbox.
+- **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`).
+- **+ Add account** — closes settings and starts the account wizard.
+
+Typing in the search box filters both sections and entries. `tab` (or `enter`) focuses the editor, `esc` climbs back one step and closes the screen at the top.
 
 ## Syncing
 
@@ -65,22 +78,28 @@ The database lives in `$XDG_DATA_HOME/vingroto/vingroto.db`, runtime logs in `$X
 
 ## Reading
 
-Headers are synced, bodies are not. The reader shows a message straight from the local cache when it has one; `enter` fetches the full source over IMAP, parses the text and HTML parts and stores them, so the next open is instant. `\Seen` flags are not written back yet.
+Headers are synced, bodies are not. The reader shows a message straight from the local cache when it has one; `enter` fetches the full source over IMAP, parses the text and HTML parts and stores them, so the next open is instant.
+
+`u` marks the selected (or selected set of) messages read or unread and `\Seen` is written back to the server. `m` moves them to another mailbox of the same account. Both actions talk to the server first and update the local cache afterwards; if some mailboxes fail, the rest still applies and the failures are reported in the status bar.
 
 ## Keys
 
-| Key                                           | Action                                             |
-| --------------------------------------------- | -------------------------------------------------- |
-| `q`, `ctrl+c`                                 | quit                                               |
-| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                       |
-| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)              |
-| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                  |
-| `enter`                                       | open a folder / read a message / download the body |
-| `space`                                       | collapse or expand the selected account            |
-| `escape`                                      | step back one pane                                 |
-| `ctrl+x` `a`                                  | add or update an account                           |
-| `ctrl+x` `m`                                  | rename the selected mailbox                        |
-| `ctrl+x` `r`                                  | sync the selected scope                            |
+| Key                                           | Action                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------ |
+| `q`, `ctrl+c`                                 | quit                                                               |
+| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                                       |
+| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                              |
+| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                                  |
+| `enter`                                       | open a folder / read a message / download the body                 |
+| `space`                                       | folders: collapse or expand the account · list: select the message |
+| `u`                                           | list: mark read or unread                                          |
+| `m`                                           | list: move to another mailbox                                      |
+| `ctrl+a`                                      | list: select every loaded message / clear                          |
+| `i`                                           | folders: mute or unmute the mailbox                                |
+| `escape`                                      | list: clear the selection · otherwise step back                    |
+| `ctrl+x` `a`                                  | add an account                                                     |
+| `ctrl+x` `s`                                  | settings                                                           |
+| `ctrl+x` `r`                                  | sync the selected scope                                            |
 
 `ctrl+x` is the leader: press it, then the action key. The secondary bindings are listed in the status bar while it waits.
 

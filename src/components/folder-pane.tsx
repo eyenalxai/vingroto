@@ -94,6 +94,9 @@ const FolderPane = (props: FolderPaneProps) => {
               if (isSelected()) {
                 return theme.selectionForeground
               }
+              if (row.muted) {
+                return theme.muted
+              }
               return row.kind === "account" ? theme.accent : theme.text
             }
             return (

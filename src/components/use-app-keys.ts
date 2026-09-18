@@ -18,7 +18,8 @@ interface AppKeysOptions {
   readonly syncWindow: (paths: readonly string[] | undefined, accountId?: string) => void
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
-  readonly onRenameMailbox: () => void
+  readonly onOpenSettings: () => void
+  readonly onMoveMessages: () => void
   readonly enabled: () => boolean
 }
 
@@ -77,8 +78,8 @@ const useAppKeys = (options: AppKeysOptions) => {
         options.onAddAccount()
         return
       }
-      if (action === "rename-mailbox") {
-        options.onRenameMailbox()
+      if (action === "open-settings") {
+        options.onOpenSettings()
         return
       }
       syncCurrent()
@@ -138,7 +139,29 @@ const useAppKeys = (options: AppKeysOptions) => {
       return true
     }
     if (key.name === "space") {
+      if (options.pane() === "list") {
+        options.store.tagCurrent()
+        return true
+      }
       toggleFocusedAccount()
+      return true
+    }
+    if (options.pane() === "list") {
+      if (key.name === "u" && !key.ctrl) {
+        options.store.toggleSeen()
+        return true
+      }
+      if (key.name === "m" && !key.ctrl) {
+        options.onMoveMessages()
+        return true
+      }
+      if (key.ctrl && key.name === "a") {
+        options.store.toggleTagAll()
+        return true
+      }
+    }
+    if (options.pane() === "folders" && key.name === "i" && !key.ctrl) {
+      options.store.toggleMailboxMuted()
       return true
     }
     return false
@@ -182,6 +205,10 @@ const useAppKeys = (options: AppKeysOptions) => {
       return true
     }
     if (key.name === "escape") {
+      if (options.pane() === "list" && options.store.taggedIds().size > 0) {
+        options.store.clearTags()
+        return true
+      }
       if (options.pane() !== "folders") {
         focusPreviousPane()
       }
@@ -194,20 +221,15 @@ const useAppKeys = (options: AppKeysOptions) => {
     if (!options.enabled()) {
       return
     }
-    if (leader.handle(key)) {
+    const handled =
+      leader.handle(key) ||
+      handleSelectionKey(key) ||
+      handleActionKey(key) ||
+      handleMovementKey(key) ||
+      handlePaneKey(key)
+    if (handled) {
       key.preventDefault()
-      return
     }
-    if (handleSelectionKey(key)) {
-      return
-    }
-    if (handleActionKey(key)) {
-      return
-    }
-    if (handleMovementKey(key)) {
-      return
-    }
-    handlePaneKey(key)
   })
 
   return { leaderActive: leader.active }

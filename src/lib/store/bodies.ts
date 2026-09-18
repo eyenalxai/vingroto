@@ -64,7 +64,13 @@ const listPendingBodies = Effect.fn("Message.listPendingBodies")(function* listP
     })
     .from(MessageTable)
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
-    .where(and(eq(MessageTable.seen, false), isNull(MessageTable.body_fetched_at)))
+    .where(
+      and(
+        eq(MessageTable.seen, false),
+        eq(MailboxTable.muted, false),
+        isNull(MessageTable.body_fetched_at),
+      ),
+    )
     .orderBy(desc(MessageTable.date), desc(MessageTable.uid))
 })
 

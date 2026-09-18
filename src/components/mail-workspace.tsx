@@ -1,0 +1,146 @@
+import type { ScrollBoxRenderable } from "@opentui/core"
+
+import { useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { Effect } from "effect"
+import { Show, createMemo, createSignal } from "solid-js"
+
+import type { Pane } from "@/components/pane-layout"
+import type { MailStore } from "@/components/use-mail-store"
+import type { AccountConfig } from "@/lib/config/schema"
+
+import { FolderPane } from "@/components/folder-pane"
+import { describeLeaderHint } from "@/components/leader-key"
+import { MessageList } from "@/components/message-list"
+import { MessageView } from "@/components/message-view"
+import {
+  describePaneHint,
+  folderPaneWidthFor,
+  resolveLayoutMode,
+  taggedHint,
+  visiblePanesFor,
+} from "@/components/pane-layout"
+import { useRuntime } from "@/components/runtime-provider"
+import { StatusBar } from "@/components/status-bar"
+import { useAppKeys } from "@/components/use-app-keys"
+import { openExternal } from "@/lib/external"
+
+interface MailWorkspaceProps {
+  readonly store: MailStore
+  readonly accounts: readonly AccountConfig[]
+  readonly syncing: boolean
+  readonly status: string
+  readonly syncWindow: (paths: readonly string[] | undefined, accountId?: string) => void
+  readonly onStatus: (message: string) => void
+  readonly onAddAccount: () => void
+  readonly onOpenSettings: () => void
+  readonly onMoveMessages: () => void
+}
+
+const MailWorkspace = (props: MailWorkspaceProps) => {
+  const runtime = useRuntime()
+  const renderer = useRenderer()
+  const dimensions = useTerminalDimensions()
+  const [pane, setPane] = createSignal<Pane>("folders")
+  const [readerScroll, setReaderScroll] = createSignal<ScrollBoxRenderable>()
+
+  const layout = createMemo(() => resolveLayoutMode(dimensions().width))
+  const visiblePanes = createMemo(() => visiblePanesFor(layout(), pane()))
+  const showPane = (target: Pane) => visiblePanes().includes(target)
+
+  const accountLabels = createMemo<ReadonlyMap<string, string>>(
+    () => new Map(props.accounts.map((account) => [account.id, account.label])),
+  )
+
+  const keys = useAppKeys({
+    renderer,
+    store: props.store,
+    pane,
+    setPane: (value: Pane) => {
+      setPane(value)
+    },
+    readerScroll,
+    syncWindow: props.syncWindow,
+    onStatus: props.onStatus,
+    onAddAccount: props.onAddAccount,
+    onOpenSettings: props.onOpenSettings,
+    onMoveMessages: props.onMoveMessages,
+    enabled: () => true,
+  })
+
+  const listTitle = createMemo(() => {
+    const row = props.store.selectedFolderRow()
+    const parts = [`${row?.label ?? "messages"} · ${props.store.messages().length}`]
+    const tagged = props.store.taggedMessages().length
+    if (tagged > 0) {
+      parts.push(`${tagged} selected`)
+    }
+    return parts.join(" · ")
+  })
+
+  const statusHint = createMemo(() => {
+    if (keys.leaderActive()) {
+      return describeLeaderHint()
+    }
+    if (pane() === "list" && props.store.taggedMessages().length > 0) {
+      return taggedHint
+    }
+    return describePaneHint(pane())
+  })
+
+  const openLink = (url: string) => {
+    const program = Effect.gen(function* openLinkInBrowser() {
+      yield* openExternal(url).pipe(
+        Effect.catch((error) =>
+          Effect.sync(() => {
+            props.onStatus(`could not open link · ${error.message}`)
+          }),
+        ),
+      )
+    })
+    runtime.runFork(program)
+  }
+
+  return (
+    <box flexGrow={1} flexDirection="column">
+      <box flexGrow={1} flexDirection="row" gap={1}>
+        <Show when={showPane("folders")}>
+          <box width={folderPaneWidthFor(layout())} flexDirection="column">
+            <FolderPane
+              rows={props.store.folderRows()}
+              selectedKey={props.store.selectedFolderKey()}
+              focused={pane() === "folders"}
+            />
+          </box>
+        </Show>
+        <Show when={showPane("list")}>
+          <box flexGrow={1} flexDirection="column">
+            <MessageList
+              title={listTitle()}
+              messages={props.store.messages()}
+              selectedId={props.store.selectedMessageId()}
+              tagged={props.store.taggedIds()}
+              focused={pane() === "list"}
+            />
+          </box>
+        </Show>
+        <Show when={showPane("reader")}>
+          <box flexGrow={1} flexDirection="column">
+            <MessageView
+              detail={props.store.detail()}
+              body={props.store.body()}
+              focused={pane() === "reader"}
+              accountLabels={accountLabels()}
+              onOpenLink={openLink}
+              onScrollRef={(box) => {
+                setReaderScroll(box)
+              }}
+            />
+          </box>
+        </Show>
+      </box>
+      <StatusBar message={props.status} syncing={props.syncing} hint={statusHint()} />
+    </box>
+  )
+}
+
+export { MailWorkspace, type MailWorkspaceProps }

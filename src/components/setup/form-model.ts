@@ -1,6 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
 
-import type { NewAccount } from "@/lib/config/accounts"
+import type { AccountSave, NewAccount } from "@/lib/config/accounts"
 
 import { ServerConfig } from "@/lib/config/schema"
 
@@ -21,8 +21,8 @@ type FieldId = TextFieldId | SecurityFieldId | SecretFieldId
 
 type FieldKind = "text" | "secret" | "security"
 
-interface FieldDescriptor {
-  readonly id: FieldId
+interface FieldDescriptor<Id extends string = FieldId> {
+  readonly id: Id
   readonly label: string
   readonly kind: FieldKind
   readonly placeholder?: string
@@ -46,21 +46,39 @@ type ValidationResult =
   | { readonly _tag: "ok"; readonly value: NewAccount }
   | { readonly _tag: "error"; readonly message: string }
 
+type EditValidationResult =
+  | { readonly _tag: "ok"; readonly value: AccountSave }
+  | { readonly _tag: "error"; readonly message: string }
+
 const credentialFields = [
   { id: "email", label: "Email", kind: "text", placeholder: "you@example.com" },
   { id: "password", label: "Password", kind: "secret" },
 ] as const satisfies readonly FieldDescriptor[]
 
-const serverFields = [
+const profileFields = [
   { id: "label", label: "Mailbox name", kind: "text", placeholder: "defaults to email" },
   { id: "name", label: "Sender name", kind: "text", placeholder: "optional" },
   { id: "username", label: "Username", kind: "text", placeholder: "defaults to email" },
+] as const satisfies readonly FieldDescriptor[]
+
+const connectionFields = [
   { id: "imapHost", label: "IMAP host", kind: "text", placeholder: "imap.example.com" },
   { id: "imapPort", label: "IMAP port", kind: "text", placeholder: "993" },
   { id: "imapSecurity", label: "IMAP security", kind: "security" },
   { id: "smtpHost", label: "SMTP host", kind: "text", placeholder: "smtp.example.com" },
   { id: "smtpPort", label: "SMTP port", kind: "text", placeholder: "465" },
   { id: "smtpSecurity", label: "SMTP security", kind: "security" },
+] as const satisfies readonly FieldDescriptor[]
+
+const serverFields = [
+  ...profileFields,
+  ...connectionFields,
+] as const satisfies readonly FieldDescriptor[]
+
+const editFields = [
+  ...profileFields,
+  { id: "password", label: "Password", kind: "secret", placeholder: "unchanged" },
+  ...connectionFields,
 ] as const satisfies readonly FieldDescriptor[]
 
 const securityOrder: readonly Security[] = ["tls", "starttls", "none"]
@@ -147,14 +165,19 @@ const parsePort = (value: string): number | undefined => {
   return valid ? parsed : undefined
 }
 
-const validateDraft = (draft: AccountDraft): ValidationResult => {
-  const email = draft.email.trim()
-  if (!emailPattern.test(email)) {
-    return { _tag: "error", message: "enter a valid email address" }
-  }
-  if (draft.password.length === 0) {
-    return { _tag: "error", message: "enter the account password" }
-  }
+interface Profile {
+  readonly label: string
+  readonly name: string | undefined
+  readonly username: string
+  readonly imap: ServerConfig
+  readonly smtp: ServerConfig
+}
+
+type ProfileResult =
+  | { readonly _tag: "ok"; readonly value: Profile }
+  | { readonly _tag: "error"; readonly message: string }
+
+const validateProfile = (draft: AccountDraft): ProfileResult => {
   const imapPort = parsePort(draft.imapPort)
   if (draft.imapHost.trim().length === 0 || imapPort === undefined) {
     return { _tag: "error", message: "enter a valid IMAP host and port" }
@@ -163,17 +186,16 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
   if (draft.smtpHost.trim().length === 0 || smtpPort === undefined) {
     return { _tag: "error", message: "enter a valid SMTP host and port" }
   }
+  const email = draft.email.trim()
   const label = draft.label.trim()
   const name = draft.name.trim()
   const username = draft.username.trim().length === 0 ? email : draft.username.trim()
   return {
     _tag: "ok",
     value: {
-      email,
       label: label.length === 0 ? email : label,
       name: name.length === 0 ? undefined : name,
       username,
-      password: draft.password,
       imap: new ServerConfig({
         host: draft.imapHost.trim(),
         port: imapPort,
@@ -188,20 +210,50 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
   }
 }
 
+const validateDraft = (draft: AccountDraft): ValidationResult => {
+  const email = draft.email.trim()
+  if (!emailPattern.test(email)) {
+    return { _tag: "error", message: "enter a valid email address" }
+  }
+  if (draft.password.length === 0) {
+    return { _tag: "error", message: "enter the account password" }
+  }
+  const profile = validateProfile(draft)
+  if (profile._tag === "error") {
+    return profile
+  }
+  return { _tag: "ok", value: { email, password: draft.password, ...profile.value } }
+}
+
+const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
+  const profile = validateProfile(draft)
+  if (profile._tag === "error") {
+    return profile
+  }
+  return {
+    _tag: "ok",
+    value: { ...profile.value, password: draft.password.length === 0 ? undefined : draft.password },
+  }
+}
+
 export {
   applySecretKey,
   credentialFields,
   cycleSecurity,
+  editFields,
   emptyDraft,
   isServerField,
   maskSecret,
   securityLabel,
   serverFields,
   validateDraft,
+  validateEditDraft,
   type AccountDraft,
+  type EditValidationResult,
   type FieldDescriptor,
   type FieldId,
   type FieldKind,
+  type Profile,
   type SecretFieldId,
   type Security,
   type SecurityFieldId,

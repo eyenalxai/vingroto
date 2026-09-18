@@ -2,7 +2,7 @@ import type { KeyEvent } from "@opentui/core"
 
 import { createSignal, onCleanup } from "solid-js"
 
-type LeaderAction = "add-account" | "rename-mailbox" | "sync"
+type LeaderAction = "add-account" | "open-settings" | "sync"
 
 interface LeaderBinding {
   readonly key: string
@@ -18,7 +18,7 @@ const leaderTimeoutMs = 2000
 
 const leaderBindings: readonly LeaderBinding[] = [
   { key: "a", action: "add-account", description: "add account" },
-  { key: "m", action: "rename-mailbox", description: "rename mailbox" },
+  { key: "s", action: "open-settings", description: "settings" },
   { key: "r", action: "sync", description: "sync" },
 ]
 

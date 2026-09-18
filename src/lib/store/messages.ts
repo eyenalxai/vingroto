@@ -160,8 +160,12 @@ const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtu
   const filters =
     scope.kind === "unread"
       ? scope.accountId === undefined
-        ? [eq(MessageTable.seen, false)]
-        : [eq(MessageTable.seen, false), eq(MessageTable.account_id, scope.accountId)]
+        ? [eq(MessageTable.seen, false), eq(MailboxTable.muted, false)]
+        : [
+            eq(MessageTable.seen, false),
+            eq(MessageTable.account_id, scope.accountId),
+            eq(MailboxTable.muted, false),
+          ]
       : []
   return yield* database.client
     .select(listColumns)
@@ -201,7 +205,8 @@ const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes()
   const unread = yield* database.client
     .select({ mailboxId: MessageTable.mailbox_id, unread: count() })
     .from(MessageTable)
-    .where(eq(MessageTable.seen, false))
+    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
+    .where(and(eq(MessageTable.seen, false), eq(MailboxTable.muted, false)))
     .groupBy(MessageTable.mailbox_id)
   const result = new Map<number, MailboxCounts>()
   for (const row of totals) {
@@ -219,16 +224,44 @@ const unreadMessageCount = Effect.fn("Message.unreadCount")(function* countUnrea
   const rows = yield* database.client
     .select({ value: count() })
     .from(MessageTable)
-    .where(eq(MessageTable.seen, false))
+    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
+    .where(and(eq(MessageTable.seen, false), eq(MailboxTable.muted, false)))
   return rows[0]?.value ?? 0
+})
+
+const setMessagesSeen = Effect.fn("Message.setSeen")(function* setSeen(
+  messageIds: readonly number[],
+  seen: boolean,
+) {
+  if (messageIds.length === 0) {
+    return
+  }
+  const database = yield* Database
+  const now = yield* Clock.currentTimeMillis
+  yield* database.client
+    .update(MessageTable)
+    .set({ seen, updated_at: now })
+    .where(inArray(MessageTable.id, [...messageIds]))
+})
+
+const deleteMessages = Effect.fn("Message.delete")(function* removeMessages(
+  messageIds: readonly number[],
+) {
+  if (messageIds.length === 0) {
+    return
+  }
+  const database = yield* Database
+  yield* database.client.delete(MessageTable).where(inArray(MessageTable.id, [...messageIds]))
 })
 
 export {
   deleteMailboxMessages,
+  deleteMessages,
   getMessage,
   listMessages,
   listVirtualMessages,
   messageCounts,
+  setMessagesSeen,
   storeMessages,
   unreadMessageCount,
   type MailboxCounts,

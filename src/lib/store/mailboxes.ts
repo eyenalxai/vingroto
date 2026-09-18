@@ -65,6 +65,18 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
   }
 })
 
+const setMailboxMuted = Effect.fn("Mailbox.setMuted")(function* setMuted(
+  mailboxId: number,
+  muted: boolean,
+) {
+  const database = yield* Database
+  const now = yield* Clock.currentTimeMillis
+  yield* database.client
+    .update(MailboxTable)
+    .set({ muted, updated_at: now })
+    .where(eq(MailboxTable.id, mailboxId))
+})
+
 const setMailboxSyncState = Effect.fn("Mailbox.setSyncState")(function* setSyncState(
   mailboxId: number,
   state: MailboxSyncState,
@@ -85,6 +97,7 @@ const setMailboxSyncState = Effect.fn("Mailbox.setSyncState")(function* setSyncS
 export {
   listAccountMailboxes,
   listMailboxes,
+  setMailboxMuted,
   setMailboxSyncState,
   upsertMailboxes,
   type MailboxRow,

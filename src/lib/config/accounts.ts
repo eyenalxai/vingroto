@@ -14,13 +14,17 @@ class AccountNotFound extends Schema.TaggedError<AccountNotFound>()("AccountNotF
   message: Schema.String,
 }) {}
 
-interface NewAccount {
-  readonly email: string
+interface AccountSave {
   readonly label: string
   readonly name: string | undefined
   readonly imap: ServerConfig
   readonly smtp: ServerConfig
   readonly username: string
+  readonly password: string | undefined
+}
+
+interface NewAccount extends AccountSave {
+  readonly email: string
   readonly password: string
 }
 
@@ -38,9 +42,17 @@ const upsertAccount = (config: AppConfig, account: AccountConfig): AppConfig => 
   return { ...config, accounts }
 }
 
+const storeCredentials = (id: string, input: AccountSave) =>
+  Effect.gen(function* storeAccountCredentials() {
+    const credential = yield* Credential
+    yield* credential.set(usernameReference(id), input.username)
+    if (input.password !== undefined) {
+      yield* credential.set(passwordReference(id), input.password)
+    }
+  })
+
 const submitAccount = (input: NewAccount) =>
   Effect.gen(function* persistAccount() {
-    const credential = yield* Credential
     const config = yield* loadConfig()
     const id = resolveAccountId(config.accounts, input.email)
     const account = new AccountConfig({
@@ -51,8 +63,7 @@ const submitAccount = (input: NewAccount) =>
       imap: input.imap,
       smtp: input.smtp,
     })
-    yield* credential.set(usernameReference(id), input.username)
-    yield* credential.set(passwordReference(id), input.password)
+    yield* storeCredentials(id, input)
     yield* saveConfig(upsertAccount(config, account))
     yield* Effect.logInfo("account saved").pipe(
       Effect.annotateLogs({ account: id, email: input.email }),
@@ -60,24 +71,27 @@ const submitAccount = (input: NewAccount) =>
     return account
   })
 
-const renameAccount = (id: string, label: string) =>
-  Effect.gen(function* renameConfiguredAccount() {
+const updateAccount = (id: string, input: AccountSave) =>
+  Effect.gen(function* updateConfiguredAccount() {
     const config = yield* loadConfig()
     const existing = config.accounts.find((account) => account.id === id)
     if (existing === undefined) {
       return yield* new AccountNotFound({ id, message: `account ${id} is not configured` })
     }
-    const updated = new AccountConfig({
+    const account = new AccountConfig({
       id: existing.id,
-      label,
-      name: existing.name,
+      label: input.label,
+      name: input.name,
       email: existing.email,
-      imap: existing.imap,
-      smtp: existing.smtp,
+      imap: input.imap,
+      smtp: input.smtp,
     })
-    yield* saveConfig(upsertAccount(config, updated))
-    yield* Effect.logInfo("account renamed").pipe(Effect.annotateLogs({ account: id }))
-    return updated
+    yield* storeCredentials(id, input)
+    yield* saveConfig(upsertAccount(config, account))
+    yield* Effect.logInfo("account updated").pipe(
+      Effect.annotateLogs({ account: id, email: existing.email }),
+    )
+    return account
   })
 
-export { AccountNotFound, renameAccount, submitAccount, type NewAccount }
+export { AccountNotFound, submitAccount, updateAccount, type AccountSave, type NewAccount }

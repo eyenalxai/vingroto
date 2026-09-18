@@ -13,6 +13,7 @@ interface FolderRow {
   readonly indented: boolean
   readonly count: number | undefined
   readonly tone: FolderCountTone
+  readonly muted: boolean
   readonly accountId: string | undefined
   readonly mailboxPath: string | undefined
 }
@@ -60,6 +61,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       indented: false,
       count: undefined,
       tone: "muted",
+      muted: false,
       accountId: undefined,
       mailboxPath: undefined,
     },
@@ -71,6 +73,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       indented: false,
       count: input.unread,
       tone: "unread",
+      muted: false,
       accountId: undefined,
       mailboxPath: undefined,
     },
@@ -80,7 +83,9 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
     const folded = input.collapsed.has(account.id)
     let unread = 0
     for (const row of siblings) {
-      unread += input.counts.get(row.id)?.unread ?? 0
+      if (!row.muted) {
+        unread += input.counts.get(row.id)?.unread ?? 0
+      }
     }
     rows.push({
       key: `account:${account.id}`,
@@ -90,6 +95,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       indented: false,
       count: unread,
       tone: "unread",
+      muted: false,
       accountId: account.id,
       mailboxPath: undefined,
     })
@@ -104,6 +110,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       indented: true,
       count: unread,
       tone: "unread",
+      muted: false,
       accountId: account.id,
       mailboxPath: undefined,
     })
@@ -112,10 +119,11 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
         key: `mailbox:${row.id}`,
         kind: "mailbox",
         label: row.name,
-        marker: "",
+        marker: row.muted ? "⊘" : "",
         indented: true,
-        count: input.counts.get(row.id)?.unread ?? 0,
-        tone: "unread",
+        count: row.muted ? 0 : (input.counts.get(row.id)?.unread ?? 0),
+        tone: row.muted ? "muted" : "unread",
+        muted: row.muted,
         accountId: account.id,
         mailboxPath: row.path,
       })

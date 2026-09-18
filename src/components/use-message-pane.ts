@@ -26,8 +26,14 @@ const useMessagePane = (options: MessagePaneOptions) => {
   const [detail, setDetail] = createSignal<MessageDetail | undefined>()
   const [body, setBody] = createSignal<BodyState | undefined>()
   const [selectedMessageId, setSelectedMessageId] = createSignal<number | undefined>()
+  const [taggedIds, setTaggedIds] = createSignal<ReadonlySet<number>>(new Set())
 
   const selectedMessage = createMemo(() => messages().find((row) => row.id === selectedMessageId()))
+
+  const taggedMessages = createMemo(() => {
+    const ids = taggedIds()
+    return messages().filter((row) => ids.has(row.id))
+  })
 
   const applyMessageRows = (rows: readonly MessageListItem[]) => {
     setMessages(rows)
@@ -157,12 +163,46 @@ const useMessagePane = (options: MessagePaneOptions) => {
     }
   }
 
+  const toggleTag = (messageId: number) => {
+    setTaggedIds((current) => {
+      const next = new Set<number>(current)
+      if (next.has(messageId)) {
+        next.delete(messageId)
+      } else {
+        next.add(messageId)
+      }
+      return next
+    })
+  }
+
+  const tagCurrent = () => {
+    const messageId = selectedMessageId()
+    if (messageId === undefined) {
+      return
+    }
+    toggleTag(messageId)
+    moveMessageSelection(1)
+  }
+
+  const toggleTagAll = () => {
+    const rows = messages()
+    setTaggedIds((current) => {
+      const allTagged = rows.length > 0 && rows.every((row) => current.has(row.id))
+      return allTagged ? new Set<number>() : new Set<number>(rows.map((row) => row.id))
+    })
+  }
+
+  const clearTags = () => {
+    setTaggedIds(new Set<number>())
+  }
+
   const reloadCurrent = () => {
     loadFolderMessages()
   }
 
   createEffect(() => {
     options.folderKey()
+    clearTags()
     loadFolderMessages()
   })
 
@@ -186,12 +226,17 @@ const useMessagePane = (options: MessagePaneOptions) => {
 
   return {
     body,
+    clearTags,
     detail,
     messages,
-    selectedMessage,
-    selectedMessageId,
     moveMessageSelection,
     reloadCurrent,
+    selectedMessage,
+    selectedMessageId,
+    tagCurrent,
+    taggedIds,
+    taggedMessages,
+    toggleTagAll,
   }
 }
 

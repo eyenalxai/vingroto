@@ -1,0 +1,1 @@
+ALTER TABLE `mailbox` ADD `muted` integer DEFAULT false NOT NULL;

@@ -8,12 +8,13 @@ import type { AppRuntime } from "@/lib/runtime"
 import type { MailboxRow } from "@/lib/store/mailboxes"
 import type { MailboxCounts } from "@/lib/store/messages"
 
+import { useMessageActions } from "@/components/use-message-actions"
 import { useMessagePane } from "@/components/use-message-pane"
 import { describeError } from "@/lib/errors"
 import { buildFolderRows, parseFolderKey } from "@/lib/mail/folders"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine, describeSyncEvent } from "@/lib/mail/sync"
-import { listMailboxes } from "@/lib/store/mailboxes"
+import { listMailboxes, setMailboxMuted } from "@/lib/store/mailboxes"
 import { messageCounts, unreadMessageCount } from "@/lib/store/messages"
 
 interface MailStoreOptions {
@@ -112,6 +113,46 @@ const useMailStore = (options: MailStoreOptions) => {
     })
   }
 
+  const messageActions = useMessageActions({
+    runtime: options.runtime,
+    config: options.config,
+    selectedMessage: messagePane.selectedMessage,
+    taggedMessages: messagePane.taggedMessages,
+    onChanged: (affected: number) => {
+      loadFolderData()
+      messagePane.reloadCurrent()
+      if (affected > 0) {
+        messagePane.clearTags()
+      }
+    },
+    onStatus: options.onStatus,
+  })
+
+  const toggleMailboxMuted = () => {
+    const mailbox = selectedMailbox()
+    if (mailbox === undefined) {
+      options.onStatus("select a mailbox to mute")
+      return
+    }
+    const muted = !mailbox.muted
+    const program = Effect.gen(function* muteMailbox() {
+      yield* setMailboxMuted(mailbox.id, muted).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            options.onStatus(muted ? `${mailbox.name} muted` : `${mailbox.name} unmuted`)
+            loadFolderData()
+          }),
+        ),
+        Effect.catch((error) =>
+          Effect.sync(() => {
+            options.onStatus(`could not update the mailbox · ${describeError(error)}`)
+          }),
+        ),
+      )
+    })
+    options.runtime.runFork(program)
+  }
+
   const moveFolderSelection = (delta: number) => {
     const rows = folderRows()
     const index = rows.findIndex((row) => row.key === selectedFolderKey())
@@ -190,6 +231,7 @@ const useMailStore = (options: MailStoreOptions) => {
 
   return {
     ...messagePane,
+    ...messageActions,
     counts,
     folderRows,
     mailboxes,
@@ -202,6 +244,7 @@ const useMailStore = (options: MailStoreOptions) => {
     moveFolderSelection,
     prefetchUnread,
     toggleAccountRow,
+    toggleMailboxMuted,
   }
 }
 

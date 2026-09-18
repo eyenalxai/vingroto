@@ -3,6 +3,8 @@ import * as Schema from "effect/Schema"
 import type { CredentialError } from "@/lib/credential/service"
 import type { MailAddress } from "@/lib/mail/address"
 
+type FlagMode = "add" | "remove"
+
 interface MailboxInfo {
   readonly path: string
   readonly name: string
@@ -74,6 +76,7 @@ type MessageSourceResult =
 
 export {
   ImapError,
+  type FlagMode,
   type ImapServiceError,
   type MailboxInfo,
   type MailboxSnapshot,
