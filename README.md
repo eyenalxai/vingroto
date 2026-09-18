@@ -1,27 +1,27 @@
 # vingroto
 
-A terminal mail client: an OpenTUI (Solid) TUI talking to a daemon over a Unix-socket Effect RPC, with imapflow / nodemailer for the wire and Drizzle on SQLite for storage.
+A terminal mail client: an OpenTUI (Solid) TUI talking to a daemon over a local Effect HTTP API, with imapflow / nodemailer for the wire and Drizzle on SQLite for storage.
 
 ## Architecture
 
-**TUI client ↔ Unix-socket RPC ↔ daemon.**
+**TUI client ↔ local HTTP API ↔ daemon.**
 
-- **TUI client** (`packages/client/src/tui.tsx`, `bun client`) renders the interface and sends commands over RPC. It never reads the config file, touches the keyring or the database, or opens an IMAP/SMTP connection. While the daemon is unreachable it shows a connecting screen and keeps retrying.
-- **Daemon** (`packages/server/src/server.ts`, `bun server`) owns the configuration file, the OS keyring, the SQLite database and every IMAP/SMTP connection. It serves the client's requests and syncs mail in the background.
+- **TUI client** (`packages/client/src/tui.tsx`, `bun client`) renders the interface and talks to the API. It never reads the config file, touches the keyring or the database, or opens an IMAP/SMTP connection. While the daemon is unreachable it shows a connecting screen and keeps retrying.
+- **Daemon** (`packages/server/src/server.ts`, `bun server`) owns the configuration file, the OS keyring, the SQLite database and every IMAP/SMTP connection. It serves the API and syncs mail in the background.
 
-The two processes find each other at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/server.sock` when `XDG_RUNTIME_DIR` is not set. Accounts, credentials, sync settings and cached mail live on the daemon side; passwords stay in the keyring and never cross the socket, so the client cannot leak them and closing the TUI does not stop syncing.
+The daemon listens on `127.0.0.1`, starting at `VINGROTO_API_PORT` (default `8464`) and taking the next free port. The live `url`, `pid` and version go to `$XDG_RUNTIME_DIR/vingroto/server.json` and the bearer token to `$XDG_RUNTIME_DIR/vingroto/token`, both `0600`, falling back to `$XDG_DATA_HOME/vingroto/run/` when `XDG_RUNTIME_DIR` is not set. Accounts, credentials, sync settings and cached mail live on the daemon side; passwords stay in the keyring and never cross the API, so the client cannot leak them and closing the TUI does not stop syncing.
 
 ## Workspace
 
 The repository is a Bun workspace with three packages:
 
-| Package            | Contents                                                                                                        |
-| ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `@vingroto/core`   | Paths, logging, errors, config schema, mail addresses and the wire protocol; the protocol is a frozen contract. |
-| `@vingroto/client` | The OpenTUI (Solid) interface and the client runtime that speaks RPC.                                           |
-| `@vingroto/server` | The daemon: config, credentials, SQLite, IMAP/SMTP, sync and RPC handlers.                                      |
+| Package            | Contents                                                                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `@vingroto/core`   | Paths, logging, errors, config schema, mail addresses and the HTTP API contract.                                  |
+| `@vingroto/client` | The OpenTUI (Solid) interface, the `api` command and the client runtime that speaks the API.                      |
+| `@vingroto/server` | The daemon: config, credentials, SQLite, IMAP/SMTP, sync and API handlers.                                        |
 
-`@vingroto/core` is imported by its subpaths (`@vingroto/core/protocol/rpc`, …) and the client and server use the `@/*` alias inside their own package. `tsconfig.base.json` holds the shared compiler options, each package has its own `tsconfig.json`, and `packages/client/bunfig.toml` preloads the OpenTUI Solid transform.
+`@vingroto/core` is imported by its subpaths (`@vingroto/core/protocol/api`, …) and the client and server use the `@/*` alias inside their own package. `tsconfig.base.json` holds the shared compiler options, each package has its own `tsconfig.json`, and `packages/client/bunfig.toml` preloads the OpenTUI Solid transform.
 
 ## Requirements
 
@@ -37,7 +37,7 @@ bun server &   # daemon
 bun client     # client
 ```
 
-The client retries until the daemon answers, so it is fine to start the client first. Both processes meet at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/server.sock` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the socket, and the client never writes the config file or the database.
+The client retries until the daemon answers, so it is fine to start the client first. Clients find the daemon through `$XDG_RUNTIME_DIR/vingroto/server.json` and read the bearer token from `$XDG_RUNTIME_DIR/vingroto/token`, falling back to `$XDG_DATA_HOME/vingroto/run/` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the API, and the client never writes the config file or the database.
 
 The root scripts change into the package before starting it. Bun's workspace filter runner (`bun run --filter`) captures a child's stdout and stderr and points its stdin at `/dev/null`, which leaves the TUI unable to read input; the client also refuses to start when stdin or stdout is not an interactive terminal.
 
@@ -66,6 +66,28 @@ packages/client/dist/vingroto            # client
 ```
 
 The daemon binary embeds the SQLite migrations and the app version, and the client binary embeds OpenTUI and its native library, so neither reads anything from the checkout at runtime.
+
+## API
+
+The daemon's HTTP API is the only wire surface; it serves its OpenAPI document at `/openapi.json`. The `api` command (the client binary) sends a request to the running daemon:
+
+```sh
+vingroto api server.status
+vingroto api message.list --param scope=unread --param limit=20
+vingroto api message.get --param messageId=42
+vingroto api message.setSeen -d '{"ids":[42],"seen":true}'
+vingroto api GET /api/status
+```
+
+The first argument is an OpenAPI operation id, resolved against the live document, or an HTTP method followed by a path. `--param key=value` fills `{path}` parameters and appends the rest as query parameters, `-d`/`--data` sets the body (JSON unless a content type is given), `-H`/`--header name:value` adds a header, and `--server`/`VINGROTO_SERVER` plus `--token`/`VINGROTO_TOKEN` override discovery. The body goes to stdout; a non-2xx response writes the status to stderr and exits non-zero. From a checkout the same command is `bun client api server.status`.
+
+Plain HTTP works too:
+
+```sh
+base=$(jq -r .url "${XDG_RUNTIME_DIR:-$XDG_DATA_HOME/vingroto/run}/vingroto/server.json")
+token=$(cat "${XDG_RUNTIME_DIR:-$XDG_DATA_HOME/vingroto/run}/vingroto/token")
+curl -s -H "Authorization: Bearer $token" "$base/api/status"
+```
 
 ## Accounts
 
@@ -165,6 +187,7 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 ```sh
 bun server         # run the daemon
 bun client         # run the client
+bun client api …   # send an API request to the running daemon
 bun run build      # compile standalone binaries into packages/*/dist/
 bun db:generate    # generate a migration from packages/server/src/lib/db/schema.ts
 bun db:check       # validate the generated migrations
