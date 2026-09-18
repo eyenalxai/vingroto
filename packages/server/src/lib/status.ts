@@ -18,7 +18,7 @@ const packageJson = isStandaloneExecutable
   ? path.join(import.meta.dirname, "package.json")
   : path.join(import.meta.dirname, "../../../../package.json")
 
-const readVersion = Effect.gen(function* readPackageVersion() {
+const readVersion = Effect.fnUntraced(function* readPackageVersion() {
   const fs = yield* FileSystem.FileSystem
   const raw = yield* fs.readFileString(packageJson)
   const pkg = yield* Schema.decodeUnknownEffect(
@@ -32,7 +32,7 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
   const fs = yield* FileSystem.FileSystem
   const database = yield* Database
   const lifecycle = yield* ServerLifecycle
-  const version = yield* readVersion
+  const version = yield* readVersion()
   const exists = yield* fs.exists(appPaths.config).pipe(Effect.orElseSucceed(() => false))
   let config: ConfigState = { _tag: "empty" }
   if (exists) {
@@ -54,17 +54,17 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
       }),
     )
   }
-  const databaseState = yield* Effect.gen(function* probeDatabase() {
-    const rows = yield* database.client.select({ value: count() }).from(MailboxTable)
-    return rows[0]?.value ?? 0
-  }).pipe(
-    Effect.map((): ServerStatus["database"] => {
-      return { _tag: "ok" }
-    }),
-    Effect.catch((error) =>
-      Effect.succeed({ _tag: "error" as const, message: describeError(error) }),
-    ),
-  )
+  const databaseState = yield* database.client
+    .select({ value: count() })
+    .from(MailboxTable)
+    .pipe(
+      Effect.map((): ServerStatus["database"] => {
+        return { _tag: "ok" }
+      }),
+      Effect.catch((error) =>
+        Effect.succeed({ _tag: "error" as const, message: describeError(error) }),
+      ),
+    )
   return {
     version,
     pid: process.pid,
