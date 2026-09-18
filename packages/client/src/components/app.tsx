@@ -102,9 +102,8 @@ const App = () => {
       setSyncing(true)
       setStatus(paths === undefined ? "syncing all mailboxes" : `syncing ${paths.join(", ")}`)
       const program = Effect.gen(function* runSync() {
-        yield* Effect.logInfo(
-          `sync requested · paths=${paths?.join(",") ?? "all"} · account=${accountId ?? "all"}`,
-        )
+        const syncRequest = { paths: paths?.join(",") ?? "all", account: accountId ?? "all" }
+        yield* Effect.logInfo("sync requested").pipe(Effect.annotateLogs(syncRequest))
         const client = yield* MailClient
         const request = {
           ...(accountId === undefined ? {} : { accountId }),
@@ -140,9 +139,10 @@ const App = () => {
               ? `sync failed · ${failure} (+${errors.length - 1} more)`
               : `sync failed · ${failure}`
         yield* Effect.sync(() => setStatus(message))
+        const failureMessage = errors.join(" · ")
         yield* errors.length > 0
-          ? Effect.logWarning(`sync failed · ${errors.join(" · ")}`)
-          : Effect.logInfo(`sync finished · stored=${stored}`)
+          ? Effect.logWarning("sync failed").pipe(Effect.annotateLogs({ errors: failureMessage }))
+          : Effect.logInfo("sync finished").pipe(Effect.annotateLogs({ stored }))
       }).pipe(
         Effect.ensuring(
           Effect.sync(() => {
