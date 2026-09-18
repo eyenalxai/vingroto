@@ -1,4 +1,5 @@
 import type { ServerConfig } from "@vingroto/core/config/schema"
+import type { DiscoveryResult } from "@vingroto/core/protocol/accounts"
 
 import { describeError } from "@vingroto/core/errors"
 import * as Cause from "effect/Cause"
@@ -9,7 +10,7 @@ import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import { FetchHttpClient, HttpClient } from "effect/unstable/http"
 
-import type { DiscoveryResult, PartialServers } from "@/lib/mail/autoconfig-types"
+import type { PartialServers } from "@/lib/mail/autoconfig-types"
 
 import { srvServers } from "@/lib/mail/autoconfig-srv"
 import { parseAutoconfig } from "@/lib/mail/autoconfig-xml"
@@ -25,66 +26,65 @@ const emailDomain = (email: string): string | undefined => {
   return domain.length === 0 ? undefined : domain
 }
 
-const fetchText = (
+const fetchText = Effect.fn("Discovery.fetchText")(function* fetchDocument(
+  client: HttpClient.HttpClient,
   url: string,
   attempts: string[],
-): Effect.Effect<string | null, never, HttpClient.HttpClient> =>
-  Effect.gen(function* requestText() {
-    const client = yield* HttpClient.HttpClient
-    const exit = yield* Effect.exit(
-      Effect.gen(function* fetchDocument() {
-        const response = yield* client.get(url)
-        if (response.status !== 200) {
-          attempts.push(`${url} returned HTTP ${response.status}`)
-          return null
-        }
-        return yield* response.text
-      }).pipe(Effect.timeout(requestTimeout)),
-    )
-    if (Exit.isSuccess(exit)) {
-      return exit.value
-    }
-    attempts.push(`${url} failed: ${describeError(Cause.squash(exit.cause))}`)
-    return null
-  })
+): Effect.fn.Return<string | null> {
+  const exit = yield* Effect.exit(
+    Effect.gen(function* readDocument() {
+      const response = yield* client.get(url)
+      if (response.status !== 200) {
+        attempts.push(`${url} returned HTTP ${response.status}`)
+        return null
+      }
+      return yield* response.text
+    }).pipe(Effect.timeout(requestTimeout)),
+  )
+  if (Exit.isSuccess(exit)) {
+    return exit.value
+  }
+  attempts.push(`${url} failed: ${describeError(Cause.squash(exit.cause))}`)
+  return null
+})
 
-const autoconfigServers = (
+const autoconfigServers = Effect.fn("Discovery.autoconfigServers")(function* detectAutoconfig(
+  client: HttpClient.HttpClient,
   email: string,
   domain: string,
   attempts: string[],
-): Effect.Effect<PartialServers, never, HttpClient.HttpClient> =>
-  Effect.gen(function* detectAutoconfig() {
-    const urls = [
-      `https://autoconfig.${domain}/mail/config-v1.1.xml`,
-      `https://${domain}/.well-known/autoconfig/mail/config-v1.1.xml`,
-      `https://autoconfig.thunderbird.net/v1.1/${domain}`,
-    ]
-    for (const url of urls) {
-      const text = yield* fetchText(url, attempts)
-      if (text === null) {
-        continue
-      }
-      const parsed = parseAutoconfig(text, email, domain)
-      if (parsed === undefined) {
-        attempts.push(`${url}: unrecognized provider configuration`)
-        continue
-      }
-      if (parsed.redirect !== undefined) {
-        const redirected = yield* fetchText(parsed.redirect, attempts)
-        if (redirected !== null) {
-          const resolved = parseAutoconfig(redirected, email, domain)
-          if (resolved !== undefined && hasServers(resolved.servers)) {
-            return resolved.servers
-          }
-        }
-        continue
-      }
-      if (hasServers(parsed.servers)) {
-        return parsed.servers
-      }
+): Effect.fn.Return<PartialServers> {
+  const urls = [
+    `https://autoconfig.${domain}/mail/config-v1.1.xml`,
+    `https://${domain}/.well-known/autoconfig/mail/config-v1.1.xml`,
+    `https://autoconfig.thunderbird.net/v1.1/${domain}`,
+  ]
+  for (const url of urls) {
+    const text = yield* fetchText(client, url, attempts)
+    if (text === null) {
+      continue
     }
-    return {}
-  })
+    const parsed = parseAutoconfig(text, email, domain)
+    if (parsed === undefined) {
+      attempts.push(`${url}: unrecognized provider configuration`)
+      continue
+    }
+    if (parsed.redirect !== undefined) {
+      const redirected = yield* fetchText(client, parsed.redirect, attempts)
+      if (redirected !== null) {
+        const resolved = parseAutoconfig(redirected, email, domain)
+        if (resolved !== undefined && hasServers(resolved.servers)) {
+          return resolved.servers
+        }
+      }
+      continue
+    }
+    if (hasServers(parsed.servers)) {
+      return parsed.servers
+    }
+  }
+  return {}
+})
 
 const guessImap = (domain: string): ServerConfig => {
   return { host: `imap.${domain}`, port: 993, security: "tls" }
@@ -107,14 +107,17 @@ const describeSource = (xml: PartialServers, srv: PartialServers) => {
   return "hostname guess, verify before saving"
 }
 
-const discover = Effect.fn("Autoconfig.discover")(function* discover(email: string) {
+const discover = Effect.fn("Discovery.discover")(function* discover(
+  client: HttpClient.HttpClient,
+  email: string,
+): Effect.fn.Return<DiscoveryResult> {
   const domain = emailDomain(email)
   const attempts: string[] = []
   if (domain === undefined) {
-    return { _tag: "not-found", attempts: ["the email address is missing a domain"] } as const
+    return { _tag: "not-found", attempts: ["the email address is missing a domain"] }
   }
-  const fromXml = yield* autoconfigServers(email, domain, attempts)
-  const fromSrv = hasServers(fromXml) ? {} : yield* srvServers(domain, attempts)
+  const fromXml = yield* autoconfigServers(client, email, domain, attempts)
+  const fromSrv: PartialServers = hasServers(fromXml) ? {} : yield* srvServers(domain, attempts)
   const imap = fromXml.imap ?? fromSrv.imap ?? guessImap(domain)
   const smtp = fromXml.smtp ?? fromSrv.smtp ?? guessSmtp(domain)
   return {
@@ -125,7 +128,7 @@ const discover = Effect.fn("Autoconfig.discover")(function* discover(email: stri
       ...(fromXml.username === undefined ? {} : { username: fromXml.username }),
       source: describeSource(fromXml, fromSrv),
     },
-  } as const
+  }
 })
 
 interface DiscoveryShape {
@@ -140,8 +143,7 @@ class Discovery extends Context.Service<Discovery, DiscoveryShape>()(
     Effect.gen(function* makeDiscovery() {
       const client = yield* HttpClient.HttpClient
       return Discovery.of({
-        discover: (email: string) =>
-          discover(email).pipe(Effect.provideService(HttpClient.HttpClient, client)),
+        discover: (email: string) => discover(client, email),
       })
     }),
   ).pipe(Layer.provide(FetchHttpClient.layer))

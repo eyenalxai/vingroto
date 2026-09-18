@@ -155,94 +155,87 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
         return { moved: moved.length, skipped: requests.length - eligible.length, errors }
       })
 
-      const setSeenByIds = Effect.fn("MailActions.setSeenByIds")(function* applySeenByIds(
-        ids: readonly number[],
-        seen: boolean,
-      ) {
-        const config = yield* loadConfig()
-        const targets = yield* listMessageActionTargets(ids)
-        const accounts = new Map(config.accounts.map((account) => [account.id, account]))
-        let affected = 0
-        const errors: string[] = []
-        for (const [accountId, group] of groupByAccount(targets)) {
-          const account = accounts.get(accountId)
-          if (account === undefined) {
-            errors.push(`account ${accountId} is not configured`)
-            continue
+      const setSeenByIds = Effect.fn("MailActions.setSeenByIds")(
+        function* applySeenByIds(ids: readonly number[], seen: boolean) {
+          const config = yield* loadConfig()
+          const targets = yield* listMessageActionTargets(ids)
+          const accounts = new Map(config.accounts.map((account) => [account.id, account]))
+          let affected = 0
+          const errors: string[] = []
+          for (const [accountId, group] of groupByAccount(targets)) {
+            const account = accounts.get(accountId)
+            if (account === undefined) {
+              errors.push(`account ${accountId} is not configured`)
+              continue
+            }
+            const outcome = yield* setSeen(account, group, seen).pipe(
+              Effect.catch((error) =>
+                Effect.succeed({
+                  affected: 0,
+                  errors: [`could not update the local cache · ${describeError(error)}`],
+                }),
+              ),
+            )
+            affected += outcome.affected
+            errors.push(...outcome.errors)
           }
-          const outcome = yield* setSeen(account, group, seen).pipe(
+          const missing = new Set(ids).size - targets.length
+          if (missing > 0) {
+            errors.push(`${missing} message(s) were not found locally`)
+          }
+          yield* events.publish({ _tag: "data-changed" })
+          return { affected, errors }
+        },
+        Effect.provideService(Database, database),
+        Effect.provideService(AppPaths, paths),
+        Effect.provideService(FileSystem.FileSystem, fs),
+      )
+
+      const moveByIds = Effect.fn("MailActions.moveByIds")(
+        function* moveByIds(ids: readonly number[], targetMailboxId: number) {
+          const targets = yield* listMessageActionTargets(ids)
+          const mailboxes = yield* listMailboxes()
+          const target = mailboxes.find((row) => row.id === targetMailboxId)
+          if (target === undefined) {
+            return yield* new MessageActionError({
+              message: `mailbox ${targetMailboxId} was not found`,
+            })
+          }
+          const accountIds = new Set(targets.map((entry) => entry.accountId))
+          if (accountIds.size > 1) {
+            return yield* new MessageActionError({
+              message: "messages from several accounts cannot be moved in one request",
+            })
+          }
+          const sourceAccountId = accountIds.values().next().value
+          if (sourceAccountId === undefined) {
+            return { errors: [], moved: 0, skipped: 0 }
+          }
+          const config = yield* loadConfig()
+          const account = config.accounts.find((entry) => entry.id === sourceAccountId)
+          if (account === undefined) {
+            return yield* new MessageActionError({
+              message: `account ${sourceAccountId} is not configured`,
+            })
+          }
+          const outcome = yield* move(account, targets, target.path).pipe(
             Effect.catch((error) =>
               Effect.succeed({
-                affected: 0,
+                moved: 0,
+                skipped: 0,
                 errors: [`could not update the local cache · ${describeError(error)}`],
               }),
             ),
           )
-          affected += outcome.affected
-          errors.push(...outcome.errors)
-        }
-        const missing = new Set(ids).size - targets.length
-        if (missing > 0) {
-          errors.push(`${missing} message(s) were not found locally`)
-        }
-        yield* events.publish({ _tag: "data-changed" })
-        return { affected, errors }
-      })
+          yield* events.publish({ _tag: "data-changed" })
+          return outcome
+        },
+        Effect.provideService(Database, database),
+        Effect.provideService(AppPaths, paths),
+        Effect.provideService(FileSystem.FileSystem, fs),
+      )
 
-      const moveByIds = Effect.fn("MailActions.moveByIds")(function* moveByIds(
-        ids: readonly number[],
-        targetMailboxId: number,
-      ) {
-        const targets = yield* listMessageActionTargets(ids)
-        const mailboxes = yield* listMailboxes()
-        const target = mailboxes.find((row) => row.id === targetMailboxId)
-        if (target === undefined) {
-          return yield* new MessageActionError({
-            message: `mailbox ${targetMailboxId} was not found`,
-          })
-        }
-        const accountIds = new Set(targets.map((entry) => entry.accountId))
-        if (accountIds.size > 1) {
-          return yield* new MessageActionError({
-            message: "messages from several accounts cannot be moved in one request",
-          })
-        }
-        const sourceAccountId = accountIds.values().next().value
-        if (sourceAccountId === undefined) {
-          return { errors: [], moved: 0, skipped: 0 }
-        }
-        const config = yield* loadConfig()
-        const account = config.accounts.find((entry) => entry.id === sourceAccountId)
-        if (account === undefined) {
-          return yield* new MessageActionError({
-            message: `account ${sourceAccountId} is not configured`,
-          })
-        }
-        const outcome = yield* move(account, targets, target.path).pipe(
-          Effect.catch((error) =>
-            Effect.succeed({
-              moved: 0,
-              skipped: 0,
-              errors: [`could not update the local cache · ${describeError(error)}`],
-            }),
-          ),
-        )
-        yield* events.publish({ _tag: "data-changed" })
-        return outcome
-      })
-
-      const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-        effect.pipe(
-          Effect.provideService(Database, database),
-          Effect.provideService(Imap, imap),
-          Effect.provideService(AppPaths, paths),
-          Effect.provideService(FileSystem.FileSystem, fs),
-        )
-
-      return MailActions.of({
-        setSeenByIds: (ids, seen) => provide(setSeenByIds(ids, seen)),
-        moveByIds: (ids, targetMailboxId) => provide(moveByIds(ids, targetMailboxId)),
-      })
+      return MailActions.of({ moveByIds, setSeenByIds })
     }),
   )
 }

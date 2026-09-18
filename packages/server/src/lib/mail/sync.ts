@@ -1,8 +1,8 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
 
 import { describeError } from "@vingroto/core/errors"
-import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
+import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
@@ -20,8 +20,6 @@ import { Imap } from "@/lib/mail/imap"
 import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/lib/store/mailboxes"
 import { deleteMailboxMessages, storeMessages } from "@/lib/store/messages"
 
-const dayMilliseconds = 24 * 60 * 60 * 1000
-
 interface SyncReport {
   readonly accountId: string
   readonly mailboxes: number
@@ -38,10 +36,14 @@ interface SyncShape {
   ) => Effect.Effect<SyncReport>
 }
 
-const initialWindow = (row: MailboxRow, config: SyncConfig, now: number): MailboxWindowRequest => {
+const initialWindow = (
+  row: MailboxRow,
+  config: SyncConfig,
+  now: DateTime.Utc,
+): MailboxWindowRequest => {
   return {
     path: row.path,
-    since: new Date(now - config.initialDays * dayMilliseconds),
+    since: DateTime.subtract(now, { days: config.initialDays }),
     fromUid: undefined,
   }
 }
@@ -49,7 +51,7 @@ const initialWindow = (row: MailboxRow, config: SyncConfig, now: number): Mailbo
 const toWindowRequest = (
   row: MailboxRow,
   config: SyncConfig,
-  now: number,
+  now: DateTime.Utc,
 ): MailboxWindowRequest => {
   if (row.synced_at === null) {
     return initialWindow(row, config, now)
@@ -58,7 +60,11 @@ const toWindowRequest = (
     return { path: row.path, fromUid: row.last_seen_uid + 1, since: undefined }
   }
   // Synced before without a UID watermark: rewind a day to cover day-granular date searches.
-  return { path: row.path, since: new Date(row.synced_at - dayMilliseconds), fromUid: undefined }
+  return {
+    path: row.path,
+    since: DateTime.subtract(DateTime.makeUnsafe(row.synced_at), { days: 1 }),
+    fromUid: undefined,
+  }
 }
 
 const emptyReport = (account: AccountConfig): SyncReport => {
@@ -74,13 +80,14 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
       const events = yield* ServerEvents
       const busy = yield* Ref.make(false)
 
-      const reportMailboxError = (account: AccountConfig, path: string, message: string) =>
-        Effect.gen(function* reportMailboxFailure() {
+      const reportMailboxError = Effect.fn("Sync.reportMailboxError")(
+        function* reportMailboxFailure(account: AccountConfig, path: string, message: string) {
           yield* Effect.logWarning("mailbox sync failed").pipe(
             Effect.annotateLogs({ account: account.id, mailbox: path, reason: message }),
           )
           yield* events.publish({ _tag: "mailbox-error", accountId: account.id, path, message })
-        })
+        },
+      )
 
       const storeSnapshot = Effect.fn("Sync.storeSnapshot")(function* storeSnapshot(
         account: AccountConfig,
@@ -96,10 +103,11 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           mailboxId: row.id,
           envelopes: snapshot.messages,
         })
+        const syncedAt = yield* DateTime.now
         yield* setMailboxSyncState(row.id, {
           uidValidity: snapshot.uidValidity,
           lastSeenUid,
-          syncedAt: yield* Clock.currentTimeMillis,
+          syncedAt: DateTime.toEpochMillis(syncedAt),
         })
         yield* Effect.logInfo("mailbox synced").pipe(
           Effect.annotateLogs({
@@ -124,7 +132,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         config: SyncConfig,
         paths: readonly string[] | undefined,
       ) {
-        const now = yield* Clock.currentTimeMillis
+        const now = yield* DateTime.now
         const infos = yield* imap.listMailboxes(account)
         yield* upsertMailboxes(account.id, infos)
         const stored = yield* listAccountMailboxes(account.id)
@@ -222,35 +230,31 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         return report
       })
 
-      const syncMailboxes = Effect.fn("Sync.syncMailboxes")(function* syncMailboxes(
-        account: AccountConfig,
-        config: SyncConfig,
-        paths: readonly string[] | undefined,
-      ) {
-        const acquired = yield* Ref.modify(busy, (running) => [!running, true])
-        if (!acquired) {
-          return emptyReport(account)
-        }
-        return yield* syncAccount(account, config, paths).pipe(
-          Effect.catch((error) =>
-            Effect.gen(function* reportFailure() {
-              const message = describeError(error)
-              yield* events.publish({ _tag: "sync-error", accountId: account.id, message })
-              return { ...emptyReport(account), errors: [message] }
-            }),
-          ),
-          Effect.ensuring(Ref.set(busy, false)),
-        )
-      })
-
-      return SyncEngine.of({
-        syncMailboxes: (account, config, paths) => {
-          const program = syncMailboxes(account, config, paths).pipe(
-            Effect.provideService(Database, database),
+      const syncMailboxes = Effect.fn("Sync.syncMailboxes")(
+        function* syncMailboxes(
+          account: AccountConfig,
+          config: SyncConfig,
+          paths: readonly string[] | undefined,
+        ) {
+          const acquired = yield* Ref.modify(busy, (running) => [!running, true])
+          if (!acquired) {
+            return emptyReport(account)
+          }
+          return yield* syncAccount(account, config, paths).pipe(
+            Effect.catch((error) =>
+              Effect.gen(function* reportFailure() {
+                const message = describeError(error)
+                yield* events.publish({ _tag: "sync-error", accountId: account.id, message })
+                return { ...emptyReport(account), errors: [message] }
+              }),
+            ),
+            Effect.ensuring(Ref.set(busy, false)),
           )
-          return program
         },
-      })
+        Effect.provideService(Database, database),
+      )
+
+      return SyncEngine.of({ syncMailboxes })
     }),
   )
 }

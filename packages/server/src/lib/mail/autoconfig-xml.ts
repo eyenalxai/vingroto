@@ -1,5 +1,8 @@
 import type { ServerConfig } from "@vingroto/core/config/schema"
 
+import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
+import * as Schema from "effect/Schema"
 import { XMLParser } from "fast-xml-parser"
 
 import type { ParsedAutoconfig, PartialServers, Security } from "@/lib/mail/autoconfig-types"
@@ -12,26 +15,51 @@ const parser = new XMLParser({
   parseAttributeValue: false,
 })
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
+const TextValue = Schema.Union([Schema.String, Schema.Number])
 
-const asArray = (value: unknown): readonly unknown[] => {
-  if (value === undefined || value === null) {
-    return []
-  }
-  return Array.isArray(value) ? value : [value]
-}
+const ServerNode = Schema.Struct({
+  "@_type": Schema.optionalKey(Schema.Unknown),
+  hostname: Schema.optionalKey(Schema.Unknown),
+  port: Schema.optionalKey(Schema.Unknown),
+  socketType: Schema.optionalKey(Schema.Unknown),
+  username: Schema.optionalKey(Schema.Unknown),
+})
+
+const EmailProviderNode = Schema.Struct({
+  incomingServer: Schema.optionalKey(Schema.ArrayEnsure(ServerNode)),
+  outgoingServer: Schema.optionalKey(Schema.ArrayEnsure(ServerNode)),
+})
+
+const RedirectNode = Schema.Union([
+  TextValue,
+  Schema.Struct({ "@_href": Schema.optionalKey(Schema.Unknown) }),
+])
+
+const AutoconfigDocument = Schema.Struct({
+  clientConfig: Schema.Struct({
+    emailProvider: Schema.optionalKey(Schema.ArrayEnsure(EmailProviderNode)),
+    redirect: Schema.optionalKey(RedirectNode),
+  }),
+})
+
+const decodeDocument = Schema.decodeUnknownOption(AutoconfigDocument)
 
 const readString = (value: unknown): string | undefined => {
-  const raw = typeof value === "number" ? String(value) : value
-  const text = typeof raw === "string" ? raw.trim() : ""
+  const decoded = Schema.decodeUnknownOption(TextValue)(value)
+  if (Option.isNone(decoded)) {
+    return undefined
+  }
+  const text = String(decoded.value).trim()
   return text.length === 0 ? undefined : text
 }
 
 const readInteger = (value: unknown): number | undefined => {
   const text = readString(value)
-  const parsed = text === undefined ? Number.NaN : Math.trunc(Number(text))
-  return Number.isNaN(parsed) ? undefined : parsed
+  if (text === undefined) {
+    return undefined
+  }
+  const decoded = Schema.decodeUnknownOption(Schema.FiniteFromString)(text)
+  return Option.isSome(decoded) ? Math.trunc(decoded.value) : undefined
 }
 
 const substitute = (value: string | undefined, replacements: Record<string, string>) => {
@@ -59,27 +87,25 @@ const securityFromSocketType = (value: string | undefined): Security | undefined
   return undefined
 }
 
-const pickServer = (value: unknown, type: string): Record<string, unknown> | undefined => {
-  for (const candidate of asArray(value)) {
-    if (!isRecord(candidate)) {
-      continue
-    }
-    if (readString(candidate["@_type"])?.toLowerCase() === type) {
-      return candidate
-    }
+const readRedirect = (node: typeof RedirectNode.Type): string | undefined => {
+  if (Predicate.isObject(node)) {
+    return readString(node["@_href"])
   }
-  return undefined
+  return readString(node)
 }
 
+const pickServer = (nodes: readonly (typeof ServerNode.Type)[] | undefined, type: string) =>
+  nodes?.find((node) => readString(node["@_type"])?.toLowerCase() === type)
+
 const serverFromRecord = (
-  node: Record<string, unknown>,
+  node: typeof ServerNode.Type,
   fallbackPort: number,
   fallbackSecurity: Security,
   replacements: Record<string, string>,
 ): ServerConfig | undefined => {
   const host = substitute(readString(node.hostname), replacements)
   if (host === undefined) {
-    return host
+    return undefined
   }
   return {
     host,
@@ -93,16 +119,14 @@ const parseAutoconfig = (
   email: string,
   domain: string,
 ): ParsedAutoconfig | undefined => {
-  const parsed = parser.parse(xml) as unknown
-  if (!isRecord(parsed) || !isRecord(parsed.clientConfig)) {
+  const document = decodeDocument(parser.parse(xml) as unknown)
+  if (Option.isNone(document)) {
     return undefined
   }
-  const root = parsed.clientConfig
-  const redirect = isRecord(root.redirect)
-    ? readString(root.redirect["@_href"])
-    : readString(root.redirect)
-  const provider = asArray(root.emailProvider).find((candidate) => isRecord(candidate))
-  if (provider === undefined || !isRecord(provider)) {
+  const root = document.value.clientConfig
+  const redirect = root.redirect === undefined ? undefined : readRedirect(root.redirect)
+  const provider = root.emailProvider?.[0]
+  if (provider === undefined) {
     return redirect === undefined ? undefined : { servers: {}, redirect }
   }
   const replacements = {

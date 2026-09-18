@@ -25,15 +25,17 @@ interface AccountOutcome {
 const prefetchKey = (value: { readonly mailboxPath: string; readonly uid: number }) =>
   `${value.mailboxPath}\u0000${value.uid}`
 
-const storeSource = (target: PendingBody, source: Buffer) =>
-  Effect.gen(function* storePrefetchedBody() {
-    const parsed = yield* parseMessageSource(source)
-    yield* storeMessageBody(
-      target.messageId,
-      { text: parsed.text, html: parsed.html },
-      parsed.attachments > 0,
-    )
-  })
+const storeSource = Effect.fn("MessagePrefetch.storeSource")(function* storePrefetchedBody(
+  target: PendingBody,
+  source: Buffer,
+) {
+  const parsed = yield* parseMessageSource(source)
+  yield* storeMessageBody(
+    target.messageId,
+    { text: parsed.text, html: parsed.html },
+    parsed.attachments > 0,
+  )
+})
 
 const groupByAccount = (targets: readonly PendingBody[]) => {
   const groups = new Map<string, PendingBody[]>()
@@ -153,42 +155,37 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
         )
       })
 
-      const unread = Effect.fn("MessagePrefetch.unread")(function* prefetchUnread(
-        accounts: readonly AccountConfig[],
-      ) {
-        const alreadyRunning = yield* Ref.modify(state, (current) =>
-          current.running
-            ? [true, { running: true, queued: true }]
-            : [false, { running: true, queued: false }],
-        )
-        if (alreadyRunning) {
-          return
-        }
-        yield* Effect.gen(function* drainPrefetch() {
-          let again = true
-          while (again) {
-            yield* runPass(accounts).pipe(
-              Effect.catch((error) =>
-                Effect.logWarning("body prefetch query failed").pipe(
-                  Effect.annotateLogs({ reason: describeError(error) }),
-                ),
-              ),
-            )
-            again = yield* Ref.modify(state, (current) => [
-              current.queued,
-              { running: current.queued, queued: false },
-            ])
+      const unread = Effect.fn("MessagePrefetch.unread")(
+        function* prefetchUnread(accounts: readonly AccountConfig[]) {
+          const alreadyRunning = yield* Ref.modify(state, (current) =>
+            current.running
+              ? [true, { running: true, queued: true }]
+              : [false, { running: true, queued: false }],
+          )
+          if (alreadyRunning) {
+            return
           }
-        }).pipe(
-          Effect.ensuring(Ref.set(state, { running: false, queued: false })),
-          Effect.provideService(Database, database),
-          Effect.provideService(Imap, imap),
-        )
-      })
+          yield* Effect.gen(function* drainPrefetch() {
+            let again = true
+            while (again) {
+              yield* runPass(accounts).pipe(
+                Effect.catch((error) =>
+                  Effect.logWarning("body prefetch query failed").pipe(
+                    Effect.annotateLogs({ reason: describeError(error) }),
+                  ),
+                ),
+              )
+              again = yield* Ref.modify(state, (current) => [
+                current.queued,
+                { running: current.queued, queued: false },
+              ])
+            }
+          }).pipe(Effect.ensuring(Ref.set(state, { running: false, queued: false })))
+        },
+        Effect.provideService(Database, database),
+      )
 
-      return MessagePrefetch.of({
-        unread: (accounts) => unread(accounts),
-      })
+      return MessagePrefetch.of({ unread })
     }),
   )
 }

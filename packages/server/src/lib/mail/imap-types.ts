@@ -1,5 +1,7 @@
 import type { MailAddress } from "@vingroto/core/mail/address"
+import type * as DateTime from "effect/DateTime"
 
+import * as Data from "effect/Data"
 import * as Schema from "effect/Schema"
 
 import type { CredentialError } from "@/lib/credential/service"
@@ -16,7 +18,7 @@ interface MailboxInfo {
 
 interface MailboxWindowRequest {
   readonly path: string
-  readonly since: Date | undefined
+  readonly since: DateTime.Utc | undefined
   readonly fromUid: number | undefined
 }
 
@@ -52,31 +54,37 @@ class ImapError extends Schema.TaggedError<ImapError>()("ImapError", {
 
 type ImapServiceError = ImapError | CredentialError
 
-type MailboxWindowResult =
-  | { readonly _tag: "ok"; readonly path: string; readonly snapshot: MailboxSnapshot }
-  | { readonly _tag: "error"; readonly path: string; readonly message: string }
+type MailboxWindowResult = Data.TaggedEnum<{
+  ok: { readonly path: string; readonly snapshot: MailboxSnapshot }
+  error: { readonly path: string; readonly message: string }
+}>
+
+const mailboxWindowResult = Data.taggedEnum<MailboxWindowResult>()
+
+type MessageSourceResult = Data.TaggedEnum<{
+  ok: {
+    readonly mailboxPath: string
+    readonly uid: number
+    readonly source: Buffer
+  }
+  error: {
+    readonly mailboxPath: string
+    readonly uid: number
+    readonly message: string
+  }
+}>
+
+const messageSourceResult = Data.taggedEnum<MessageSourceResult>()
 
 interface MessageSourceRequest {
   readonly mailboxPath: string
   readonly uid: number
 }
 
-type MessageSourceResult =
-  | {
-      readonly _tag: "ok"
-      readonly mailboxPath: string
-      readonly uid: number
-      readonly source: Buffer
-    }
-  | {
-      readonly _tag: "error"
-      readonly mailboxPath: string
-      readonly uid: number
-      readonly message: string
-    }
-
 export {
   ImapError,
+  mailboxWindowResult,
+  messageSourceResult,
   type FlagMode,
   type ImapServiceError,
   type MailboxInfo,
