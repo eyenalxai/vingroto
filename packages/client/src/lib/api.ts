@@ -7,8 +7,8 @@ import type {
 } from "@vingroto/core/protocol/accounts"
 import type { ServerEvent } from "@vingroto/core/protocol/events"
 import type {
-  FolderScope,
-  FolderSnapshot,
+  ListScope,
+  MailboxSnapshot,
   MessageBody,
   MessageDetail,
   MessageListItem,
@@ -36,9 +36,9 @@ interface SyncRequest {
 
 interface MailClientShape {
   readonly status: () => Effect.Effect<ServerStatus, MailClientError>
-  readonly folderSnapshot: () => Effect.Effect<FolderSnapshot, MailClientError>
+  readonly mailboxSnapshot: () => Effect.Effect<MailboxSnapshot, MailClientError>
   readonly listMessages: (
-    scope: FolderScope,
+    scope: ListScope,
     limit: number,
   ) => Effect.Effect<readonly MessageListItem[], MailClientError>
   readonly getMessage: (id: number) => Effect.Effect<MessageDetail | null, MailClientError>

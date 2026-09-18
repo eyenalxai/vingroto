@@ -7,7 +7,7 @@ import type { SettingsEntry } from "@/components/settings/settings-entries"
 import type { useAccountProfile } from "@/components/settings/use-account-profile"
 import type { useSyncProfile } from "@/components/settings/use-sync-profile"
 
-import { FolderDetail } from "@/components/settings/folder-detail"
+import { MailboxDetail } from "@/components/settings/mailbox-detail"
 import { SettingsForm } from "@/components/settings/settings-form"
 import { syncFields } from "@/components/settings/use-sync-profile"
 import { useTheme } from "@/components/theme-provider"
@@ -75,7 +75,7 @@ const SettingsDetail = (props: SettingsDetailProps) => {
       </Show>
       <Show when={props.mailbox}>
         {(mailbox) => (
-          <FolderDetail
+          <MailboxDetail
             mailbox={mailbox()}
             accountLabel={props.accountLabel}
             counts={props.counts.get(mailbox().id)}
@@ -83,7 +83,7 @@ const SettingsDetail = (props: SettingsDetailProps) => {
           />
         )}
       </Show>
-      <Show when={props.entry?.kind === "folder-group"}>
+      <Show when={props.entry?.kind === "mailbox-group"}>
         <box
           flexGrow={1}
           flexDirection="column"
@@ -92,7 +92,7 @@ const SettingsDetail = (props: SettingsDetailProps) => {
           paddingTop={1}
           gap={1}
         >
-          <text fg={theme.muted}>folders grouped by account</text>
+          <text fg={theme.muted}>mailboxes grouped by account</text>
           <text fg={theme.muted}>⏎ toggle this group</text>
         </box>
       </Show>

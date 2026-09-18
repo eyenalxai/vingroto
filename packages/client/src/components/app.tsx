@@ -147,7 +147,7 @@ const App = () => {
         Effect.ensuring(
           Effect.sync(() => {
             setSyncing(false)
-            store.loadFolderData()
+            store.loadMailboxData()
           }),
         ),
       )
@@ -157,7 +157,7 @@ const App = () => {
 
   const refreshConfig = async () => {
     await daemon.refresh()
-    store.loadFolderData()
+    store.loadMailboxData()
   }
 
   const handleAccountSaved = (account: AccountConfig) => {
@@ -272,7 +272,7 @@ const App = () => {
                 setSettingsOpen(false)
               }}
               onAccountSaved={handleAccountUpdated}
-              onMailboxChanged={store.loadFolderData}
+              onMailboxChanged={store.loadMailboxData}
               onSyncSaved={handleSyncSaved}
             />
           )}

@@ -7,7 +7,7 @@ import { Effect } from "effect"
 import { createEffect, createMemo, createSignal, untrack } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
-import type { FolderRow } from "@/lib/mail/folders"
+import type { MailboxTreeRow } from "@/lib/mail/mailbox-tree"
 import type { AppRuntime } from "@/lib/runtime"
 
 import { useMessageActions } from "@/components/use-message-actions"
@@ -15,7 +15,7 @@ import { useMessagePane } from "@/components/use-message-pane"
 import { useServerEvents } from "@/components/use-server-events"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
-import { buildFolderRows, parseFolderKey } from "@/lib/mail/folders"
+import { buildMailboxTreeRows, parseListKey } from "@/lib/mail/mailbox-tree"
 
 interface MailStoreOptions {
   readonly runtime: AppRuntime
@@ -33,17 +33,17 @@ const useMailStore = (options: MailStoreOptions) => {
   const [mailboxes, setMailboxes] = createSignal<readonly Mailbox[]>([])
   const [counts, setCounts] = createSignal<ReadonlyMap<number, MailboxCounts>>(new Map())
   const [unread, setUnread] = createSignal(0)
-  const [selectedFolderKey, setSelectedFolderKey] = createSignal<string | undefined>()
+  const [selectedListKey, setSelectedListKey] = createSignal<string | undefined>()
   const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<string>>(new Set())
-  const [loadingFolders, setLoadingFolders] = createSignal(false)
+  const [loadingMailboxes, setLoadingMailboxes] = createSignal(false)
   const [mutingMailboxIds, setMutingMailboxIds] = createSignal<ReadonlySet<number>>(new Set())
   const [syncingMailboxIds, setSyncingMailboxIds] = createSignal<ReadonlySet<number>>(new Set())
-  let folderLoadToken = 0
+  let mailboxLoadToken = 0
 
   const visibleMailboxes = createMemo(() => mailboxes().filter((row) => row.selectable))
 
-  const folderRows = createMemo<readonly FolderRow[]>(() =>
-    buildFolderRows({
+  const mailboxTreeRows = createMemo<readonly MailboxTreeRow[]>(() =>
+    buildMailboxTreeRows({
       accounts: options.config()?.accounts ?? [],
       mailboxes: visibleMailboxes(),
       counts: counts(),
@@ -52,12 +52,12 @@ const useMailStore = (options: MailStoreOptions) => {
     }),
   )
 
-  const selectedFolderRow = createMemo(() =>
-    folderRows().find((row) => row.key === selectedFolderKey()),
+  const selectedMailboxTreeRow = createMemo(() =>
+    mailboxTreeRows().find((row) => row.key === selectedListKey()),
   )
 
   const selectedMailbox = createMemo((): Mailbox | undefined => {
-    const target = parseFolderKey(selectedFolderKey())
+    const target = parseListKey(selectedListKey())
     if (target === undefined || target.kind !== "mailbox") {
       return undefined
     }
@@ -74,34 +74,34 @@ const useMailStore = (options: MailStoreOptions) => {
   }
 
   const messagePane = useMessagePane({
-    folderKey: selectedFolderKey,
+    listKey: selectedListKey,
     onDisconnected: options.onDisconnected,
     onStatus: options.onStatus,
     runtime: options.runtime,
   })
 
-  const selectInitialFolder = () => {
+  const selectInitialRow = () => {
     untrack(() => {
-      const rows = folderRows()
-      const current = selectedFolderKey()
+      const rows = mailboxTreeRows()
+      const current = selectedListKey()
       if (current !== undefined && rows.some((row) => row.key === current)) {
         return
       }
       const mailboxRows = rows.filter((row) => row.kind === "mailbox")
       const inbox = mailboxRows.find((row) => row.label.toLowerCase() === "inbox")
-      setSelectedFolderKey((inbox ?? mailboxRows[0] ?? rows[0])?.key)
+      setSelectedListKey((inbox ?? mailboxRows[0] ?? rows[0])?.key)
     })
   }
 
-  const loadFolderData = () => {
+  const loadMailboxData = () => {
     untrack(() => {
-      folderLoadToken += 1
-      const token = folderLoadToken
-      setLoadingFolders(true)
-      const program = Effect.gen(function* loadFolderRows() {
-        yield* Effect.gen(function* queryFolderRows() {
+      mailboxLoadToken += 1
+      const token = mailboxLoadToken
+      setLoadingMailboxes(true)
+      const program = Effect.gen(function* loadMailboxTreeRows() {
+        yield* Effect.gen(function* queryMailboxTreeRows() {
           const client = yield* MailClient
-          const snapshot = yield* client.folderSnapshot()
+          const snapshot = yield* client.mailboxSnapshot()
           yield* Effect.sync(() => {
             setMailboxes(snapshot.mailboxes)
             const next = new Map<number, MailboxCounts>()
@@ -110,7 +110,7 @@ const useMailStore = (options: MailStoreOptions) => {
             }
             setCounts(next)
             setUnread(snapshot.unread)
-            selectInitialFolder()
+            selectInitialRow()
           })
         }).pipe(
           Effect.catch((error) =>
@@ -122,8 +122,8 @@ const useMailStore = (options: MailStoreOptions) => {
       }).pipe(
         Effect.ensuring(
           Effect.sync(() => {
-            if (folderLoadToken === token) {
-              setLoadingFolders(false)
+            if (mailboxLoadToken === token) {
+              setLoadingMailboxes(false)
             }
           }),
         ),
@@ -134,7 +134,7 @@ const useMailStore = (options: MailStoreOptions) => {
 
   const messageActions = useMessageActions({
     onChanged: (affected: number) => {
-      loadFolderData()
+      loadMailboxData()
       messagePane.reloadCurrent()
       if (affected > 0) {
         messagePane.clearTags()
@@ -161,7 +161,7 @@ const useMailStore = (options: MailStoreOptions) => {
         Effect.tap(() =>
           Effect.sync(() => {
             options.onStatus(muted ? `${mailbox.name} muted` : `${mailbox.name} unmuted`)
-            loadFolderData()
+            loadMailboxData()
           }),
         ),
         Effect.catch((error) =>
@@ -180,13 +180,13 @@ const useMailStore = (options: MailStoreOptions) => {
     options.runtime.runFork(program)
   }
 
-  const moveFolderSelection = (delta: number) => {
-    const rows = folderRows()
-    const index = rows.findIndex((row) => row.key === selectedFolderKey())
+  const moveRowSelection = (delta: number) => {
+    const rows = mailboxTreeRows()
+    const index = rows.findIndex((row) => row.key === selectedListKey())
     const clamped = Math.min(Math.max(index === -1 ? 0 : index + delta, 0), rows.length - 1)
     const next = rows[clamped]
     if (next !== undefined) {
-      setSelectedFolderKey(next.key)
+      setSelectedListKey(next.key)
     }
   }
 
@@ -201,7 +201,7 @@ const useMailStore = (options: MailStoreOptions) => {
       }
       return next
     })
-    setSelectedFolderKey(key)
+    setSelectedListKey(key)
   }
 
   const mailboxIdFor = (accountId: string, path: string) =>
@@ -225,8 +225,8 @@ const useMailStore = (options: MailStoreOptions) => {
           setSyncingMailboxIds((current) => withoutId(current, id))
         }
       }
-      loadFolderData()
-      const target = parseFolderKey(selectedFolderKey())
+      loadMailboxData()
+      const target = parseListKey(selectedListKey())
       if (target === undefined) {
         return
       }
@@ -250,7 +250,7 @@ const useMailStore = (options: MailStoreOptions) => {
 
   const applyEvent = (event: ServerEvent) => {
     if (event._tag === "data-changed") {
-      loadFolderData()
+      loadMailboxData()
       messagePane.reloadCurrent()
       return
     }
@@ -265,7 +265,7 @@ const useMailStore = (options: MailStoreOptions) => {
     if (options.config() === undefined) {
       return
     }
-    loadFolderData()
+    loadMailboxData()
   })
 
   useServerEvents({
@@ -279,18 +279,18 @@ const useMailStore = (options: MailStoreOptions) => {
     ...messagePane,
     ...messageActions,
     counts,
-    folderRows,
-    loadingFolders,
+    mailboxTreeRows,
+    loadingMailboxes,
     mailboxes,
     mutingMailboxIds,
-    selectedFolderKey,
-    selectedFolderRow,
+    selectedListKey,
+    selectedMailboxTreeRow,
     selectedMailbox,
     syncingMailboxIds,
     unread,
     visibleMailboxes,
-    loadFolderData,
-    moveFolderSelection,
+    loadMailboxData,
+    moveRowSelection,
     toggleAccountRow,
     toggleMailboxMuted,
   }

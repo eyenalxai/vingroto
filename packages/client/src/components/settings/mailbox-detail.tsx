@@ -5,7 +5,7 @@ import { For, Show } from "solid-js"
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
-interface FolderDetailProps {
+interface MailboxDetailProps {
   readonly mailbox: Mailbox
   readonly accountLabel: string
   readonly counts: MailboxCounts | undefined
@@ -14,12 +14,12 @@ interface FolderDetailProps {
 
 const labelWidth = 15
 
-const FolderDetail = (props: FolderDetailProps) => {
+const MailboxDetail = (props: MailboxDetailProps) => {
   const theme = useTheme()
   const rows = () =>
     [
       { label: "Account", value: props.accountLabel },
-      { label: "Folder", value: props.mailbox.name },
+      { label: "Mailbox", value: props.mailbox.name },
       { label: "Path", value: props.mailbox.path },
       { label: "Special use", value: props.mailbox.special_use ?? "none" },
       { label: "Messages", value: String(props.counts?.total ?? 0) },
@@ -72,4 +72,4 @@ const FolderDetail = (props: FolderDetailProps) => {
   )
 }
 
-export { FolderDetail, type FolderDetailProps }
+export { MailboxDetail, type MailboxDetailProps }

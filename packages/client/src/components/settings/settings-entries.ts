@@ -3,7 +3,7 @@ import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { matchesQuery, queryTerms } from "@/lib/search"
 
-type SettingsSection = "Accounts" | "Folders" | "Sync"
+type SettingsSection = "Accounts" | "Mailboxes" | "Sync"
 
 interface SettingsEntryBase {
   readonly key: string
@@ -15,9 +15,9 @@ interface SettingsEntryBase {
 type SettingsEntry =
   | (SettingsEntryBase & { readonly kind: "add-account" })
   | (SettingsEntryBase & { readonly kind: "account"; readonly accountId: string })
-  | (SettingsEntryBase & { readonly kind: "folder-group"; readonly accountId: string })
+  | (SettingsEntryBase & { readonly kind: "mailbox-group"; readonly accountId: string })
   | (SettingsEntryBase & {
-      readonly kind: "folder"
+      readonly kind: "mailbox"
       readonly mailboxId: number
       readonly accountId: string
       readonly parentKey: string
@@ -38,9 +38,9 @@ interface SettingsEntriesInput {
   readonly sync: SyncConfig
 }
 
-const sectionOrder: readonly SettingsSection[] = ["Accounts", "Folders", "Sync"]
+const sectionOrder: readonly SettingsSection[] = ["Accounts", "Mailboxes", "Sync"]
 
-const folderGroupKey = (accountId: string) => `folders:${accountId}`
+const mailboxGroupKey = (accountId: string) => `mailboxes:${accountId}`
 
 const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEntry[] => {
   const entries: SettingsEntry[] = [
@@ -68,23 +68,23 @@ const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEnt
       .toSorted((left, right) => left.path.localeCompare(right.path))
     const count = mailboxes.length
     entries.push({
-      kind: "folder-group",
-      key: folderGroupKey(account.id),
-      section: "Folders",
+      kind: "mailbox-group",
+      key: mailboxGroupKey(account.id),
+      section: "Mailboxes",
       title: account.label,
-      subtitle: `${account.email} · ${String(count)} ${count === 1 ? "folder" : "folders"}`,
+      subtitle: `${account.email} · ${String(count)} ${count === 1 ? "mailbox" : "mailboxes"}`,
       accountId: account.id,
     })
     for (const mailbox of mailboxes) {
       entries.push({
-        kind: "folder",
-        key: `folder:${mailbox.id}`,
-        section: "Folders",
+        kind: "mailbox",
+        key: `mailbox:${mailbox.id}`,
+        section: "Mailboxes",
         title: mailbox.name,
         subtitle: mailbox.path,
         mailboxId: mailbox.id,
         accountId: account.id,
-        parentKey: folderGroupKey(account.id),
+        parentKey: mailboxGroupKey(account.id),
         path: mailbox.path,
         name: mailbox.name,
         muted: mailbox.muted,
@@ -116,21 +116,21 @@ const filterSettingsEntries = (
   const groupKeys = new Set<string>()
   const keptGroups = new Set<string>()
   for (const entry of entries) {
-    if (entry.kind === "folder-group") {
+    if (entry.kind === "mailbox-group") {
       groupKeys.add(entry.key)
       if (directMatches.has(entry.key)) {
         keptGroups.add(entry.key)
       }
     }
-    if (entry.kind === "folder" && directMatches.has(entry.key)) {
+    if (entry.kind === "mailbox" && directMatches.has(entry.key)) {
       keptGroups.add(entry.parentKey)
     }
   }
   return entries.filter((entry) => {
-    if (entry.kind === "folder-group") {
+    if (entry.kind === "mailbox-group") {
       return keptGroups.has(entry.key)
     }
-    if (entry.kind === "folder") {
+    if (entry.kind === "mailbox") {
       return groupKeys.has(entry.parentKey)
         ? keptGroups.has(entry.parentKey)
         : directMatches.has(entry.key)
@@ -148,7 +148,7 @@ const visibleSettingsEntries = (
     return entries
   }
   return entries.filter(
-    (entry) => entry.kind !== "folder" || !collapsedAccounts.has(entry.accountId),
+    (entry) => entry.kind !== "mailbox" || !collapsedAccounts.has(entry.accountId),
   )
 }
 
@@ -161,7 +161,7 @@ const resolveSelectionKey = (
     return current
   }
   const match = all.find((entry) => entry.key === current)
-  if (match?.kind === "folder" && visible.some((entry) => entry.key === match.parentKey)) {
+  if (match?.kind === "mailbox" && visible.some((entry) => entry.key === match.parentKey)) {
     return match.parentKey
   }
   return visible[0]?.key

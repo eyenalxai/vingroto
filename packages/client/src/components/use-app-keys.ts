@@ -26,12 +26,12 @@ interface AppKeysOptions {
 const useAppKeys = (options: AppKeysOptions) => {
   const focusNextPane = () => {
     const index = paneOrder.indexOf(options.pane())
-    options.setPane(paneOrder[(index + 1) % paneOrder.length] ?? "folders")
+    options.setPane(paneOrder[(index + 1) % paneOrder.length] ?? "mailbox")
   }
 
   const focusPreviousPane = () => {
     const index = paneOrder.indexOf(options.pane())
-    options.setPane(paneOrder[(index + paneOrder.length - 1) % paneOrder.length] ?? "folders")
+    options.setPane(paneOrder[(index + paneOrder.length - 1) % paneOrder.length] ?? "mailbox")
   }
 
   const scrollReaderPage = (direction: number) => {
@@ -43,8 +43,8 @@ const useAppKeys = (options: AppKeysOptions) => {
 
   const moveSelection = (delta: number) => {
     const current = options.pane()
-    if (current === "folders") {
-      options.store.moveFolderSelection(delta)
+    if (current === "mailbox") {
+      options.store.moveRowSelection(delta)
       return
     }
     if (current === "list") {
@@ -58,7 +58,7 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   const syncCurrent = () => {
-    const row = options.store.selectedFolderRow()
+    const row = options.store.selectedMailboxTreeRow()
     if (row === undefined || row.kind === "global") {
       options.syncWindow(["INBOX"])
       return
@@ -88,8 +88,8 @@ const useAppKeys = (options: AppKeysOptions) => {
 
   const activateFocused = () => {
     const current = options.pane()
-    if (current === "folders") {
-      const row = options.store.selectedFolderRow()
+    if (current === "mailbox") {
+      const row = options.store.selectedMailboxTreeRow()
       if (row?.kind === "account") {
         options.store.toggleAccountRow(row.key)
         return
@@ -103,7 +103,7 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   const toggleFocusedAccount = () => {
-    const row = options.store.selectedFolderRow()
+    const row = options.store.selectedMailboxTreeRow()
     if (row?.kind === "account") {
       options.store.toggleAccountRow(row.key)
     }
@@ -164,7 +164,7 @@ const useAppKeys = (options: AppKeysOptions) => {
         return true
       }
     }
-    if (options.pane() === "folders" && key.name === "i" && !key.ctrl) {
+    if (options.pane() === "mailbox" && key.name === "i" && !key.ctrl) {
       options.store.toggleMailboxMuted()
       return true
     }
@@ -213,7 +213,7 @@ const useAppKeys = (options: AppKeysOptions) => {
         options.store.clearTags()
         return true
       }
-      if (options.pane() !== "folders") {
+      if (options.pane() !== "mailbox") {
         focusPreviousPane()
       }
       return true

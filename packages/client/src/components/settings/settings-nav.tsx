@@ -35,17 +35,17 @@ interface SettingsRowProps {
 const rowId = (key: string) => `settings-row-${key.replaceAll(":", "-")}`
 
 const groupCollapsed = (entry: SettingsEntry, query: string, collapsed: ReadonlySet<string>) =>
-  entry.kind === "folder-group" && query.trim().length === 0 && collapsed.has(entry.accountId)
+  entry.kind === "mailbox-group" && query.trim().length === 0 && collapsed.has(entry.accountId)
 
 const isMuting = (
   entry: SettingsEntry,
   mutingIds: ReadonlySet<number>,
   accounts: ReadonlySet<string>,
 ) => {
-  if (entry.kind === "folder") {
+  if (entry.kind === "mailbox") {
     return mutingIds.has(entry.mailboxId)
   }
-  if (entry.kind === "folder-group") {
+  if (entry.kind === "mailbox-group") {
     return accounts.has(entry.accountId)
   }
   return false
@@ -54,27 +54,27 @@ const isMuting = (
 const SettingsRow = (props: SettingsRowProps) => {
   const theme = useTheme()
   const collapsed = () => groupCollapsed(props.entry, props.query, props.collapsed)
-  const muted = () => props.entry.kind === "folder" && props.entry.muted
+  const muted = () => props.entry.kind === "mailbox" && props.entry.muted
   const textColor = () => {
     if (props.selected) {
       return theme.selectionForeground
     }
-    return props.entry.kind === "folder-group" ? theme.accent : theme.text
+    return props.entry.kind === "mailbox-group" ? theme.accent : theme.text
   }
   const markerColor = () => (props.selected ? theme.selectionForeground : theme.muted)
   const marker = () => {
-    if (props.entry.kind === "folder-group") {
+    if (props.entry.kind === "mailbox-group") {
       return collapsed() ? "▸" : "▾"
     }
     return muted() ? "⊘" : " "
   }
-  const titleWidth = () => (props.entry.kind === "folder" ? 26 : 28)
+  const titleWidth = () => (props.entry.kind === "mailbox" ? 26 : 28)
   return (
     <box
       id={rowId(props.entry.key)}
       flexDirection="row"
       gap={1}
-      paddingLeft={props.entry.kind === "folder" ? 2 : 0}
+      paddingLeft={props.entry.kind === "mailbox" ? 2 : 0}
       {...(props.selected ? { backgroundColor: theme.selectionBackground } : {})}
       onMouseDown={() => {
         props.onSelect(props.entry.key)
@@ -103,7 +103,7 @@ const SettingsNav = (props: SettingsNavProps) => {
   const selectedIsGroup = createMemo(() =>
     props.groups.some((group) =>
       group.entries.some(
-        (entry) => entry.key === props.selectedKey && entry.kind === "folder-group",
+        (entry) => entry.key === props.selectedKey && entry.kind === "mailbox-group",
       ),
     ),
   )

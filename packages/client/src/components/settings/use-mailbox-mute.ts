@@ -6,13 +6,13 @@ import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 
-interface UseFolderMuteOptions {
+interface UseMailboxMuteOptions {
   readonly runtime: AppRuntime
   readonly onStatus: (message: string) => void
   readonly onChanged: () => void
 }
 
-const useFolderMute = (options: UseFolderMuteOptions) => {
+const useMailboxMute = (options: UseMailboxMuteOptions) => {
   const [mutingIds, setMutingIds] = createSignal<ReadonlySet<number>>(new Set())
 
   const setMuting = (mailboxId: number, muting: boolean) => {
@@ -32,7 +32,7 @@ const useFolderMute = (options: UseFolderMuteOptions) => {
       return
     }
     setMuting(mailboxId, true)
-    const program = Effect.gen(function* muteFolder() {
+    const program = Effect.gen(function* muteMailbox() {
       const client = yield* MailClient
       yield* client.setMailboxMuted(mailboxId, !muted).pipe(
         Effect.tap(() =>
@@ -60,4 +60,4 @@ const useFolderMute = (options: UseFolderMuteOptions) => {
   return { mutingIds, toggleMute }
 }
 
-export { useFolderMute, type UseFolderMuteOptions }
+export { useMailboxMute, type UseMailboxMuteOptions }

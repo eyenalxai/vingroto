@@ -9,13 +9,13 @@ import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
-import { parseFolderKey } from "@/lib/mail/folders"
+import { parseListKey } from "@/lib/mail/mailbox-tree"
 
 const messageWindow = 500
 
 interface MessagePaneOptions {
   readonly runtime: AppRuntime
-  readonly folderKey: () => string | undefined
+  readonly listKey: () => string | undefined
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
 }
@@ -28,7 +28,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
   const [taggedIds, setTaggedIds] = createSignal<ReadonlySet<number>>(new Set())
   const [loadingMessages, setLoadingMessages] = createSignal(false)
   const [loadingDetail, setLoadingDetail] = createSignal(false)
-  const [loadedFolderKey, setLoadedFolderKey] = createSignal<string | undefined>()
+  const [loadedListKey, setLoadedListKey] = createSignal<string | undefined>()
   let messageLoadToken = 0
 
   const selectedMessage = createMemo(() => messages().find((row) => row.id === selectedMessageId()))
@@ -55,15 +55,15 @@ const useMessagePane = (options: MessagePaneOptions) => {
     }
   }
 
-  const loadFolderMessages = () => {
+  const loadListMessages = () => {
     untrack(() => {
-      const key = options.folderKey()
-      const target = parseFolderKey(key)
+      const key = options.listKey()
+      const target = parseListKey(key)
       if (key === undefined || target === undefined) {
         return
       }
-      if (loadedFolderKey() !== key) {
-        setLoadedFolderKey(key)
+      if (loadedListKey() !== key) {
+        setLoadedListKey(key)
         setMessages([])
         setDetail(undefined)
         setBody(undefined)
@@ -78,8 +78,8 @@ const useMessagePane = (options: MessagePaneOptions) => {
           const client = yield* MailClient
           const rows = yield* client.listMessages(target, messageWindow)
           yield* Effect.sync(() => {
-            // The selection may have moved on while the query ran: never apply rows for another folder.
-            if (options.folderKey() !== key) {
+            // The selection may have moved on while the query ran: never apply rows for another list.
+            if (options.listKey() !== key) {
               return
             }
             applyMessageRows(rows)
@@ -213,13 +213,13 @@ const useMessagePane = (options: MessagePaneOptions) => {
   }
 
   const reloadCurrent = () => {
-    loadFolderMessages()
+    loadListMessages()
   }
 
   createEffect(() => {
-    options.folderKey()
+    options.listKey()
     clearTags()
-    loadFolderMessages()
+    loadListMessages()
   })
 
   createEffect(() => {

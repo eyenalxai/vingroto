@@ -1,26 +1,26 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
-import type { FolderScope, Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
+import type { ListScope, Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
-type FolderRowKind = "global" | "account" | "unread" | "mailbox"
-type FolderCountTone = "unread" | "muted"
+type MailboxTreeRowKind = "global" | "account" | "unread" | "mailbox"
+type CountTone = "unread" | "muted"
 
-interface FolderRow {
+interface MailboxTreeRow {
   readonly key: string
-  readonly kind: FolderRowKind
+  readonly kind: MailboxTreeRowKind
   readonly label: string
   readonly marker: string
   readonly indented: boolean
   readonly count: number | undefined
-  readonly tone: FolderCountTone
+  readonly tone: CountTone
   readonly muted: boolean
   readonly accountId: string | undefined
   readonly mailboxPath: string | undefined
   readonly mailboxId: number | undefined
 }
 
-type FolderTarget = FolderScope
+type ListTarget = ListScope
 
-interface FolderTreeInput {
+interface MailboxTreeInput {
   readonly accounts: readonly AccountConfig[]
   readonly mailboxes: readonly Mailbox[]
   readonly counts: ReadonlyMap<number, MailboxCounts>
@@ -30,7 +30,7 @@ interface FolderTreeInput {
 
 const accountUnreadPrefix = "virtual:unread:"
 
-const parseFolderKey = (key: string | undefined): FolderTarget | undefined => {
+const parseListKey = (key: string | undefined): ListTarget | undefined => {
   if (key === undefined) {
     return undefined
   }
@@ -51,8 +51,8 @@ const parseFolderKey = (key: string | undefined): FolderTarget | undefined => {
   return undefined
 }
 
-const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
-  const rows: FolderRow[] = [
+const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[] => {
+  const rows: MailboxTreeRow[] = [
     {
       key: "virtual:all",
       kind: "global",
@@ -138,11 +138,11 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
 }
 
 export {
-  buildFolderRows,
-  parseFolderKey,
-  type FolderCountTone,
-  type FolderRow,
-  type FolderRowKind,
-  type FolderTarget,
-  type FolderTreeInput,
+  buildMailboxTreeRows,
+  parseListKey,
+  type CountTone,
+  type MailboxTreeRow,
+  type MailboxTreeRowKind,
+  type ListTarget,
+  type MailboxTreeInput,
 }

@@ -105,7 +105,7 @@ The window splits into three panes: mailboxes, the message list and the reader. 
 | 64 - 109 | mailboxes plus the focused pane (list or reader) |
 | < 64     | only the focused pane                            |
 
-The mailbox pane starts with two virtual folders, **All emails** and **All unread**, computed from the cached messages of every account. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups folders by account the same way, with its own collapse state.
+The mailbox pane starts with two virtual views, **All emails** and **All unread**, computed from the cached messages of every account. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups mailboxes by account the same way, with its own collapse state.
 
 Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox is dimmed, marked with `⊘`, and excluded from every unread count, from **All unread** and from body prefetching; its mail is still listed and readable.
 
@@ -116,7 +116,7 @@ Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox i
 `ctrl+x s` opens a full-screen settings screen: a sidebar with a search box on the left, the selected editor on the right.
 
 - **Accounts** — edit the mailbox name, sender name, username, IMAP and SMTP servers. The email address is fixed; a new password can be entered, otherwise the stored one is kept.
-- **Folders** — mute or unmute any synced mailbox. Folders are grouped by account; `enter` on a group collapses or expands it.
+- **Mailboxes** — mute or unmute any synced mailbox. Mailboxes are grouped by account; `enter` on a group collapses or expands it.
 - **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`).
 - **+ Add account** — closes settings and starts the account wizard.
 
@@ -126,7 +126,7 @@ Typing in the search box filters both sections and entries; collapsed groups are
 
 Mailboxes are never mirrored in full. Each mailbox is fetched window by window: one that has never been synced gets a date window (`sync.initialDays`), and afterwards only messages above the last seen UID are fetched. When a server reassigns a mailbox's UID validity, the cached window for that mailbox is dropped and rebuilt from the date window.
 
-`INBOX` is refreshed by the daemon on startup and then every `sync.intervalMinutes`, and a mailbox that has never been synced is fetched when it is first selected. `ctrl+x r` asks the daemon to sync the selected scope: a virtual folder syncs every account's `INBOX`, an account its `INBOX`, a mailbox that mailbox. Every pane shows a spinner while a query or sync is in flight instead of a stale or empty state.
+`INBOX` is refreshed by the daemon on startup and then every `sync.intervalMinutes`, and a mailbox that has never been synced is fetched when it is first selected. `ctrl+x r` asks the daemon to sync the selected scope: a virtual view syncs every account's `INBOX`, an account its `INBOX`, a mailbox that mailbox. Every pane shows a spinner while a query or sync is in flight instead of a stale or empty state.
 
 The daemon keeps the database in `$XDG_DATA_HOME/vingroto/vingroto.db` and writes structured JSON logs to `$XDG_STATE_HOME/vingroto/server.log` (default `~/.local/state/vingroto/server.log`), mirroring the same records to stderr as plain single-line entries for journald. The client keeps its own JSON log at `$XDG_STATE_HOME/vingroto/client.log` and never writes to the terminal. `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
 
@@ -140,23 +140,23 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 
 ## Keys
 
-| Key                                           | Action                                                             |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| `q`, `ctrl+c`                                 | quit                                                               |
-| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                                       |
-| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                              |
-| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                                  |
-| `enter`                                       | open a folder / read a message / download the body                 |
-| `space`                                       | folders: collapse or expand the account · list: select the message |
-| `r`                                           | list: mark read                                                    |
-| `u`                                           | list: mark unread                                                  |
-| `m`                                           | list: move to another mailbox                                      |
-| `ctrl+a`                                      | list: select every loaded message / clear                          |
-| `i`                                           | folders: mute or unmute the mailbox                                |
-| `escape`                                      | list: clear the selection · otherwise step back                    |
-| `ctrl+x` `a`                                  | add an account                                                     |
-| `ctrl+x` `s`                                  | settings                                                           |
-| `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                          |
+| Key                                           | Action                                                     |
+| --------------------------------------------- | ---------------------------------------------------------- |
+| `q`, `ctrl+c`                                 | quit                                                       |
+| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                               |
+| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                      |
+| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                          |
+| `enter`                                       | open a mailbox / read a message / download the body        |
+| `space`                                       | mailboxes: collapse the account · list: select the message |
+| `r`                                           | list: mark read                                            |
+| `u`                                           | list: mark unread                                          |
+| `m`                                           | list: move to another mailbox                              |
+| `ctrl+a`                                      | list: select every loaded message / clear                  |
+| `i`                                           | mailboxes: mute or unmute the mailbox                      |
+| `escape`                                      | list: clear the selection · otherwise step back            |
+| `ctrl+x` `a`                                  | add an account                                             |
+| `ctrl+x` `s`                                  | settings                                                   |
+| `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                  |
 
 `ctrl+x` is the leader: press it, then the action key. The secondary bindings are listed in the status bar while it waits.
 

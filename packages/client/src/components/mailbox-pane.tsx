@@ -2,14 +2,14 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 
 import { For, Show, createEffect, createSignal } from "solid-js"
 
-import type { FolderRow } from "@/lib/mail/folders"
+import type { MailboxTreeRow } from "@/lib/mail/mailbox-tree"
 
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { truncate } from "@/lib/format"
 
-interface FolderPaneProps {
-  readonly rows: readonly FolderRow[]
+interface MailboxPaneProps {
+  readonly rows: readonly MailboxTreeRow[]
   readonly selectedKey: string | undefined
   readonly focused: boolean
   readonly loading: boolean
@@ -17,7 +17,7 @@ interface FolderPaneProps {
   readonly mutingIds: ReadonlySet<number>
 }
 
-const rowId = (key: string) => `folder-row-${key.replaceAll(":", "-")}`
+const rowId = (key: string) => `mailbox-row-${key.replaceAll(":", "-")}`
 
 const badgeLabel = (count: number | undefined) => {
   if (count === undefined || count === 0) {
@@ -26,14 +26,14 @@ const badgeLabel = (count: number | undefined) => {
   return String(count)
 }
 
-const FolderPane = (props: FolderPaneProps) => {
+const MailboxPane = (props: MailboxPaneProps) => {
   const theme = useTheme()
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
   const virtualRows = () => props.rows.filter((row) => row.kind === "global")
   const treeRows = () => props.rows.filter((row) => row.kind !== "global")
 
-  const mailboxBusy = (row: FolderRow) => {
+  const mailboxBusy = (row: MailboxTreeRow) => {
     if (row.mailboxId === undefined) {
       return false
     }
@@ -43,14 +43,14 @@ const FolderPane = (props: FolderPaneProps) => {
   const accountBusy = (accountId: string) =>
     props.rows.some((row) => row.accountId === accountId && mailboxBusy(row))
 
-  const badgeColor = (row: FolderRow, selected: boolean) => {
+  const badgeColor = (row: MailboxTreeRow, selected: boolean) => {
     if (selected) {
       return theme.selectionForeground
     }
     return row.tone === "unread" ? theme.unread : theme.muted
   }
 
-  const textColor = (row: FolderRow, selected: boolean) => {
+  const textColor = (row: MailboxTreeRow, selected: boolean) => {
     if (selected) {
       return theme.selectionForeground
     }
@@ -154,4 +154,4 @@ const FolderPane = (props: FolderPaneProps) => {
   )
 }
 
-export { FolderPane, type FolderPaneProps }
+export { MailboxPane, type MailboxPaneProps }

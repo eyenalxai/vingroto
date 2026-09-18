@@ -66,7 +66,7 @@ const MailClientLayer = Layer.effect(
             Stream.fail(new ClientDefect({ message: describeError(defect) })),
           ),
         ),
-      folderSnapshot: () => guard(client.folderSnapshot()),
+      mailboxSnapshot: () => guard(client.mailboxSnapshot()),
       getMessage: (id) => guard(client.getMessage({ id })),
       listMessages: (scope, limit) => guard(client.listMessages({ limit, scope })),
       loadBody: (id) => guard(client.loadBody({ id })),

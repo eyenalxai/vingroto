@@ -8,13 +8,13 @@ import { Show, createMemo, createSignal } from "solid-js"
 import type { Pane } from "@/components/pane-layout"
 import type { MailStore } from "@/components/use-mail-store"
 
-import { FolderPane } from "@/components/folder-pane"
 import { describeLeaderHint } from "@/components/leader-key"
+import { MailboxPane } from "@/components/mailbox-pane"
 import { MessageList } from "@/components/message-list"
 import { MessageView } from "@/components/message-view"
 import {
   describePaneHint,
-  folderPaneWidthFor,
+  mailboxPaneWidthFor,
   resolveLayoutMode,
   taggedHint,
   visiblePanesFor,
@@ -40,7 +40,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const runtime = useRuntime()
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
-  const [pane, setPane] = createSignal<Pane>("folders")
+  const [pane, setPane] = createSignal<Pane>("mailbox")
   const [readerScroll, setReaderScroll] = createSignal<ScrollBoxRenderable>()
 
   const layout = createMemo(() => resolveLayoutMode(dimensions().width))
@@ -68,7 +68,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   })
 
   const listTitle = createMemo(() => {
-    const row = props.store.selectedFolderRow()
+    const row = props.store.selectedMailboxTreeRow()
     const parts = [`${row?.label ?? "messages"} · ${props.store.messages().length}`]
     const tagged = props.store.taggedMessages().length
     if (tagged > 0) {
@@ -90,7 +90,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const busy = createMemo(
     () =>
       props.syncing ||
-      props.store.loadingFolders() ||
+      props.store.loadingMailboxes() ||
       props.store.loadingMessages() ||
       props.store.loadingDetail() ||
       props.store.pendingMessageIds().size > 0 ||
@@ -114,13 +114,13 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   return (
     <box flexGrow={1} flexDirection="column">
       <box flexGrow={1} flexDirection="row" gap={1}>
-        <Show when={showPane("folders")}>
-          <box width={folderPaneWidthFor(layout())} flexDirection="column">
-            <FolderPane
-              rows={props.store.folderRows()}
-              selectedKey={props.store.selectedFolderKey()}
-              focused={pane() === "folders"}
-              loading={props.store.loadingFolders()}
+        <Show when={showPane("mailbox")}>
+          <box width={mailboxPaneWidthFor(layout())} flexDirection="column">
+            <MailboxPane
+              rows={props.store.mailboxTreeRows()}
+              selectedKey={props.store.selectedListKey()}
+              focused={pane() === "mailbox"}
+              loading={props.store.loadingMailboxes()}
               syncingIds={props.store.syncingMailboxIds()}
               mutingIds={props.store.mutingMailboxIds()}
             />

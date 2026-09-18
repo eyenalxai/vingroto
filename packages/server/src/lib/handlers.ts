@@ -5,10 +5,10 @@ import * as Stream from "effect/Stream"
 
 import { Accounts } from "@/lib/accounts"
 import { ServerEvents } from "@/lib/events"
-import { readFolderSnapshot, setFolderMuted } from "@/lib/folders"
 import { MailActions } from "@/lib/mail/actions"
 import { Discovery } from "@/lib/mail/autoconfig"
 import { MessageBodies } from "@/lib/mail/bodies"
+import { readMailboxSnapshot, updateMailboxMute } from "@/lib/mailboxes"
 import { Scheduler } from "@/lib/scheduler"
 import { readServerStatus } from "@/lib/status"
 import { getMessage, listMessagesForScope } from "@/lib/store/messages"
@@ -17,7 +17,7 @@ const toServerError = (error: unknown) => new ServerError({ message: describeErr
 
 const Handlers = ServerRpcs.toLayer({
   status: () => readServerStatus().pipe(Effect.mapError(toServerError)),
-  folderSnapshot: () => readFolderSnapshot().pipe(Effect.mapError(toServerError)),
+  mailboxSnapshot: () => readMailboxSnapshot().pipe(Effect.mapError(toServerError)),
   listMessages: ({ scope, limit }) =>
     listMessagesForScope(scope, limit).pipe(Effect.mapError(toServerError)),
   getMessage: ({ id }) =>
@@ -41,7 +41,7 @@ const Handlers = ServerRpcs.toLayer({
       return yield* actions.moveByIds(ids, targetMailboxId)
     }).pipe(Effect.mapError(toServerError)),
   setMailboxMuted: ({ mailboxId, muted }) =>
-    setFolderMuted(mailboxId, muted).pipe(Effect.mapError(toServerError)),
+    updateMailboxMute(mailboxId, muted).pipe(Effect.mapError(toServerError)),
   sync: (payload) =>
     Effect.gen(function* syncMailboxes() {
       const scheduler = yield* Scheduler

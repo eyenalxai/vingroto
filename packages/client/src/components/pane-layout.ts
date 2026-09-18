@@ -1,15 +1,15 @@
-type Pane = "folders" | "list" | "reader"
+type Pane = "mailbox" | "list" | "reader"
 type LayoutMode = "three" | "two" | "single"
 
-const paneOrder: readonly Pane[] = ["folders", "list", "reader"]
+const paneOrder: readonly Pane[] = ["mailbox", "list", "reader"]
 
 const wideLayoutWidth = 110
 const mediumLayoutWidth = 64
-const wideFolderPaneWidth = 30
-const mediumFolderPaneWidth = 26
+const wideMailboxPaneWidth = 30
+const mediumMailboxPaneWidth = 26
 
 const hints = {
-  folders: "↑↓ move · ⏎ open · space fold · i mute · tab next pane · ctrl+x · q quit",
+  mailbox: "↑↓ move · ⏎ open · space fold · i mute · tab next pane · ctrl+x · q quit",
   list: "↑↓ move · space select · r read · u unread · m move · esc back · ctrl+x · q quit",
   reader: "↑↓ scroll · pgup/pgdn · esc back · ctrl+x · q quit",
 } as const
@@ -31,17 +31,17 @@ const visiblePanesFor = (mode: LayoutMode, pane: Pane): readonly Pane[] => {
     return paneOrder
   }
   if (mode === "two") {
-    return pane === "reader" ? ["folders", "reader"] : ["folders", "list"]
+    return pane === "reader" ? ["mailbox", "reader"] : ["mailbox", "list"]
   }
   return [pane]
 }
 
-const folderPaneWidthFor = (mode: LayoutMode): number | "100%" => {
+const mailboxPaneWidthFor = (mode: LayoutMode): number | "100%" => {
   if (mode === "three") {
-    return wideFolderPaneWidth
+    return wideMailboxPaneWidth
   }
   if (mode === "two") {
-    return mediumFolderPaneWidth
+    return mediumMailboxPaneWidth
   }
   return "100%"
 }
@@ -50,7 +50,7 @@ const describePaneHint = (pane: Pane): string => hints[pane]
 
 export {
   describePaneHint,
-  folderPaneWidthFor,
+  mailboxPaneWidthFor,
   paneOrder,
   resolveLayoutMode,
   taggedHint,

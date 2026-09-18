@@ -27,15 +27,15 @@ const MailboxCounts = Schema.Struct({
 
 type MailboxCounts = Schema.Schema.Type<typeof MailboxCounts>
 
-const FolderScope = Schema.Union([
+const ListScope = Schema.Union([
   Schema.Struct({ kind: Schema.tag("all") }),
   Schema.Struct({ kind: Schema.tag("unread"), accountId: Schema.optionalKey(Schema.String) }),
   Schema.Struct({ kind: Schema.tag("mailbox"), mailboxId: Schema.Int }),
 ]).pipe(Schema.toTaggedUnion("kind"))
 
-type FolderScope = typeof FolderScope.Type
+type ListScope = typeof ListScope.Type
 
-const FolderSnapshot = Schema.Struct({
+const MailboxSnapshot = Schema.Struct({
   mailboxes: Schema.Array(Mailbox),
   counts: Schema.Array(
     Schema.Struct({
@@ -46,7 +46,7 @@ const FolderSnapshot = Schema.Struct({
   unread: Schema.Int,
 })
 
-type FolderSnapshot = Schema.Schema.Type<typeof FolderSnapshot>
+type MailboxSnapshot = Schema.Schema.Type<typeof MailboxSnapshot>
 
 const MessageListItem = Schema.Struct({
   id: Schema.Int,
@@ -113,8 +113,8 @@ const SyncReport = Schema.Struct({
 type SyncReport = Schema.Schema.Type<typeof SyncReport>
 
 export {
-  FolderScope,
-  FolderSnapshot,
+  ListScope,
+  MailboxSnapshot,
   Mailbox,
   MailboxCounts,
   MessageBody,

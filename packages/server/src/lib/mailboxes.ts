@@ -4,7 +4,7 @@ import { ServerEvents } from "@/lib/events"
 import { listMailboxes, setMailboxMuted } from "@/lib/store/mailboxes"
 import { messageCounts, unreadMessageCount } from "@/lib/store/messages"
 
-const readFolderSnapshot = Effect.fn("Folder.snapshot")(function* readFolderSnapshot() {
+const readMailboxSnapshot = Effect.fn("Mailbox.snapshot")(function* readMailboxSnapshot() {
   const mailboxes = yield* listMailboxes()
   const counts = yield* messageCounts()
   const unread = yield* unreadMessageCount()
@@ -17,7 +17,7 @@ const readFolderSnapshot = Effect.fn("Folder.snapshot")(function* readFolderSnap
   }
 })
 
-const setFolderMuted = Effect.fn("Folder.setMuted")(function* setFolderMuted(
+const updateMailboxMute = Effect.fn("Mailbox.updateMute")(function* updateMailboxMute(
   mailboxId: number,
   muted: boolean,
 ) {
@@ -26,4 +26,4 @@ const setFolderMuted = Effect.fn("Folder.setMuted")(function* setFolderMuted(
   yield* events.publish({ _tag: "data-changed" })
 })
 
-export { readFolderSnapshot, setFolderMuted }
+export { readMailboxSnapshot, updateMailboxMute }

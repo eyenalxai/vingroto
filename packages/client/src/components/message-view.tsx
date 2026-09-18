@@ -86,7 +86,7 @@ const MessageView = (props: MessageViewProps) => {
         label: "Date",
         value: `${formatMessageDateTime(detail.date)} · ${formatBytes(detail.size)}`,
       },
-      { label: "Folder", value: `${account} · ${detail.mailboxName}` },
+      { label: "Mailbox", value: `${account} · ${detail.mailboxName}` },
       { label: "Flags", value: flagsValue(detail) },
     ]
   })

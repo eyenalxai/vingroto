@@ -1,4 +1,4 @@
-import type { FolderScope, MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
+import type { ListScope, MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
 import { and, count, desc, eq, inArray } from "drizzle-orm"
@@ -32,7 +32,7 @@ interface MessageStoreOutcome {
   readonly updated: number
 }
 
-type VirtualFolderScope =
+type VirtualListScope =
   | { readonly kind: "all" }
   | { readonly kind: "unread"; readonly accountId: string | undefined }
 
@@ -137,7 +137,7 @@ const listMessages = Effect.fn("Message.list")(function* list(
 })
 
 const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtual(
-  scope: VirtualFolderScope,
+  scope: VirtualListScope,
   limit: number,
 ): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
   const database = yield* Database
@@ -161,7 +161,7 @@ const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtu
 })
 
 const listMessagesForScope = Effect.fn("Message.listForScope")(function* listForScope(
-  scope: FolderScope,
+  scope: ListScope,
   limit: number,
 ): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
   if (scope.kind === "mailbox") {
@@ -287,5 +287,5 @@ export {
   type MailboxCounts,
   type MessageActionTarget,
   type MessageStoreOutcome,
-  type VirtualFolderScope,
+  type VirtualListScope,
 }

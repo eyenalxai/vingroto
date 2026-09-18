@@ -5,8 +5,8 @@ import { AccountConfig, SyncConfig } from "../config/schema"
 import { AccountSave, DiscoveryResult, NewAccount, ServerStatus } from "./accounts"
 import { ServerEvent } from "./events"
 import {
-  FolderScope,
-  FolderSnapshot,
+  ListScope,
+  MailboxSnapshot,
   MessageBody,
   MessageDetail,
   MessageListItem,
@@ -21,9 +21,9 @@ class ServerError extends Schema.TaggedError<ServerError>()("ServerError", {
 
 const ServerRpcs = RpcGroup.make(
   Rpc.make("status", { success: ServerStatus, error: ServerError }),
-  Rpc.make("folderSnapshot", { success: FolderSnapshot, error: ServerError }),
+  Rpc.make("mailboxSnapshot", { success: MailboxSnapshot, error: ServerError }),
   Rpc.make("listMessages", {
-    payload: { scope: FolderScope, limit: Schema.Int },
+    payload: { scope: ListScope, limit: Schema.Int },
     success: Schema.Array(MessageListItem),
     error: ServerError,
   }),

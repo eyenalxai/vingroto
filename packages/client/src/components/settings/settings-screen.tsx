@@ -16,7 +16,7 @@ import {
 } from "@/components/settings/settings-entries"
 import { SettingsNav } from "@/components/settings/settings-nav"
 import { useAccountProfile } from "@/components/settings/use-account-profile"
-import { useFolderMute } from "@/components/settings/use-folder-mute"
+import { useMailboxMute } from "@/components/settings/use-mailbox-mute"
 import { useSyncProfile } from "@/components/settings/use-sync-profile"
 import { useTheme } from "@/components/theme-provider"
 
@@ -39,7 +39,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const [query, setQuery] = createSignal("")
   const [zone, setZone] = createSignal<"nav" | "detail">("nav")
   const [status, setStatus] = createSignal("")
-  const [collapsedFolders, setCollapsedFolders] = createSignal<ReadonlySet<string>>(new Set())
+  const [collapsedMailboxes, setCollapsedMailboxes] = createSignal<ReadonlySet<string>>(new Set())
   const [selectedKey, setSelectedKey] = createSignal<string | undefined>(
     props.accounts[0] === undefined ? "add-account" : `account:${props.accounts[0].id}`,
   )
@@ -52,9 +52,11 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     }),
   )
   const filtered = createMemo(() => filterSettingsEntries(entries(), query()))
-  const visible = createMemo(() => visibleSettingsEntries(filtered(), collapsedFolders(), query()))
+  const visible = createMemo(() =>
+    visibleSettingsEntries(filtered(), collapsedMailboxes(), query()),
+  )
   const groups = createMemo(() => groupSettingsEntries(visible()))
-  const folderMute = useFolderMute({
+  const mailboxMute = useMailboxMute({
     runtime,
     onStatus: (message) => {
       setStatus(message)
@@ -64,7 +66,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const mutingAccounts = createMemo(() => {
     const accounts = new Set<string>()
     for (const mailbox of props.mailboxes) {
-      if (folderMute.mutingIds().has(mailbox.id)) {
+      if (mailboxMute.mutingIds().has(mailbox.id)) {
         accounts.add(mailbox.account_id)
       }
     }
@@ -83,20 +85,20 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       : undefined
   })
 
-  const selectedFolderEntry = createMemo(() => {
+  const selectedMailboxEntry = createMemo(() => {
     const entry = selectedEntry()
-    return entry?.kind === "folder" ? entry : undefined
+    return entry?.kind === "mailbox" ? entry : undefined
   })
 
   const selectedMailbox = createMemo(() => {
-    const entry = selectedFolderEntry()
+    const entry = selectedMailboxEntry()
     return entry === undefined
       ? undefined
       : props.mailboxes.find((mailbox) => mailbox.id === entry.mailboxId)
   })
 
   const selectedAccountLabel = createMemo(() => {
-    const entry = selectedFolderEntry()
+    const entry = selectedMailboxEntry()
     if (entry === undefined) {
       return ""
     }
@@ -125,7 +127,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   })
 
   const toggleGroup = (accountId: string) => {
-    setCollapsedFolders((current) => {
+    setCollapsedMailboxes((current) => {
       const next = new Set(current)
       if (next.has(accountId)) {
         next.delete(accountId)
@@ -156,7 +158,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       props.onAddAccount()
       return
     }
-    if (entry.kind === "folder-group") {
+    if (entry.kind === "mailbox-group") {
       toggleGroup(entry.accountId)
       return
     }
@@ -176,7 +178,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     }
     if (event.name === "space") {
       const entry = selectedEntry()
-      if (entry?.kind === "folder-group") {
+      if (entry?.kind === "mailbox-group") {
         event.preventDefault()
         toggleGroup(entry.accountId)
       }
@@ -221,10 +223,10 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       }
       return true
     }
-    if (entry?.kind === "folder") {
+    if (entry?.kind === "mailbox") {
       if (event.name === "return" || event.name === "space") {
         event.preventDefault()
-        folderMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
+        mailboxMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
         return true
       }
       if (event.name === "tab") {
@@ -258,8 +260,8 @@ const SettingsScreen = (props: SettingsScreenProps) => {
             setQuery(value)
           }}
           groups={groups()}
-          collapsed={collapsedFolders()}
-          mutingIds={folderMute.mutingIds()}
+          collapsed={collapsedMailboxes()}
+          mutingIds={mailboxMute.mutingIds()}
           mutingAccounts={mutingAccounts()}
           selectedKey={selectedKey()}
           searchFocused={zone() === "nav"}
@@ -277,7 +279,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
           counts={props.counts}
           accountProfile={accountProfile}
           syncProfile={syncProfile}
-          mutingIds={folderMute.mutingIds()}
+          mutingIds={mailboxMute.mutingIds()}
         />
       </box>
       <box flexShrink={0} paddingLeft={2} paddingRight={2}>
