@@ -30,7 +30,8 @@ const trimTrailingUrl = (value: string): { readonly url: string; readonly remain
     // Sentence punctuation and unbalanced brackets belong to the surrounding prose, not the link.
     if (
       trailingPunctuation.has(last) ||
-      (last === ")" && countCharacter(url, ")") > countCharacter(url, "("))
+      (last === ")" && countCharacter(url, ")") > countCharacter(url, "(")) ||
+      (last === "]" && countCharacter(url, "]") > countCharacter(url, "["))
     ) {
       remainder = `${last}${remainder}`
       url = url.slice(0, -1)
