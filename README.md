@@ -15,11 +15,11 @@ The daemon listens on `127.0.0.1`, starting at `VINGROTO_API_PORT` (default `846
 
 The repository is a Bun workspace with three packages:
 
-| Package            | Contents                                                                                                          |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `@vingroto/core`   | Paths, logging, errors, config schema, mail addresses and the HTTP API contract.                                  |
-| `@vingroto/client` | The OpenTUI (Solid) interface, the `api` command and the client runtime that speaks the API.                      |
-| `@vingroto/server` | The daemon: config, credentials, SQLite, IMAP/SMTP, sync and API handlers.                                        |
+| Package            | Contents                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| `@vingroto/core`   | Paths, logging, errors, config schema, mail addresses and the HTTP API contract.             |
+| `@vingroto/client` | The OpenTUI (Solid) interface, the `api` command and the client runtime that speaks the API. |
+| `@vingroto/server` | The daemon: config, credentials, SQLite, IMAP/SMTP, sync and API handlers.                   |
 
 `@vingroto/core` is imported by its subpaths (`@vingroto/core/protocol/api`, …) and the client and server use the `@/*` alias inside their own package. `tsconfig.base.json` holds the shared compiler options, each package has its own `tsconfig.json`, and `packages/client/bunfig.toml` preloads the OpenTUI Solid transform.
 
