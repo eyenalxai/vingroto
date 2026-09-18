@@ -12,6 +12,7 @@ import type {
   MailboxWindowRequest,
   MailboxWindowResult,
 } from "@/lib/mail/imap-types"
+import type { SyncEvent } from "@/lib/protocol/events"
 import type { MailboxRow } from "@/lib/store/mailboxes"
 
 import { Database } from "@/lib/db/database"
@@ -21,27 +22,6 @@ import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/li
 import { deleteMailboxMessages, storeMessages } from "@/lib/store/messages"
 
 const dayMilliseconds = 24 * 60 * 60 * 1000
-
-type SyncEvent =
-  | {
-      readonly _tag: "mailbox-start"
-      readonly accountId: string
-      readonly path: string
-    }
-  | {
-      readonly _tag: "mailbox-done"
-      readonly accountId: string
-      readonly path: string
-      readonly fetched: number
-      readonly stored: number
-    }
-  | {
-      readonly _tag: "mailbox-error"
-      readonly accountId: string
-      readonly path: string
-      readonly message: string
-    }
-  | { readonly _tag: "sync-error"; readonly accountId: string; readonly message: string }
 
 interface SyncReport {
   readonly accountId: string
@@ -85,19 +65,6 @@ const toWindowRequest = (
 
 const emptyReport = (account: AccountConfig): SyncReport => {
   return { accountId: account.id, mailboxes: 0, fetched: 0, stored: 0, errors: [] }
-}
-
-const describeSyncEvent = (event: SyncEvent) => {
-  if (event._tag === "mailbox-start") {
-    return `syncing ${event.path}`
-  }
-  if (event._tag === "mailbox-done") {
-    return event.stored === 0 ? `${event.path} · up to date` : `${event.path} · ${event.stored} new`
-  }
-  if (event._tag === "mailbox-error") {
-    return `${event.path} · ${event.message}`
-  }
-  return `sync failed · ${event.message}`
 }
 
 class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/mail/SyncEngine") {
@@ -293,4 +260,4 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
   )
 }
 
-export { SyncEngine, describeSyncEvent, type SyncEvent, type SyncReport, type SyncShape }
+export { SyncEngine, type SyncReport, type SyncShape }

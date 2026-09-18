@@ -3,7 +3,7 @@ import { createEffect, createMemo, createSignal, onCleanup, untrack } from "soli
 
 import type { AppConfig } from "@/lib/config/schema"
 import type { FolderRow } from "@/lib/mail/folders"
-import type { SyncEvent } from "@/lib/mail/sync"
+import type { SyncEvent } from "@/lib/protocol/events"
 import type { AppRuntime } from "@/lib/runtime"
 import type { MailboxRow } from "@/lib/store/mailboxes"
 import type { MailboxCounts } from "@/lib/store/messages"
@@ -13,7 +13,8 @@ import { useMessagePane } from "@/components/use-message-pane"
 import { describeError } from "@/lib/errors"
 import { buildFolderRows, parseFolderKey } from "@/lib/mail/folders"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
-import { SyncEngine, describeSyncEvent } from "@/lib/mail/sync"
+import { SyncEngine } from "@/lib/mail/sync"
+import { describeSyncEvent } from "@/lib/protocol/events"
 import { listMailboxes, setMailboxMuted } from "@/lib/store/mailboxes"
 import { messageCounts, unreadMessageCount } from "@/lib/store/messages"
 

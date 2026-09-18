@@ -46,6 +46,13 @@ interface MessageStoreInput {
   readonly envelopes: readonly MessageEnvelope[]
 }
 
+interface MessageActionTarget {
+  readonly messageId: number
+  readonly accountId: string
+  readonly mailboxPath: string
+  readonly uid: number
+}
+
 interface MessageStoreOutcome {
   readonly inserted: number
   readonly updated: number
@@ -196,6 +203,25 @@ const getMessage = Effect.fn("Message.get")(function* get(messageId: number) {
   return rows[0]
 })
 
+const listMessageActionTargets = Effect.fn("Message.actionTargets")(function* actionTargets(
+  messageIds: readonly number[],
+) {
+  if (messageIds.length === 0) {
+    return []
+  }
+  const database = yield* Database
+  return yield* database.client
+    .select({
+      messageId: MessageTable.id,
+      accountId: MessageTable.account_id,
+      mailboxPath: MailboxTable.path,
+      uid: MessageTable.uid,
+    })
+    .from(MessageTable)
+    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
+    .where(inArray(MessageTable.id, [...messageIds]))
+})
+
 const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes() {
   const database = yield* Database
   const totals = yield* database.client
@@ -258,6 +284,7 @@ export {
   deleteMailboxMessages,
   deleteMessages,
   getMessage,
+  listMessageActionTargets,
   listMessages,
   listVirtualMessages,
   messageCounts,
@@ -265,6 +292,7 @@ export {
   storeMessages,
   unreadMessageCount,
   type MailboxCounts,
+  type MessageActionTarget,
   type MessageDetail,
   type MessageListItem,
   type MessageStoreOutcome,
