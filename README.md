@@ -51,7 +51,7 @@ The window splits into three panes: mailboxes, the message list and the reader. 
 | 64 - 109 | mailboxes plus the focused pane (list or reader) |
 | < 64     | only the focused pane                            |
 
-The mailbox pane starts with two virtual folders, **All emails** and **All unread**, computed from the cached messages of every account. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable.
+The mailbox pane starts with two virtual folders, **All emails** and **All unread**, computed from the cached messages of every account. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups folders by account the same way, with its own collapse state.
 
 Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox is dimmed, marked with `⊘`, and excluded from every unread count, from **All unread** and from body prefetching; its mail is still listed and readable.
 
@@ -62,17 +62,17 @@ Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox i
 `ctrl+x s` opens a full-screen settings screen: a sidebar with a search box on the left, the selected editor on the right.
 
 - **Accounts** — edit the mailbox name, sender name, username, IMAP and SMTP servers. The email address is fixed; a new password can be entered, otherwise the stored one is kept.
-- **Folders** — mute or unmute any synced mailbox.
+- **Folders** — mute or unmute any synced mailbox. Folders are grouped by account; `enter` on a group collapses or expands it.
 - **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`).
 - **+ Add account** — closes settings and starts the account wizard.
 
-Typing in the search box filters both sections and entries. `tab` (or `enter`) focuses the editor, `esc` climbs back one step and closes the screen at the top.
+Typing in the search box filters both sections and entries; collapsed groups are expanded while a query is active. `tab` (or `enter`) focuses the editor, `esc` climbs back one step and closes the screen at the top.
 
 ## Syncing
 
 Mailboxes are never mirrored in full. Each mailbox is fetched window by window: one that has never been synced gets a date window (`sync.initialDays`), and afterwards only messages above the last seen UID are fetched. When a server reassigns a mailbox's UID validity, the cached window for that mailbox is dropped and rebuilt from the date window.
 
-`INBOX` is refreshed on startup and then every `sync.intervalMinutes`, and a mailbox that has never been synced is fetched when it is first selected. `r` syncs the selected scope: a virtual folder syncs every account's `INBOX`, an account its `INBOX`, a mailbox that mailbox.
+`INBOX` is refreshed on startup and then every `sync.intervalMinutes`, and a mailbox that has never been synced is fetched when it is first selected. `ctrl+x r` syncs the selected scope: a virtual folder syncs every account's `INBOX`, an account its `INBOX`, a mailbox that mailbox. Every pane shows a spinner while a query or sync is in flight instead of a stale or empty state.
 
 The database lives in `$XDG_DATA_HOME/vingroto/vingroto.db`, runtime logs in `$XDG_DATA_HOME/vingroto/vingroto.log`. Logs always go to that file, never to the terminal; `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
 
@@ -80,7 +80,9 @@ The database lives in `$XDG_DATA_HOME/vingroto/vingroto.db`, runtime logs in `$X
 
 Headers are synced, bodies are not. The reader shows a message straight from the local cache when it has one; `enter` fetches the full source over IMAP, parses the text and HTML parts and stores them, so the next open is instant.
 
-`u` marks the selected (or selected set of) messages read or unread and `\Seen` is written back to the server. `m` moves them to another mailbox of the same account. Both actions talk to the server first and update the local cache afterwards; if some mailboxes fail, the rest still applies and the failures are reported in the status bar.
+Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: `style` and `script` blocks, hidden preheaders (`display:none`, `visibility:hidden`, zero-height or zero-opacity blocks) and tracking pixels are dropped, links keep their text with the target in brackets and images render only a meaningful `alt`. What remains is normalized: HTML entities and `&nbsp;` are decoded, zero-width and other invisible spacer characters are removed, runs of spaces collapse and blank-line ladders shrink to a single empty line. A `text/plain` part that is really raw HTML or CSS is converted the same way, so a broken sender cannot leak `td, p { font-family: … }` into the reader. Links and URLs are clickable; long tracking URLs are shown truncated but open in full.
+
+`r` marks the selected (or selected set of) messages read and `u` marks them unread; `\Seen` is written back to the server. `m` moves them to another mailbox of the same account. Both actions talk to the server first and update the local cache afterwards; if some mailboxes fail, the rest still applies and the failures are reported in the status bar.
 
 ## Keys
 
@@ -92,7 +94,8 @@ Headers are synced, bodies are not. The reader shows a message straight from the
 | `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                                  |
 | `enter`                                       | open a folder / read a message / download the body                 |
 | `space`                                       | folders: collapse or expand the account · list: select the message |
-| `u`                                           | list: mark read or unread                                          |
+| `r`                                           | list: mark read                                                    |
+| `u`                                           | list: mark unread                                                  |
 | `m`                                           | list: move to another mailbox                                      |
 | `ctrl+a`                                      | list: select every loaded message / clear                          |
 | `i`                                           | folders: mute or unmute the mailbox                                |
