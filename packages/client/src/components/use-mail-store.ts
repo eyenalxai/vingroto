@@ -1,5 +1,5 @@
 import type { AppConfig } from "@vingroto/core/config/schema"
-import type { MailboxId } from "@vingroto/core/ids"
+import type { MailboxId, MessageId } from "@vingroto/core/ids"
 import type { ServerEvent, SyncEvent } from "@vingroto/core/protocol/events"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
@@ -135,12 +135,11 @@ const useMailStore = (options: MailStoreOptions) => {
   }
 
   const messageActions = useMessageActions({
-    onChanged: (affected: number) => {
+    onChanged: (ids: readonly MessageId[]) => {
+      messagePane.dropRetained(ids)
       loadMailboxData()
       messagePane.reloadCurrent()
-      if (affected > 0) {
-        messagePane.clearMarks()
-      }
+      messagePane.clearMarks()
     },
     onDisconnected: options.onDisconnected,
     onStatus: options.onStatus,

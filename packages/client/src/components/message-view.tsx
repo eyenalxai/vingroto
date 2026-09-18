@@ -1,5 +1,5 @@
 import type { MouseEvent, ScrollBoxRenderable } from "@opentui/core"
-import type { AccountId } from "@vingroto/core/ids"
+import type { AccountId, MessageId } from "@vingroto/core/ids"
 import type { MessageDetail } from "@vingroto/core/protocol/mail"
 
 import { MouseButton } from "@opentui/core"
@@ -27,6 +27,7 @@ interface MessageViewProps {
   readonly accountLabels: ReadonlyMap<AccountId, string>
   readonly onScrollRef: (box: ScrollBoxRenderable) => void
   readonly onOpenLink: (url: string) => void
+  readonly onBodyDisplayed: (messageId: MessageId) => void
 }
 
 const leftMouseButton: number = MouseButton.LEFT
@@ -119,6 +120,15 @@ const MessageView = (props: MessageViewProps) => {
     if (detail !== undefined && box !== undefined) {
       box.scrollTop = 0
     }
+  })
+
+  createEffect(() => {
+    const detail = props.detail
+    const body = props.body
+    if (detail === undefined || body === undefined || body._tag !== "loaded") {
+      return
+    }
+    props.onBodyDisplayed(detail.id)
   })
 
   return (

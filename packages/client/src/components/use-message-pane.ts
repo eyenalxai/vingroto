@@ -8,6 +8,7 @@ import type { MailClientError } from "@/lib/api"
 import type { BodyState } from "@/lib/mail/body-state"
 import type { AppRuntime } from "@/lib/runtime"
 
+import { useReadOnDisplay } from "@/components/use-read-on-display"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
 import { bodyState } from "@/lib/mail/body-state"
@@ -40,6 +41,18 @@ const useMessagePane = (options: MessagePaneOptions) => {
     return messages().filter((row) => ids.has(row.id))
   })
 
+  const readOnDisplay = useReadOnDisplay({
+    detail,
+    listKey: options.listKey,
+    messages,
+    onDisconnected: options.onDisconnected,
+    onStatus: options.onStatus,
+    runtime: options.runtime,
+    selectedMessageId,
+    setMessages,
+    setSelectedMessageId,
+  })
+
   const reportFailure = (label: string, error: MailClientError) => {
     const failure = describeClientFailure(error)
     if (failure._tag === "connection") {
@@ -47,14 +60,6 @@ const useMessagePane = (options: MessagePaneOptions) => {
       return
     }
     options.onStatus(`${label} · ${failure.message}`)
-  }
-
-  const applyMessageRows = (rows: readonly MessageListItem[]) => {
-    setMessages(rows)
-    const current = selectedMessageId()
-    if (current === undefined || !rows.some((row) => row.id === current)) {
-      setSelectedMessageId(rows[0]?.id)
-    }
   }
 
   const loadListMessages = () => {
@@ -66,6 +71,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
       }
       if (loadedListKey() !== key) {
         setLoadedListKey(key)
+        readOnDisplay.reset()
         setMessages([])
         setDetail(undefined)
         setBody(undefined)
@@ -84,7 +90,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
             if (options.listKey() !== key) {
               return
             }
-            applyMessageRows(rows)
+            readOnDisplay.applyMessageRows(rows)
           })
         }).pipe(
           Effect.catch((error) =>
@@ -244,9 +250,11 @@ const useMessagePane = (options: MessagePaneOptions) => {
   })
 
   return {
+    applyReadOnDisplay: readOnDisplay.applyReadOnDisplay,
     body,
     clearMarks,
     detail,
+    dropRetained: readOnDisplay.dropRetained,
     loadingDetail,
     loadingMessages,
     markedIds,

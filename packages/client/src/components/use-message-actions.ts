@@ -14,7 +14,7 @@ interface MessageActionsOptions {
   readonly runtime: AppRuntime
   readonly selectedMessage: () => MessageListItem | undefined
   readonly markedMessages: () => readonly MessageListItem[]
-  readonly onChanged: (affected: number) => void
+  readonly onChanged: (ids: readonly MessageId[]) => void
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
 }
@@ -80,7 +80,9 @@ const useMessageActions = (options: MessageActionsOptions) => {
             `marked ${outcome.affected} as ${label} · ${outcome.errors.length} failed · ${outcome.errors[0]}`,
           )
         }
-        options.onChanged(outcome.affected)
+        if (outcome.affected > 0) {
+          options.onChanged(targetIds)
+        }
       })
     }).pipe(
       Effect.ensuring(
@@ -140,7 +142,9 @@ const useMessageActions = (options: MessageActionsOptions) => {
           parts.push(`${outcome.errors.length} failed · ${outcome.errors[0]}`)
         }
         options.onStatus(parts.join(" · "))
-        options.onChanged(outcome.moved)
+        if (outcome.moved > 0) {
+          options.onChanged(targetIds)
+        }
       })
     }).pipe(
       Effect.ensuring(
