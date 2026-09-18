@@ -19,6 +19,7 @@ import { Imap } from "@/lib/mail/imap"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine } from "@/lib/mail/sync"
 import { Scheduler } from "@/lib/scheduler"
+import { SocketServerLayer } from "@/lib/socket-server"
 
 const ServicesLayer = Layer.mergeAll(AppPaths.layer, Credential.layer).pipe(
   Layer.provideMerge(BunServices.layer),
@@ -54,7 +55,7 @@ const AppLayer = Layer.mergeAll(
 
 const HandlersLayer = Handlers.pipe(Layer.provide(AppLayer))
 
-const SocketServerLayer = Layer.unwrap(
+const PlatformSocketServerLayer = Layer.unwrap(
   AppPaths.pipe(Effect.map((paths) => BunSocketServer.layer({ path: paths.socket }))),
 )
 
@@ -63,6 +64,7 @@ const ServerRuntime = RpcServer.layer(ServerRpcs, { concurrency: "unbounded" }).
   Layer.provide(RpcServer.layerProtocolSocketServer),
   Layer.provide(RpcSerialization.layerNdjson),
   Layer.provide(SocketServerLayer),
+  Layer.provide(PlatformSocketServerLayer),
   Layer.provide(AppLayer),
 )
 
