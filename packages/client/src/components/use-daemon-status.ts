@@ -2,7 +2,7 @@ import type { ServerStatus } from "@vingroto/core/protocol/accounts"
 
 import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
-import { Duration, Effect, Fiber, Schedule, Stream } from "effect"
+import { Effect, Fiber, Stream } from "effect"
 import { createEffect, createResource, createSignal, onCleanup } from "solid-js"
 
 import type { AppRuntime } from "@/lib/runtime"
@@ -10,16 +10,7 @@ import type { AppRuntime } from "@/lib/runtime"
 import { MailClient } from "@/lib/api"
 import { ClientConnection } from "@/lib/connection"
 import { describeClientFailure } from "@/lib/failure"
-
-const retryInitialDelayMs = 250
-const retryMaximumDelayMs = 5000
-
-const retrySchedule = Schedule.exponential(Duration.millis(retryInitialDelayMs)).pipe(
-  Schedule.jittered,
-  Schedule.modifyDelay(({ duration }) =>
-    Effect.succeed(Duration.min(duration, Duration.millis(retryMaximumDelayMs))),
-  ),
-)
+import { retrySchedule } from "@/lib/retry"
 
 const useDaemonStatus = (runtime: AppRuntime) => {
   const [status, setStatus] = createSignal<ServerStatus | undefined>()

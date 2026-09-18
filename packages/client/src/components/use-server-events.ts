@@ -1,12 +1,13 @@
 import type { ServerEvent } from "@vingroto/core/protocol/events"
 
-import { Duration, Effect, Fiber, Schedule, Stream } from "effect"
+import { Effect, Fiber, Stream } from "effect"
 import { createEffect, onCleanup } from "solid-js"
 
 import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
+import { retrySchedule } from "@/lib/retry"
 
 interface ServerEventsOptions {
   readonly runtime: AppRuntime
@@ -14,16 +15,6 @@ interface ServerEventsOptions {
   readonly onEvent: (event: ServerEvent) => void
   readonly onDisconnected: (message: string) => void
 }
-
-const initialDelayMs = 250
-const maximumDelayMs = 5000
-
-const retrySchedule = Schedule.exponential(Duration.millis(initialDelayMs)).pipe(
-  Schedule.jittered,
-  Schedule.modifyDelay(({ duration }) =>
-    Effect.succeed(Duration.min(duration, Duration.millis(maximumDelayMs))),
-  ),
-)
 
 const useServerEvents = (options: ServerEventsOptions) => {
   createEffect(() => {
