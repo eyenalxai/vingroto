@@ -9,8 +9,10 @@ import path from "node:path"
 interface AppPathsShape {
   readonly dataDir: string
   readonly configDir: string
+  readonly runtimeDir: string
   readonly database: string
   readonly config: string
+  readonly socket: string
 }
 
 class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
@@ -28,14 +30,21 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
       )
       const dataDir = path.join(dataHome, "vingroto")
       const configDir = path.join(configHome, "vingroto")
+      const runtimeHome = yield* Config.String("XDG_RUNTIME_DIR").pipe(
+        Config.withDefault(path.join(dataDir, "run")),
+      )
+      const runtimeDir = path.join(runtimeHome, "vingroto")
       const paths = AppPaths.of({
         dataDir,
         configDir,
+        runtimeDir,
         database: path.join(dataDir, "vingroto.db"),
         config: path.join(configDir, "config.json"),
+        socket: path.join(runtimeDir, "server.sock"),
       })
       yield* fs.makeDirectory(dataDir, { recursive: true })
       yield* fs.makeDirectory(configDir, { recursive: true })
+      yield* fs.makeDirectory(runtimeDir, { recursive: true })
       return paths
     }),
   )
