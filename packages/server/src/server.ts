@@ -15,7 +15,7 @@ const program = Layer.launch(ServerRuntime).pipe(
   Effect.provide(Bootstrap),
   Effect.catchTag("ServerAlreadyRunning", (error) =>
     Effect.logInfo("another vingroto server is already running").pipe(
-      Effect.annotateLogs({ socket: error.socket }),
+      Effect.annotateLogs({ lock: error.lock }),
     ),
   ),
 )

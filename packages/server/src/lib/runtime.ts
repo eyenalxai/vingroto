@@ -1,17 +1,13 @@
-import { BunServices, BunSocketServer } from "@effect/platform-bun"
+import { BunServices } from "@effect/platform-bun"
 import { AppPaths } from "@vingroto/core/app-paths"
 import { LoggingLayer } from "@vingroto/core/logging"
-import { ServerRpcs } from "@vingroto/core/protocol/rpc"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 
 import { Accounts } from "@/lib/accounts"
 import { ApiServer } from "@/lib/api/runtime"
 import { Credential } from "@/lib/credential/service"
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
-import { Handlers } from "@/lib/handlers"
 import { ServerLifecycle } from "@/lib/lifecycle"
 import { MailActions } from "@/lib/mail/actions"
 import { Discovery } from "@/lib/mail/autoconfig"
@@ -20,7 +16,6 @@ import { Imap } from "@/lib/mail/imap"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine } from "@/lib/mail/sync"
 import { Scheduler } from "@/lib/scheduler"
-import { SocketServerLayer } from "@/lib/socket-server"
 
 const ServicesLayer = Layer.mergeAll(AppPaths.layer, Credential.layer).pipe(
   Layer.provideMerge(BunServices.layer),
@@ -54,18 +49,6 @@ const AppLayer = Layer.mergeAll(
   Accounts.layer.pipe(Layer.provide(SchedulerLayer), Layer.provide(CoreLayer)),
 )
 
-const PlatformSocketServerLayer = Layer.unwrap(
-  AppPaths.pipe(Effect.map((paths) => BunSocketServer.layer({ path: paths.socket }))),
-)
-
-const RpcRuntime = RpcServer.layer(ServerRpcs, { concurrency: "unbounded" }).pipe(
-  Layer.provide(Handlers),
-  Layer.provide(RpcServer.layerProtocolSocketServer),
-  Layer.provide(RpcSerialization.layerNdjson),
-  Layer.provide(SocketServerLayer),
-  Layer.provide(PlatformSocketServerLayer),
-)
-
-const ServerRuntime = Layer.mergeAll(RpcRuntime, ApiServer).pipe(Layer.provide(AppLayer))
+const ServerRuntime = ApiServer.pipe(Layer.provide(AppLayer))
 
 export { ServerRuntime }

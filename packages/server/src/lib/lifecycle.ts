@@ -6,47 +6,47 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import Net from "node:net"
-
-const connectTimeoutMillis = 250
-
-const probeSocket = (socketPath: string) =>
-  Effect.callback<boolean>((resume) => {
-    const socket = Net.connect(socketPath)
-    let settled = false
-    const finish = (alive: boolean) => {
-      if (settled) {
-        return
-      }
-      settled = true
-      socket.destroy()
-      resume(Effect.succeed(alive))
-    }
-    socket.once("connect", () => {
-      finish(true)
-    })
-    socket.once("error", () => {
-      finish(false)
-    })
-    return Effect.sync(() => {
-      socket.destroy()
-    })
-  }).pipe(
-    Effect.timeout(connectTimeoutMillis),
-    Effect.orElseSucceed(() => false),
-  )
+import path from "node:path"
 
 class ServerAlreadyRunning extends Schema.TaggedError<ServerAlreadyRunning>()(
   "ServerAlreadyRunning",
   {
-    socket: Schema.String,
+    lock: Schema.String,
   },
 ) {}
 
 interface ServerLifecycleShape {
-  readonly socket: string
   readonly startedAt: number
 }
+
+const isErrnoException = (error: unknown): error is NodeJS.ErrnoException =>
+  error instanceof Error && "code" in error
+
+const isProcessAlive = (pid: number) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return isErrnoException(error) && error.code === "EPERM"
+  }
+}
+
+const readLockPid = (fs: FileSystem.FileSystem, lock: string) =>
+  fs.readFileString(path.join(lock, "pid")).pipe(
+    Effect.map((raw) => Math.trunc(Number(raw.trim()))),
+    Effect.orElseSucceed(() => Number.NaN),
+  )
+
+const removeLock = (fs: FileSystem.FileSystem, lock: string) =>
+  fs
+    .remove(lock, { recursive: true, force: true })
+    .pipe(
+      Effect.catchTag("PlatformError", (error) =>
+        Effect.logWarning("could not remove the server lock").pipe(
+          Effect.annotateLogs({ lock, reason: describeError(error) }),
+        ),
+      ),
+    )
 
 class ServerLifecycle extends Context.Service<ServerLifecycle, ServerLifecycleShape>()(
   "vingroto/lib/server/ServerLifecycle",
@@ -56,32 +56,35 @@ class ServerLifecycle extends Context.Service<ServerLifecycle, ServerLifecycleSh
     Effect.gen(function* makeServerLifecycle() {
       const paths = yield* AppPaths
       const fs = yield* FileSystem.FileSystem
-      if (yield* fs.exists(paths.socket)) {
-        if (yield* probeSocket(paths.socket)) {
-          return yield* new ServerAlreadyRunning({ socket: paths.socket })
-        }
-        yield* Effect.logInfo("removing a stale server socket").pipe(
-          Effect.annotateLogs({ socket: paths.socket }),
-        )
-        yield* fs.remove(paths.socket)
-      }
-      yield* Effect.addFinalizer(() =>
-        fs
-          .remove(paths.socket)
-          .pipe(
+      const acquireLock = Effect.fnUntraced(function* acquireLock() {
+        while (true) {
+          const created = yield* fs.makeDirectory(paths.lock).pipe(
+            Effect.as(true),
             Effect.catchTag("PlatformError", (error) =>
-              error.reason._tag === "NotFound"
-                ? Effect.void
-                : Effect.logWarning("could not remove the server socket").pipe(
-                    Effect.annotateLogs({ socket: paths.socket, reason: describeError(error) }),
-                  ),
+              error.reason._tag === "AlreadyExists" ? Effect.succeed(false) : Effect.fail(error),
             ),
-          ),
-      )
+          )
+          if (created) {
+            return
+          }
+          const pid = yield* readLockPid(fs, paths.lock)
+          if (Number.isSafeInteger(pid) && pid > 0 && isProcessAlive(pid)) {
+            yield* new ServerAlreadyRunning({ lock: paths.lock })
+            return
+          }
+          yield* Effect.logInfo("removing a stale server lock").pipe(
+            Effect.annotateLogs({ lock: paths.lock }),
+          )
+          yield* removeLock(fs, paths.lock)
+        }
+      })
+      yield* acquireLock()
+      yield* Effect.addFinalizer(() => removeLock(fs, paths.lock))
+      yield* fs.writeFileString(path.join(paths.lock, "pid"), `${process.pid}\n`)
       const startedAt = yield* Clock.currentTimeMillis
-      return ServerLifecycle.of({ socket: paths.socket, startedAt })
+      return ServerLifecycle.of({ startedAt })
     }),
   )
 }
 
-export { ServerAlreadyRunning, ServerLifecycle, probeSocket, type ServerLifecycleShape }
+export { ServerAlreadyRunning, ServerLifecycle, type ServerLifecycleShape }
