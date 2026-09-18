@@ -1,3 +1,8 @@
-const describeError = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const describeError = (error: unknown) => {
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message
+  }
+  return String(error)
+}
 
 export { describeError }

@@ -9,10 +9,8 @@ class ServerConfig extends Schema.Class<ServerConfig>("ServerConfig")({
 class AccountConfig extends Schema.Class<AccountConfig>("AccountConfig")({
   id: Schema.String,
   label: Schema.String,
-  name: Schema.String,
+  name: Schema.optional(Schema.String),
   email: Schema.String,
-  username: Schema.String,
-  password: Schema.String,
   imap: ServerConfig,
   smtp: ServerConfig,
 }) {}

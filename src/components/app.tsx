@@ -5,7 +5,7 @@ import { Effect } from "effect"
 import { Show, createEffect, createMemo, createResource, createSignal } from "solid-js"
 
 import type { Pane } from "@/components/pane-layout"
-import type { AppConfig } from "@/lib/config/schema"
+import type { AppConfig, AccountConfig } from "@/lib/config/schema"
 
 import { FolderPane } from "@/components/folder-pane"
 import { MessageList } from "@/components/message-list"
@@ -17,6 +17,7 @@ import {
   visiblePanesFor,
 } from "@/components/pane-layout"
 import { useRuntime } from "@/components/runtime-provider"
+import { AccountSetup } from "@/components/setup/account-setup"
 import { StartupScreen } from "@/components/startup-screen"
 import { StatusBar } from "@/components/status-bar"
 import { useAppKeys } from "@/components/use-app-keys"
@@ -30,9 +31,10 @@ const App = () => {
   const runtime = useRuntime()
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
-  const [report] = createResource(async () => runtime.runPromise(boot))
+  const [report, { refetch }] = createResource(async () => runtime.runPromise(boot))
   const [status, setStatus] = createSignal("loading")
   const [pane, setPane] = createSignal<Pane>("folders")
+  const [addingAccount, setAddingAccount] = createSignal(false)
   const [readerScroll, setReaderScroll] = createSignal<ScrollBoxRenderable>()
 
   const appConfig = createMemo((): AppConfig | undefined => {
@@ -43,6 +45,23 @@ const App = () => {
     return value.config.config
   })
 
+  const accounts = createMemo<readonly AccountConfig[]>(() => appConfig()?.accounts ?? [])
+
+  const configError = createMemo((): string | undefined => {
+    const value = report()
+    return value !== undefined && value.config._tag === "error" ? value.config.message : undefined
+  })
+
+  const needsSetup = createMemo(() => report()?.config._tag === "empty")
+  const mainVisible = createMemo(
+    () =>
+      report() !== undefined && configError() === undefined && !needsSetup() && !addingAccount(),
+  )
+  const setupVisible = createMemo(
+    () =>
+      report() !== undefined && configError() === undefined && (needsSetup() || addingAccount()),
+  )
+
   const store = useMailStore({
     runtime,
     config: appConfig,
@@ -51,13 +70,9 @@ const App = () => {
     },
   })
 
-  const accountLabels = createMemo<ReadonlyMap<string, string>>(() => {
-    const config = appConfig()
-    if (config === undefined) {
-      return new Map()
-    }
-    return new Map(config.accounts.map((account) => [account.id, account.label]))
-  })
+  const accountLabels = createMemo<ReadonlyMap<string, string>>(
+    () => new Map(accounts().map((account) => [account.id, account.label])),
+  )
 
   const { startPeriodic, syncWindow, syncing } = useMailSyncing({
     config: appConfig,
@@ -93,6 +108,18 @@ const App = () => {
     runtime.runFork(program)
   }
 
+  const handleAccountSaved = (account: AccountConfig) => {
+    setAddingAccount(false)
+    setStatus(`account ${account.label} saved · syncing`)
+    const program = Effect.gen(function* reloadAfterSave() {
+      yield* Effect.promise(async () => refetch())
+      yield* Effect.sync(() => {
+        syncWindow()
+      })
+    })
+    runtime.runFork(program)
+  }
+
   useAppKeys({
     renderer,
     store,
@@ -105,6 +132,10 @@ const App = () => {
     onStatus: (value: string) => {
       setStatus(value)
     },
+    onAddAccount: () => {
+      setAddingAccount(true)
+    },
+    enabled: mainVisible,
   })
 
   createEffect(() => {
@@ -140,7 +171,13 @@ const App = () => {
         }
       }}
     >
-      <Show when={appConfig()} fallback={<StartupScreen report={report()} />}>
+      <Show when={report() === undefined}>
+        <StartupScreen report={undefined} />
+      </Show>
+      <Show when={configError() !== undefined}>
+        <StartupScreen report={report()} />
+      </Show>
+      <Show when={mainVisible()}>
         <box flexGrow={1} flexDirection="column">
           <box flexGrow={1} flexDirection="row" gap={1}>
             <Show when={showPane("folders")}>
@@ -179,6 +216,19 @@ const App = () => {
           </box>
           <StatusBar message={status()} syncing={syncing()} hint={describePaneHint(pane())} />
         </box>
+      </Show>
+      <Show when={setupVisible()}>
+        <AccountSetup
+          mode={needsSetup() ? "initial" : "add"}
+          onSaved={handleAccountSaved}
+          onCancel={
+            needsSetup()
+              ? undefined
+              : () => {
+                  setAddingAccount(false)
+                }
+          }
+        />
       </Show>
     </box>
   )

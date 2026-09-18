@@ -13,6 +13,7 @@ import type {
   MessageSourceResult,
 } from "@/lib/mail/imap-types"
 
+import { passwordReference, usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
 import { commandTimeout, connectTimeout, guard, releaseClient } from "@/lib/mail/imap-command"
 import { fetchMailboxResult } from "@/lib/mail/imap-mailbox"
@@ -56,8 +57,8 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
             port: account.imap.port,
           }),
         )
-        const username = yield* credential.get(account.username)
-        const password = yield* credential.get(account.password)
+        const username = yield* credential.get(usernameReference(account.id))
+        const password = yield* credential.get(passwordReference(account.id))
         const client = new ImapFlow({
           host: account.imap.host,
           port: account.imap.port,

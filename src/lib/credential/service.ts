@@ -2,22 +2,24 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 
 import type { KeyringError } from "@/lib/credential/keyring"
-import type { OnePasswordError } from "@/lib/credential/onepassword"
 
 import { lookupSecret, storeSecret } from "@/lib/credential/keyring"
-import { readSecret } from "@/lib/credential/onepassword"
+
+class CredentialNotFound extends Schema.TaggedError<CredentialNotFound>()("CredentialNotFound", {
+  reference: Schema.String,
+  message: Schema.String,
+}) {}
+
+type CredentialError = KeyringError | CredentialNotFound
 
 interface CredentialShape {
-  readonly get: (
-    reference: string,
-    options?: { readonly refresh?: boolean },
-  ) => Effect.Effect<string, CredentialError>
+  readonly get: (reference: string) => Effect.Effect<string, CredentialError>
+  readonly set: (reference: string, secret: string) => Effect.Effect<void, CredentialError>
 }
-
-type CredentialError = KeyringError | OnePasswordError
 
 class Credential extends Context.Service<Credential, CredentialShape>()(
   "vingroto/lib/credential/Credential",
@@ -26,33 +28,33 @@ class Credential extends Context.Service<Credential, CredentialShape>()(
     Credential,
     Effect.gen(function* makeCredential() {
       const spawner = yield* ChildProcessSpawner
-      const get = Effect.fn("Credential.get")(function* get(
-        reference: string,
-        options?: { readonly refresh?: boolean },
-      ) {
-        if (options?.refresh !== true) {
-          const cached = yield* lookupSecret(reference)
-          if (Option.isSome(cached)) {
-            yield* Effect.logDebug(`credential served from the keyring · ref=${reference}`)
-            return cached.value
-          }
+      const get = Effect.fn("Credential.get")(function* get(reference: string) {
+        const cached = yield* lookupSecret(reference)
+        if (Option.isSome(cached)) {
+          return cached.value
         }
-        yield* Effect.logDebug(`credential cache miss · ref=${reference}`)
-        const secret = yield* readSecret(reference)
-        // The keyring is a cache: a failed store must not break a secret that 1Password just returned.
-        yield* storeSecret(reference, secret).pipe(
-          Effect.catchTag("KeyringError", (error) =>
-            Effect.logWarning(`Could not cache a credential in the keyring: ${error.message}`),
-          ),
+        yield* Effect.logDebug("credential missing from the keyring").pipe(
+          Effect.annotateLogs({ reference }),
         )
-        return secret
+        return yield* new CredentialNotFound({
+          reference,
+          message: `no credentials stored for this account; re-enter them from the account setup`,
+        })
       })
+      const set = Effect.fn("Credential.set")(function* set(reference: string, secret: string) {
+        yield* storeSecret(reference, secret)
+        yield* Effect.logDebug("credential stored in the keyring").pipe(
+          Effect.annotateLogs({ reference }),
+        )
+      })
+      const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+        Effect.provideService(effect, ChildProcessSpawner, spawner)
       return Credential.of({
-        get: (reference, options) =>
-          Effect.provideService(get(reference, options), ChildProcessSpawner, spawner),
+        get: (reference) => provide(get(reference)),
+        set: (reference, secret) => provide(set(reference, secret)),
       })
     }),
   )
 }
 
-export { Credential, type CredentialError, type CredentialShape }
+export { Credential, CredentialNotFound, type CredentialError, type CredentialShape }

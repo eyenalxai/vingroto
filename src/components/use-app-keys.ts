@@ -16,6 +16,8 @@ interface AppKeysOptions {
   readonly readerScroll: () => ScrollBoxRenderable | undefined
   readonly syncWindow: (paths: readonly string[] | undefined, accountId?: string) => void
   readonly onStatus: (message: string) => void
+  readonly onAddAccount: () => void
+  readonly enabled: () => boolean
 }
 
 const useAppKeys = (options: AppKeysOptions) => {
@@ -127,6 +129,10 @@ const useAppKeys = (options: AppKeysOptions) => {
       syncCurrent()
       return true
     }
+    if (key.name === "a" && !key.ctrl) {
+      options.onAddAccount()
+      return true
+    }
     return false
   }
 
@@ -177,6 +183,9 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   useKeyboard((key: KeyEvent) => {
+    if (!options.enabled()) {
+      return
+    }
     if (handleSelectionKey(key)) {
       return
     }

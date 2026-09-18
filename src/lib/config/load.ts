@@ -11,9 +11,7 @@ import { AppConfigFile, SyncConfig } from "@/lib/config/schema"
 
 const defaultSync = new SyncConfig({ initialDays: 30, intervalMinutes: 5 })
 
-class ConfigFileMissing extends Schema.TaggedError<ConfigFileMissing>()("ConfigFileMissing", {
-  path: Schema.String,
-}) {}
+const emptyConfig: AppConfig = { accounts: [], sync: defaultSync }
 
 class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", {
   path: Schema.String,
@@ -34,7 +32,10 @@ const loadConfig = Effect.fn("Config.load")(function* load() {
     .exists(paths.config)
     .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(unreadable(error))))
   if (!exists) {
-    return yield* new ConfigFileMissing({ path: paths.config })
+    yield* Effect.logInfo("no configuration file yet, starting with an empty configuration").pipe(
+      Effect.annotateLogs({ path: paths.config }),
+    )
+    return emptyConfig
   }
   const raw = yield* fs
     .readFileString(paths.config)
@@ -49,4 +50,4 @@ const loadConfig = Effect.fn("Config.load")(function* load() {
   return config
 })
 
-export { ConfigFileMissing, ConfigInvalid, ConfigUnreadable, defaultSync, loadConfig }
+export { ConfigInvalid, ConfigUnreadable, loadConfig }

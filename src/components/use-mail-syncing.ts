@@ -16,7 +16,7 @@ interface MailSyncOptions {
 const useMailSyncing = (options: MailSyncOptions) => {
   const [syncing, setSyncing] = createSignal(false)
 
-  const syncWindow = (paths: readonly string[] | undefined, accountId?: string) => {
+  const syncWindow = (paths?: readonly string[], accountId?: string) => {
     untrack(() => {
       const config = options.config()
       if (config === undefined || syncing()) {

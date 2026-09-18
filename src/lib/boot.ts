@@ -16,6 +16,7 @@ interface BootReport {
   }
   readonly config:
     | { readonly _tag: "ok"; readonly config: AppConfig }
+    | { readonly _tag: "empty" }
     | { readonly _tag: "error"; readonly message: string }
   readonly database:
     | { readonly _tag: "ok"; readonly mailboxes: number }
@@ -38,16 +39,14 @@ const boot = Effect.gen(function* boot() {
     ),
   )
 
-  const config = yield* loadConfig().pipe(
+  const config: BootReport["config"] = yield* loadConfig().pipe(
     Effect.map((loaded) => {
+      if (loaded.accounts.length === 0) {
+        return { _tag: "empty" as const }
+      }
       return { _tag: "ok" as const, config: loaded }
     }),
     Effect.catchTags({
-      ConfigFileMissing: (error) =>
-        Effect.succeed({
-          _tag: "error" as const,
-          message: `no config file at ${error.path} — create one with your accounts`,
-        }),
       ConfigInvalid: (error) =>
         Effect.succeed({
           _tag: "error" as const,
@@ -58,6 +57,9 @@ const boot = Effect.gen(function* boot() {
     }),
   )
 
+  if (config._tag === "empty") {
+    yield* Effect.logInfo("no accounts configured, showing account setup")
+  }
   if (config._tag === "error") {
     yield* Effect.logWarning(`configuration unavailable · ${config.message}`)
   }

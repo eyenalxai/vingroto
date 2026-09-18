@@ -5,8 +5,7 @@ A terminal mail client: OpenTUI (Solid) front end, Effect back end, imapflow / n
 ## Requirements
 
 - [Bun](https://bun.sh)
-- `op` (1Password CLI), signed in
-- `secret-tool` (libsecret) for the credential cache
+- `secret-tool` (libsecret) for credentials
 
 ## Usage
 
@@ -14,20 +13,24 @@ A terminal mail client: OpenTUI (Solid) front end, Effect back end, imapflow / n
 bun start
 ```
 
+## Accounts
+
+On the first run vingroto asks for an account. Enter the email address and password; the IMAP and SMTP servers are detected automatically (published autoconfiguration, DNS SRV records, then a hostname guess) and can be edited before saving. Press `a` at any time to add or update an account the same way.
+
+Credentials are written to the OS keyring (`secret-tool`) and never to disk in plaintext. An account's `username` defaults to its email address.
+
 ## Configuration
 
-`$XDG_CONFIG_HOME/vingroto/config.json`, which defaults to `~/.config/vingroto/config.json`:
+`$XDG_CONFIG_HOME/vingroto/config.json`, which defaults to `~/.config/vingroto/config.json`. It is written by the account setup and holds no secrets:
 
 ```json
 {
   "accounts": [
     {
-      "id": "personal",
+      "id": "mail@example.com",
       "label": "Personal",
       "name": "Sender Name",
       "email": "mail@example.com",
-      "username": "op://Private/Item/username",
-      "password": "op://Private/Item/password",
       "imap": { "host": "imap.example.com", "port": 993, "security": "tls" },
       "smtp": { "host": "smtp.example.com", "port": 465, "security": "tls" }
     }
@@ -36,7 +39,7 @@ bun start
 }
 ```
 
-`username` and `password` are 1Password references, never literals. Each value is read with `op read` and then cached in the OS keyring, so 1Password only prompts when the keyring entry is missing.
+Accounts are matched by email address, so re-running the setup for an existing address updates it in place instead of duplicating it.
 
 ## Layout
 
@@ -75,6 +78,7 @@ Headers are synced, bodies are not. The reader shows a message straight from the
 | `enter`                                       | open a folder / read a message / download the body |
 | `space`                                       | collapse or expand the selected account            |
 | `r`                                           | sync the selected scope                            |
+| `a`                                           | add or update an account                           |
 | `escape`                                      | step back one pane                                 |
 
 ## Commands
