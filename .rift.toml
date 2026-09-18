@@ -1,0 +1,7 @@
+version = 1
+
+[[hooks.precreate]]
+run = "bun run check"
+
+[[hooks.postcreate]]
+run = "bun install"
