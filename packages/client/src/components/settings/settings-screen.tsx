@@ -3,7 +3,7 @@ import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import { createEffect, createMemo, createSignal } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 
 import { useRuntime } from "@/components/runtime-provider"
 import { SettingsDetail } from "@/components/settings/settings-detail"
@@ -116,6 +116,8 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       props.onAccountSaved(account)
     },
   })
+
+  onCleanup(accountProfile.dispose)
 
   const syncProfile = useSyncProfile({
     runtime,
