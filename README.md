@@ -15,7 +15,7 @@ bun start
 
 ## Accounts
 
-On the first run vingroto asks for an account. Enter the email address and password; the IMAP and SMTP servers are detected automatically (published autoconfiguration, DNS SRV records, then a hostname guess) and can be edited before saving. Press `a` at any time to add or update an account the same way.
+On the first run vingroto asks for an account. Enter the email address and password; the IMAP and SMTP servers are detected automatically (published autoconfiguration, DNS SRV records, then a hostname guess) and can be edited before saving. The mailbox name defaults to the email address and the sender name is optional. Press `ctrl+x a` at any time to add or update an account the same way, and `ctrl+x m` to rename the mailbox the selection belongs to.
 
 Credentials are written to the OS keyring (`secret-tool`) and never to disk in plaintext. An account's `username` defaults to its email address.
 
@@ -39,7 +39,7 @@ Credentials are written to the OS keyring (`secret-tool`) and never to disk in p
 }
 ```
 
-Accounts are matched by email address, so re-running the setup for an existing address updates it in place instead of duplicating it.
+`label` is the mailbox name shown in the sidebar and defaults to the account's email address; `name` is the optional sender name. Accounts are matched by email address, so re-running the setup for an existing address updates it in place instead of duplicating it.
 
 ## Layout
 
@@ -77,9 +77,12 @@ Headers are synced, bodies are not. The reader shows a message straight from the
 | `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                  |
 | `enter`                                       | open a folder / read a message / download the body |
 | `space`                                       | collapse or expand the selected account            |
-| `r`                                           | sync the selected scope                            |
-| `a`                                           | add or update an account                           |
 | `escape`                                      | step back one pane                                 |
+| `ctrl+x` `a`                                  | add or update an account                           |
+| `ctrl+x` `m`                                  | rename the selected mailbox                        |
+| `ctrl+x` `r`                                  | sync the selected scope                            |
+
+`ctrl+x` is the leader: press it, then the action key. The secondary bindings are listed in the status bar while it waits.
 
 ## Commands
 

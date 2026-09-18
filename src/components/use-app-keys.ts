@@ -5,6 +5,7 @@ import { useKeyboard } from "@opentui/solid"
 import type { Pane } from "@/components/pane-layout"
 import type { MailStore } from "@/components/use-mail-store"
 
+import { useLeaderKey } from "@/components/leader-key"
 import { paneOrder } from "@/components/pane-layout"
 import { clearSelection, copySelection, hasSelection } from "@/lib/selection"
 
@@ -17,6 +18,7 @@ interface AppKeysOptions {
   readonly syncWindow: (paths: readonly string[] | undefined, accountId?: string) => void
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
+  readonly onRenameMailbox: () => void
   readonly enabled: () => boolean
 }
 
@@ -68,6 +70,20 @@ const useAppKeys = (options: AppKeysOptions) => {
       options.syncWindow([row.mailboxPath], row.accountId)
     }
   }
+
+  const leader = useLeaderKey({
+    onAction: (action) => {
+      if (action === "add-account") {
+        options.onAddAccount()
+        return
+      }
+      if (action === "rename-mailbox") {
+        options.onRenameMailbox()
+        return
+      }
+      syncCurrent()
+    },
+  })
 
   const activateFocused = () => {
     const current = options.pane()
@@ -125,14 +141,6 @@ const useAppKeys = (options: AppKeysOptions) => {
       toggleFocusedAccount()
       return true
     }
-    if (key.name === "r" && !key.ctrl) {
-      syncCurrent()
-      return true
-    }
-    if (key.name === "a" && !key.ctrl) {
-      options.onAddAccount()
-      return true
-    }
     return false
   }
 
@@ -186,6 +194,10 @@ const useAppKeys = (options: AppKeysOptions) => {
     if (!options.enabled()) {
       return
     }
+    if (leader.handle(key)) {
+      key.preventDefault()
+      return
+    }
     if (handleSelectionKey(key)) {
       return
     }
@@ -197,6 +209,8 @@ const useAppKeys = (options: AppKeysOptions) => {
     }
     handlePaneKey(key)
   })
+
+  return { leaderActive: leader.active }
 }
 
 export { useAppKeys, type AppKeysOptions }

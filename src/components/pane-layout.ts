@@ -9,9 +9,9 @@ const wideFolderPaneWidth = 30
 const mediumFolderPaneWidth = 26
 
 const hints = {
-  folders: "↑↓ move · ⏎ open · space fold · r sync · a add · tab pane · q quit",
-  list: "↑↓ move · ⏎ read · esc folders · r sync · a add · q quit",
-  reader: "↑↓ scroll · pgup/pgdn · esc back · r sync · a add · q quit",
+  folders: "↑↓ move · ⏎ open · space fold · ctrl+x · tab pane · q quit",
+  list: "↑↓ move · ⏎ read · esc folders · ctrl+x · q quit",
+  reader: "↑↓ scroll · pgup/pgdn · esc back · ctrl+x · q quit",
 } as const
 
 const resolveLayoutMode = (width: number): LayoutMode => {

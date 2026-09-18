@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 
 import type { AppConfig, ServerConfig } from "@/lib/config/schema"
 
@@ -7,6 +8,11 @@ import { saveConfig } from "@/lib/config/save"
 import { AccountConfig } from "@/lib/config/schema"
 import { passwordReference, usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
+
+class AccountNotFound extends Schema.TaggedError<AccountNotFound>()("AccountNotFound", {
+  id: Schema.String,
+  message: Schema.String,
+}) {}
 
 interface NewAccount {
   readonly email: string
@@ -54,4 +60,24 @@ const submitAccount = (input: NewAccount) =>
     return account
   })
 
-export { submitAccount, type NewAccount }
+const renameAccount = (id: string, label: string) =>
+  Effect.gen(function* renameConfiguredAccount() {
+    const config = yield* loadConfig()
+    const existing = config.accounts.find((account) => account.id === id)
+    if (existing === undefined) {
+      return yield* new AccountNotFound({ id, message: `account ${id} is not configured` })
+    }
+    const updated = new AccountConfig({
+      id: existing.id,
+      label,
+      name: existing.name,
+      email: existing.email,
+      imap: existing.imap,
+      smtp: existing.smtp,
+    })
+    yield* saveConfig(upsertAccount(config, updated))
+    yield* Effect.logInfo("account renamed").pipe(Effect.annotateLogs({ account: id }))
+    return updated
+  })
+
+export { AccountNotFound, renameAccount, submitAccount, type NewAccount }

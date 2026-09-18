@@ -10,6 +10,7 @@ import { AccountSetupView } from "@/components/setup/account-setup-view"
 import { useAccountSetup } from "@/components/setup/use-account-setup"
 
 interface AccountSetupProps {
+  readonly accounts: readonly AccountConfig[]
   readonly mode: "initial" | "add"
   readonly onSaved: (account: AccountConfig) => void
   readonly onCancel: (() => void) | undefined
@@ -17,7 +18,7 @@ interface AccountSetupProps {
 
 const AccountSetup = (props: AccountSetupProps) => {
   const renderer = useRenderer()
-  const form = useAccountSetup({ onSaved: props.onSaved })
+  const form = useAccountSetup({ accounts: props.accounts, onSaved: props.onSaved })
 
   const handleSecurity = (id: FieldId, event: KeyEvent) => {
     const backward = event.name === "left" || event.name === "h"

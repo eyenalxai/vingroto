@@ -28,6 +28,7 @@ import { describeError } from "@/lib/errors"
 import { Discovery } from "@/lib/mail/autoconfig"
 
 interface UseAccountSetupOptions {
+  readonly accounts: readonly AccountConfig[]
   readonly onSaved: (account: AccountConfig) => void
 }
 
@@ -70,6 +71,17 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
   }
 
   const goToStep = (next: "credentials" | "servers") => {
+    if (next === "servers") {
+      const existing = options.accounts.find(
+        (account) => account.email.trim().toLowerCase() === draft.email.trim().toLowerCase(),
+      )
+      if (draft.label.trim().length === 0) {
+        setDraft("label", existing?.label ?? draft.email.trim())
+      }
+      if (draft.name.trim().length === 0 && existing?.name !== undefined) {
+        setDraft("name", existing.name)
+      }
+    }
     setStep(next)
     setFocusIndex(0)
   }

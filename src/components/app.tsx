@@ -8,6 +8,7 @@ import type { Pane } from "@/components/pane-layout"
 import type { AppConfig, AccountConfig } from "@/lib/config/schema"
 
 import { FolderPane } from "@/components/folder-pane"
+import { describeLeaderHint } from "@/components/leader-key"
 import { MessageList } from "@/components/message-list"
 import { MessageView } from "@/components/message-view"
 import {
@@ -16,6 +17,7 @@ import {
   resolveLayoutMode,
   visiblePanesFor,
 } from "@/components/pane-layout"
+import { RenameMailbox } from "@/components/rename-mailbox"
 import { useRuntime } from "@/components/runtime-provider"
 import { AccountSetup } from "@/components/setup/account-setup"
 import { StartupScreen } from "@/components/startup-screen"
@@ -23,6 +25,7 @@ import { StatusBar } from "@/components/status-bar"
 import { useAppKeys } from "@/components/use-app-keys"
 import { useMailStore } from "@/components/use-mail-store"
 import { useMailSyncing } from "@/components/use-mail-syncing"
+import { useMailboxRename } from "@/components/use-mailbox-rename"
 import { boot } from "@/lib/boot"
 import { openExternal } from "@/lib/external"
 import { clearSelection, isCollapsedSelection } from "@/lib/selection"
@@ -36,6 +39,13 @@ const App = () => {
   const [pane, setPane] = createSignal<Pane>("folders")
   const [addingAccount, setAddingAccount] = createSignal(false)
   const [readerScroll, setReaderScroll] = createSignal<ScrollBoxRenderable>()
+  const rename = useMailboxRename({
+    runtime,
+    onStatus: (value: string) => {
+      setStatus(value)
+    },
+    onRenamed: async () => refetch(),
+  })
 
   const appConfig = createMemo((): AppConfig | undefined => {
     const value = report()
@@ -55,7 +65,11 @@ const App = () => {
   const needsSetup = createMemo(() => report()?.config._tag === "empty")
   const mainVisible = createMemo(
     () =>
-      report() !== undefined && configError() === undefined && !needsSetup() && !addingAccount(),
+      report() !== undefined &&
+      configError() === undefined &&
+      !needsSetup() &&
+      !addingAccount() &&
+      rename.target() === undefined,
   )
   const setupVisible = createMemo(
     () =>
@@ -120,7 +134,18 @@ const App = () => {
     runtime.runFork(program)
   }
 
-  useAppKeys({
+  const beginRename = () => {
+    const accountId = store.selectedFolderRow()?.accountId
+    const account =
+      accountId === undefined ? undefined : accounts().find((entry) => entry.id === accountId)
+    if (account === undefined) {
+      setStatus("select a mailbox to rename")
+      return
+    }
+    rename.begin(account)
+  }
+
+  const keys = useAppKeys({
     renderer,
     store,
     pane,
@@ -135,8 +160,13 @@ const App = () => {
     onAddAccount: () => {
       setAddingAccount(true)
     },
+    onRenameMailbox: beginRename,
     enabled: mainVisible,
   })
+
+  const statusHint = createMemo(() =>
+    keys.leaderActive() ? describeLeaderHint() : describePaneHint(pane()),
+  )
 
   createEffect(() => {
     const config = appConfig()
@@ -214,11 +244,12 @@ const App = () => {
               </box>
             </Show>
           </box>
-          <StatusBar message={status()} syncing={syncing()} hint={describePaneHint(pane())} />
+          <StatusBar message={status()} syncing={syncing()} hint={statusHint()} />
         </box>
       </Show>
       <Show when={setupVisible()}>
         <AccountSetup
+          accounts={accounts()}
           mode={needsSetup() ? "initial" : "add"}
           onSaved={handleAccountSaved}
           onCancel={
@@ -229,6 +260,16 @@ const App = () => {
                 }
           }
         />
+      </Show>
+      <Show when={rename.target()}>
+        {(target) => (
+          <RenameMailbox
+            initial={target().label}
+            error={rename.error()}
+            onCancel={rename.cancel}
+            onSubmit={rename.submit}
+          />
+        )}
       </Show>
     </box>
   )
