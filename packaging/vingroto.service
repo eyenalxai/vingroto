@@ -1,0 +1,14 @@
+[Unit]
+Description=vingroto mail daemon
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env bun run src/server.ts
+WorkingDirectory=%h/Projects/js/vingroto
+Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

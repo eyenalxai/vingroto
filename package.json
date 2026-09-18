@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.tsx",
+    "server": "bun run src/server.ts",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --type-aware",
