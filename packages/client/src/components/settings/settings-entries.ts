@@ -2,8 +2,6 @@ import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
-import { matchesQuery, queryTerms } from "@/lib/search"
-
 type SettingsSection = "Accounts" | "Mailboxes" | "Sync"
 
 interface SettingsEntryBase {
@@ -102,56 +100,11 @@ const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEnt
   return entries
 }
 
-const entryHaystack = (entry: SettingsEntry) => `${entry.title} ${entry.subtitle} ${entry.section}`
-
-const filterSettingsEntries = (
-  entries: readonly SettingsEntry[],
-  query: string,
-): readonly SettingsEntry[] => {
-  if (queryTerms(query).length === 0) {
-    return entries
-  }
-  const directMatches = new Set(
-    entries.filter((entry) => matchesQuery(entryHaystack(entry), query)).map((entry) => entry.key),
-  )
-  const groupKeys = new Set<string>()
-  const keptGroups = new Set<string>()
-  for (const entry of entries) {
-    if (entry.kind === "mailbox-group") {
-      groupKeys.add(entry.key)
-      if (directMatches.has(entry.key)) {
-        keptGroups.add(entry.key)
-      }
-    }
-    if (entry.kind === "mailbox" && directMatches.has(entry.key)) {
-      keptGroups.add(entry.parentKey)
-    }
-  }
-  return entries.filter((entry) => {
-    if (entry.kind === "mailbox-group") {
-      return keptGroups.has(entry.key)
-    }
-    if (entry.kind === "mailbox") {
-      return groupKeys.has(entry.parentKey)
-        ? keptGroups.has(entry.parentKey)
-        : directMatches.has(entry.key)
-    }
-    return directMatches.has(entry.key)
-  })
-}
-
 const visibleSettingsEntries = (
   entries: readonly SettingsEntry[],
   collapsedAccounts: ReadonlySet<AccountId>,
-  query: string,
-): readonly SettingsEntry[] => {
-  if (queryTerms(query).length > 0) {
-    return entries
-  }
-  return entries.filter(
-    (entry) => entry.kind !== "mailbox" || !collapsedAccounts.has(entry.accountId),
-  )
-}
+): readonly SettingsEntry[] =>
+  entries.filter((entry) => entry.kind !== "mailbox" || !collapsedAccounts.has(entry.accountId))
 
 const resolveSelectionKey = (
   current: string | undefined,
@@ -176,7 +129,6 @@ const groupSettingsEntries = (entries: readonly SettingsEntry[]): readonly Setti
 
 export {
   buildSettingsEntries,
-  filterSettingsEntries,
   groupSettingsEntries,
   resolveSelectionKey,
   visibleSettingsEntries,

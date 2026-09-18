@@ -10,7 +10,6 @@ import { useRuntime } from "@/components/runtime-provider"
 import { SettingsDetail } from "@/components/settings/settings-detail"
 import {
   buildSettingsEntries,
-  filterSettingsEntries,
   groupSettingsEntries,
   resolveSelectionKey,
   visibleSettingsEntries,
@@ -38,7 +37,6 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const runtime = useRuntime()
   const renderer = useRenderer()
   const theme = useTheme()
-  const [query, setQuery] = createSignal("")
   const [zone, setZone] = createSignal<"nav" | "detail">("nav")
   const [status, setStatus] = createSignal("")
   const [collapsedMailboxes, setCollapsedMailboxes] = createSignal(new Set<AccountId>())
@@ -53,10 +51,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       sync: props.sync,
     }),
   )
-  const filtered = createMemo(() => filterSettingsEntries(entries(), query()))
-  const visible = createMemo(() =>
-    visibleSettingsEntries(filtered(), collapsedMailboxes(), query()),
-  )
+  const visible = createMemo(() => visibleSettingsEntries(entries(), collapsedMailboxes()))
   const groups = createMemo(() => groupSettingsEntries(visible()))
   const mailboxMute = useMailboxMute({
     runtime,
@@ -74,6 +69,12 @@ const SettingsScreen = (props: SettingsScreenProps) => {
 
   createEffect(() => {
     setSelectedKey((current) => resolveSelectionKey(current, visible(), entries()))
+  })
+
+  createEffect(() => {
+    if (selectedEntry()?.kind === "mailbox") {
+      setZone("nav")
+    }
   })
 
   const selectedAccount = createMemo(() => {
@@ -164,6 +165,10 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       toggleGroup(entry.accountId)
       return
     }
+    if (entry.kind === "mailbox") {
+      mailboxMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
+      return
+    }
     setZone("detail")
   }
 
@@ -183,6 +188,9 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       if (entry?.kind === "mailbox-group") {
         event.preventDefault()
         toggleGroup(entry.accountId)
+      } else if (entry?.kind === "mailbox") {
+        event.preventDefault()
+        mailboxMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
       }
       return true
     }
@@ -196,11 +204,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     }
     if (event.name === "escape") {
       event.preventDefault()
-      if (query().length > 0) {
-        setQuery("")
-      } else {
-        props.onClose()
-      }
+      props.onClose()
       return true
     }
     return false
@@ -225,18 +229,6 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       }
       return true
     }
-    if (entry?.kind === "mailbox") {
-      if (event.name === "return" || event.name === "space") {
-        event.preventDefault()
-        mailboxMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
-        return true
-      }
-      if (event.name === "tab") {
-        event.preventDefault()
-        setZone("nav")
-        return true
-      }
-    }
     return false
   }
 
@@ -257,16 +249,11 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     <box flexGrow={1} flexDirection="column">
       <box flexGrow={1} flexDirection="row" gap={1}>
         <SettingsNav
-          query={query()}
-          onQuery={(value) => {
-            setQuery(value)
-          }}
           groups={groups()}
           collapsed={collapsedMailboxes()}
           mutingIds={mailboxMute.mutingIds()}
           mutingAccounts={mutingAccounts()}
           selectedKey={selectedKey()}
-          searchFocused={zone() === "nav"}
           onSelect={(key) => {
             setSelectedKey(key)
           }}
