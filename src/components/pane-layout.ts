@@ -10,11 +10,11 @@ const mediumFolderPaneWidth = 26
 
 const hints = {
   folders: "↑↓ move · ⏎ open · space fold · i mute · tab next pane · ctrl+x · q quit",
-  list: "↑↓ move · space select · u read · m move · esc back · ctrl+x · q quit",
+  list: "↑↓ move · space select · r read · u unread · m move · esc back · ctrl+x · q quit",
   reader: "↑↓ scroll · pgup/pgdn · esc back · ctrl+x · q quit",
 } as const
 
-const taggedHint = "u read/unread · m move · ctrl+a select all · esc clear"
+const taggedHint = "r read · u unread · m move · ctrl+a select all · esc clear"
 
 const resolveLayoutMode = (width: number): LayoutMode => {
   if (width >= wideLayoutWidth) {

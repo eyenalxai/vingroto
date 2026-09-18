@@ -4,6 +4,7 @@ import { For, Show, createEffect, createSignal } from "solid-js"
 
 import type { FolderRow } from "@/lib/mail/folders"
 
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { truncate } from "@/lib/format"
 
@@ -11,6 +12,9 @@ interface FolderPaneProps {
   readonly rows: readonly FolderRow[]
   readonly selectedKey: string | undefined
   readonly focused: boolean
+  readonly loading: boolean
+  readonly syncingIds: ReadonlySet<number>
+  readonly mutingIds: ReadonlySet<number>
 }
 
 const rowId = (key: string) => `folder-row-${key.replaceAll(":", "-")}`
@@ -28,6 +32,33 @@ const FolderPane = (props: FolderPaneProps) => {
 
   const virtualRows = () => props.rows.filter((row) => row.kind === "global")
   const treeRows = () => props.rows.filter((row) => row.kind !== "global")
+
+  const mailboxBusy = (row: FolderRow) => {
+    if (row.mailboxId === undefined) {
+      return false
+    }
+    return props.syncingIds.has(row.mailboxId) || props.mutingIds.has(row.mailboxId)
+  }
+
+  const accountBusy = (accountId: string) =>
+    props.rows.some((row) => row.accountId === accountId && mailboxBusy(row))
+
+  const badgeColor = (row: FolderRow, selected: boolean) => {
+    if (selected) {
+      return theme.selectionForeground
+    }
+    return row.tone === "unread" ? theme.unread : theme.muted
+  }
+
+  const textColor = (row: FolderRow, selected: boolean) => {
+    if (selected) {
+      return theme.selectionForeground
+    }
+    if (row.muted) {
+      return theme.muted
+    }
+    return row.kind === "account" ? theme.accent : theme.text
+  }
 
   createEffect(() => {
     const box = scrollBox()
@@ -54,6 +85,9 @@ const FolderPane = (props: FolderPaneProps) => {
         paddingLeft={1}
         paddingRight={1}
       >
+        <Show when={props.loading}>
+          <Spinner label="loading mailboxes…" />
+        </Show>
         <For each={virtualRows()}>
           {(row) => {
             const isSelected = () => row.key === props.selectedKey
@@ -69,17 +103,7 @@ const FolderPane = (props: FolderPaneProps) => {
                     {truncate(row.label, 24)}
                   </text>
                 </box>
-                <text
-                  fg={
-                    isSelected()
-                      ? theme.selectionForeground
-                      : row.tone === "unread"
-                        ? theme.unread
-                        : theme.muted
-                  }
-                >
-                  {badgeLabel(row.count)}
-                </text>
+                <text fg={badgeColor(row, isSelected())}>{badgeLabel(row.count)}</text>
               </box>
             )
           }}
@@ -90,15 +114,6 @@ const FolderPane = (props: FolderPaneProps) => {
         <For each={treeRows()}>
           {(row) => {
             const isSelected = () => row.key === props.selectedKey
-            const textColor = () => {
-              if (isSelected()) {
-                return theme.selectionForeground
-              }
-              if (row.muted) {
-                return theme.muted
-              }
-              return row.kind === "account" ? theme.accent : theme.text
-            }
             return (
               <box
                 id={rowId(row.key)}
@@ -108,22 +123,28 @@ const FolderPane = (props: FolderPaneProps) => {
                 backgroundColor={isSelected() ? theme.selectionBackground : undefined}
               >
                 <box flexGrow={1} flexDirection="row" gap={1}>
-                  <Show when={row.marker !== ""}>
-                    <text fg={textColor()}>{row.marker}</text>
+                  <Show
+                    when={mailboxBusy(row)}
+                    fallback={
+                      <Show when={row.marker !== ""}>
+                        <text fg={textColor(row, isSelected())}>{row.marker}</text>
+                      </Show>
+                    }
+                  >
+                    <Spinner color={isSelected() ? theme.selectionForeground : theme.accent} />
                   </Show>
-                  <text fg={textColor()}>{truncate(row.label, 20)}</text>
+                  <text fg={textColor(row, isSelected())}>{truncate(row.label, 20)}</text>
                 </box>
-                <text
-                  fg={
-                    isSelected()
-                      ? theme.selectionForeground
-                      : row.tone === "unread"
-                        ? theme.unread
-                        : theme.muted
+                <Show
+                  when={
+                    row.kind === "account" &&
+                    row.accountId !== undefined &&
+                    accountBusy(row.accountId)
                   }
+                  fallback={<text fg={badgeColor(row, isSelected())}>{badgeLabel(row.count)}</text>}
                 >
-                  {badgeLabel(row.count)}
-                </text>
+                  <Spinner color={badgeColor(row, isSelected())} />
+                </Show>
               </box>
             )
           }}

@@ -6,6 +6,7 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import type { MessageDetail } from "@/lib/store/messages"
 
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { addressList, formatBytes, formatMessageDateTime, htmlToText } from "@/lib/format"
 import { splitLinks } from "@/lib/link"
@@ -23,6 +24,7 @@ interface HeaderLine {
 interface MessageViewProps {
   readonly detail: MessageDetail | undefined
   readonly body: BodyState | undefined
+  readonly loadingDetail: boolean
   readonly focused: boolean
   readonly accountLabels: ReadonlyMap<string, string>
   readonly onScrollRef: (box: ScrollBoxRenderable) => void
@@ -99,6 +101,7 @@ const MessageView = (props: MessageViewProps) => {
   })
 
   const bodySegments = createMemo(() => splitLinks(messageBodyText(props.body)))
+  const bodyLoading = () => props.body === undefined || props.body._tag === "loading"
 
   const handleBodyMouseDown = (event: MouseEvent) => {
     if (event.button === leftMouseButton) {
@@ -139,9 +142,18 @@ const MessageView = (props: MessageViewProps) => {
       <Show
         when={props.detail}
         fallback={
-          <box paddingLeft={1} paddingRight={1}>
-            <text fg={theme.muted}>no message selected</text>
-          </box>
+          <Show
+            when={props.loadingDetail}
+            fallback={
+              <box paddingLeft={1} paddingRight={1}>
+                <text fg={theme.muted}>no message selected</text>
+              </box>
+            }
+          >
+            <box paddingLeft={1} paddingRight={1}>
+              <Spinner label="loading message…" />
+            </box>
+          </Show>
         }
       >
         {(detail) => (
@@ -177,24 +189,31 @@ const MessageView = (props: MessageViewProps) => {
               paddingLeft={1}
               paddingRight={1}
             >
-              <text
-                fg={theme.text}
-                wrapMode="word"
-                onMouseDown={handleBodyMouseDown}
-                onMouseUp={handleBodyMouseUp}
+              <Show
+                when={bodyLoading()}
+                fallback={
+                  <text
+                    fg={theme.text}
+                    wrapMode="word"
+                    onMouseDown={handleBodyMouseDown}
+                    onMouseUp={handleBodyMouseUp}
+                  >
+                    <For each={bodySegments()}>
+                      {(segment) =>
+                        segment.url === undefined ? (
+                          segment.text
+                        ) : (
+                          <a href={segment.url} style={{ fg: theme.accent, underline: true }}>
+                            {segment.text}
+                          </a>
+                        )
+                      }
+                    </For>
+                  </text>
+                }
               >
-                <For each={bodySegments()}>
-                  {(segment) =>
-                    segment.url === undefined ? (
-                      segment.text
-                    ) : (
-                      <a href={segment.url} style={{ fg: theme.accent, underline: true }}>
-                        {segment.text}
-                      </a>
-                    )
-                  }
-                </For>
-              </text>
+                <Spinner label="loading message…" />
+              </Show>
             </scrollbox>
           </box>
         )}

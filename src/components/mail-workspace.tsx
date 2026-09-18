@@ -87,6 +87,17 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     return describePaneHint(pane())
   })
 
+  const busy = createMemo(
+    () =>
+      props.syncing ||
+      props.store.loadingFolders() ||
+      props.store.loadingMessages() ||
+      props.store.loadingDetail() ||
+      props.store.pendingMessageIds().size > 0 ||
+      props.store.mutingMailboxIds().size > 0 ||
+      props.store.syncingMailboxIds().size > 0,
+  )
+
   const openLink = (url: string) => {
     const program = Effect.gen(function* openLinkInBrowser() {
       yield* openExternal(url).pipe(
@@ -109,6 +120,9 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
               rows={props.store.folderRows()}
               selectedKey={props.store.selectedFolderKey()}
               focused={pane() === "folders"}
+              loading={props.store.loadingFolders()}
+              syncingIds={props.store.syncingMailboxIds()}
+              mutingIds={props.store.mutingMailboxIds()}
             />
           </box>
         </Show>
@@ -119,6 +133,8 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
               messages={props.store.messages()}
               selectedId={props.store.selectedMessageId()}
               tagged={props.store.taggedIds()}
+              pending={props.store.pendingMessageIds()}
+              loading={props.store.loadingMessages()}
               focused={pane() === "list"}
             />
           </box>
@@ -128,6 +144,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
             <MessageView
               detail={props.store.detail()}
               body={props.store.body()}
+              loadingDetail={props.store.loadingDetail()}
               focused={pane() === "reader"}
               accountLabels={accountLabels()}
               onOpenLink={openLink}
@@ -138,7 +155,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
           </box>
         </Show>
       </box>
-      <StatusBar message={props.status} syncing={props.syncing} hint={statusHint()} />
+      <StatusBar message={props.status} busy={busy()} hint={statusHint()} />
     </box>
   )
 }

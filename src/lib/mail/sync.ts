@@ -24,6 +24,11 @@ const dayMilliseconds = 24 * 60 * 60 * 1000
 
 type SyncEvent =
   | {
+      readonly _tag: "mailbox-start"
+      readonly accountId: string
+      readonly path: string
+    }
+  | {
       readonly _tag: "mailbox-done"
       readonly accountId: string
       readonly path: string
@@ -83,6 +88,9 @@ const emptyReport = (account: AccountConfig): SyncReport => {
 }
 
 const describeSyncEvent = (event: SyncEvent) => {
+  if (event._tag === "mailbox-start") {
+    return `syncing ${event.path}`
+  }
   if (event._tag === "mailbox-done") {
     return event.stored === 0 ? `${event.path} · up to date` : `${event.path} · ${event.stored} new`
   }
@@ -102,6 +110,14 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
       const busy = yield* Ref.make(false)
 
       const emit = (event: SyncEvent) => PubSub.publish(pubsub, event)
+
+      const reportMailboxError = (account: AccountConfig, path: string, message: string) =>
+        Effect.gen(function* reportMailboxFailure() {
+          yield* Effect.logWarning("mailbox sync failed").pipe(
+            Effect.annotateLogs({ account: account.id, mailbox: path, reason: message }),
+          )
+          yield* emit({ _tag: "mailbox-error", accountId: account.id, path, message })
+        })
 
       const storeSnapshot = Effect.fn("Sync.storeSnapshot")(function* storeSnapshot(
         account: AccountConfig,
@@ -152,6 +168,9 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         const targets = stored.filter(
           (row) => row.selectable && (paths === undefined || paths.includes(row.path)),
         )
+        for (const row of targets) {
+          yield* emit({ _tag: "mailbox-start", accountId: account.id, path: row.path })
+        }
         const rowsByPath = new Map(stored.map((row) => [row.path, row]))
         const results = yield* imap.fetchMailboxWindows(
           account,
@@ -167,19 +186,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           }
           if (result._tag === "error") {
             errors.push(`${result.path}: ${result.message}`)
-            yield* Effect.logWarning("mailbox sync failed").pipe(
-              Effect.annotateLogs({
-                account: account.id,
-                mailbox: result.path,
-                reason: result.message,
-              }),
-            )
-            yield* emit({
-              _tag: "mailbox-error",
-              accountId: account.id,
-              path: result.path,
-              message: result.message,
-            })
+            yield* reportMailboxError(account, result.path, result.message)
             continue
           }
           if (row.uid_validity !== null && row.uid_validity !== result.snapshot.uidValidity) {
@@ -206,11 +213,13 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         if (recreated.size > 0) {
           const refreshed = yield* listAccountMailboxes(account.id)
           const refreshedByPath = new Map(refreshed.map((row) => [row.path, row]))
+          const retryRows = refreshed.filter((row) => recreated.has(row.id))
+          for (const row of retryRows) {
+            yield* emit({ _tag: "mailbox-start", accountId: account.id, path: row.path })
+          }
           const retry = yield* imap.fetchMailboxWindows(
             account,
-            refreshed
-              .filter((row) => recreated.has(row.id))
-              .map((row) => initialWindow(row, config, now)),
+            retryRows.map((row) => initialWindow(row, config, now)),
           )
           for (const result of retry) {
             const row = refreshedByPath.get(result.path)
@@ -224,19 +233,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         for (const entry of processable) {
           if (entry.result._tag === "error") {
             errors.push(`${entry.result.path}: ${entry.result.message}`)
-            yield* Effect.logWarning("mailbox sync failed").pipe(
-              Effect.annotateLogs({
-                account: account.id,
-                mailbox: entry.result.path,
-                reason: entry.result.message,
-              }),
-            )
-            yield* emit({
-              _tag: "mailbox-error",
-              accountId: account.id,
-              path: entry.result.path,
-              message: entry.result.message,
-            })
+            yield* reportMailboxError(account, entry.result.path, entry.result.message)
             continue
           }
           const outcome = yield* storeSnapshot(account, entry.row, entry.result.snapshot)

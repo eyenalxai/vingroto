@@ -23,12 +23,19 @@ interface MailStoreOptions {
   readonly onStatus: (status: string) => void
 }
 
+const withoutId = (current: ReadonlySet<number>, id: number) =>
+  new Set([...current].filter((entry) => entry !== id))
+
 const useMailStore = (options: MailStoreOptions) => {
   const [mailboxes, setMailboxes] = createSignal<readonly MailboxRow[]>([])
   const [counts, setCounts] = createSignal<ReadonlyMap<number, MailboxCounts>>(new Map())
   const [unread, setUnread] = createSignal(0)
   const [selectedFolderKey, setSelectedFolderKey] = createSignal<string | undefined>()
   const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<string>>(new Set())
+  const [loadingFolders, setLoadingFolders] = createSignal(false)
+  const [mutingMailboxIds, setMutingMailboxIds] = createSignal<ReadonlySet<number>>(new Set())
+  const [syncingMailboxIds, setSyncingMailboxIds] = createSignal<ReadonlySet<number>>(new Set())
+  let folderLoadToken = 0
 
   const visibleMailboxes = createMemo(() => mailboxes().filter((row) => row.selectable))
 
@@ -76,6 +83,9 @@ const useMailStore = (options: MailStoreOptions) => {
 
   const loadFolderData = () => {
     untrack(() => {
+      folderLoadToken += 1
+      const token = folderLoadToken
+      setLoadingFolders(true)
       const program = Effect.gen(function* loadFolderRows() {
         yield* Effect.gen(function* queryFolderRows() {
           const rows = yield* listMailboxes()
@@ -94,7 +104,15 @@ const useMailStore = (options: MailStoreOptions) => {
             }),
           ),
         )
-      })
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (folderLoadToken === token) {
+              setLoadingFolders(false)
+            }
+          }),
+        ),
+      )
       options.runtime.runFork(program)
     })
   }
@@ -135,6 +153,7 @@ const useMailStore = (options: MailStoreOptions) => {
       return
     }
     const muted = !mailbox.muted
+    setMutingMailboxIds((current) => new Set(current).add(mailbox.id))
     const program = Effect.gen(function* muteMailbox() {
       yield* setMailboxMuted(mailbox.id, muted).pipe(
         Effect.tap(() =>
@@ -149,7 +168,13 @@ const useMailStore = (options: MailStoreOptions) => {
           }),
         ),
       )
-    })
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          setMutingMailboxIds((current) => withoutId(current, mailbox.id))
+        }),
+      ),
+    )
     options.runtime.runFork(program)
   }
 
@@ -177,9 +202,27 @@ const useMailStore = (options: MailStoreOptions) => {
     setSelectedFolderKey(key)
   }
 
+  const mailboxIdFor = (accountId: string, path: string) =>
+    mailboxes().find((row) => row.account_id === accountId && row.path === path)?.id
+
   const applySyncEvent = (event: SyncEvent) => {
     untrack(() => {
       options.onStatus(describeSyncEvent(event))
+      if (event._tag === "mailbox-start") {
+        const id = mailboxIdFor(event.accountId, event.path)
+        if (id !== undefined) {
+          setSyncingMailboxIds((current) => new Set(current).add(id))
+        }
+        return
+      }
+      if (event._tag === "sync-error") {
+        setSyncingMailboxIds(new Set<number>())
+      } else {
+        const id = mailboxIdFor(event.accountId, event.path)
+        if (id !== undefined) {
+          setSyncingMailboxIds((current) => withoutId(current, id))
+        }
+      }
       loadFolderData()
       const target = parseFolderKey(selectedFolderKey())
       if (target === undefined) {
@@ -234,10 +277,13 @@ const useMailStore = (options: MailStoreOptions) => {
     ...messageActions,
     counts,
     folderRows,
+    loadingFolders,
     mailboxes,
+    mutingMailboxIds,
     selectedFolderKey,
     selectedFolderRow,
     selectedMailbox,
+    syncingMailboxIds,
     unread,
     visibleMailboxes,
     loadFolderData,

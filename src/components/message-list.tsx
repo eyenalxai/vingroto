@@ -4,6 +4,7 @@ import { For, Show, createEffect, createSignal } from "solid-js"
 
 import type { MessageListItem } from "@/lib/store/messages"
 
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { formatMessageDate, senderLabel } from "@/lib/format"
 
@@ -12,6 +13,8 @@ interface MessageListProps {
   readonly messages: readonly MessageListItem[]
   readonly selectedId: number | undefined
   readonly tagged: ReadonlySet<number>
+  readonly pending: ReadonlySet<number>
+  readonly loading: boolean
   readonly focused: boolean
 }
 
@@ -49,9 +52,16 @@ const MessageList = (props: MessageListProps) => {
         paddingRight={1}
       >
         <Show when={props.messages.length === 0}>
-          <text fg={theme.muted} wrapMode="none" truncate>
-            no messages
-          </text>
+          <Show
+            when={props.loading}
+            fallback={
+              <text fg={theme.muted} wrapMode="none" truncate>
+                no messages
+              </text>
+            }
+          >
+            <Spinner label="loading messages…" />
+          </Show>
         </Show>
         <For each={props.messages}>
           {(message) => {
@@ -78,9 +88,16 @@ const MessageList = (props: MessageListProps) => {
                 backgroundColor={isSelected() ? theme.selectionBackground : undefined}
               >
                 <box width={1} flexShrink={0}>
-                  <text fg={isSelected() ? theme.selectionForeground : theme.accent}>
-                    {marker()}
-                  </text>
+                  <Show
+                    when={props.pending.has(message.id)}
+                    fallback={
+                      <text fg={isSelected() ? theme.selectionForeground : theme.accent}>
+                        {marker()}
+                      </text>
+                    }
+                  >
+                    <Spinner color={isSelected() ? theme.selectionForeground : theme.accent} />
+                  </Show>
                 </box>
                 <box
                   width={senderColumnWidth}

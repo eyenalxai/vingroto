@@ -1,4 +1,5 @@
 import { Effect } from "effect"
+import { createSignal } from "solid-js"
 
 import type { AppConfig } from "@/lib/config/schema"
 import type { MessageActionRequest } from "@/lib/mail/actions"
@@ -42,6 +43,8 @@ const groupByAccount = (messages: readonly MessageListItem[]): readonly TargetGr
 }
 
 const useMessageActions = (options: MessageActionsOptions) => {
+  const [pendingMessageIds, setPendingMessageIds] = createSignal<ReadonlySet<number>>(new Set())
+
   const targets = () => {
     const tagged = options.taggedMessages()
     if (tagged.length > 0) {
@@ -51,8 +54,30 @@ const useMessageActions = (options: MessageActionsOptions) => {
     return selected === undefined ? [] : [selected]
   }
 
+  const addPending = (ids: readonly number[]) => {
+    setPendingMessageIds((current) => {
+      const next = new Set(current)
+      for (const id of ids) {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const removePending = (ids: readonly number[]) => {
+    setPendingMessageIds((current) => {
+      const next = new Set(current)
+      for (const id of ids) {
+        next.delete(id)
+      }
+      return next
+    })
+  }
+
   const applySeen = (items: readonly MessageListItem[], seen: boolean) => {
     const groups = groupByAccount(items)
+    const targetIds = items.map((item) => item.id)
+    addPending(targetIds)
     const program = Effect.gen(function* updateSeen() {
       const actions = yield* MailActions
       let affected = 0
@@ -82,17 +107,32 @@ const useMessageActions = (options: MessageActionsOptions) => {
         }
         options.onChanged(affected)
       })
-    })
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          removePending(targetIds)
+        }),
+      ),
+    )
     options.runtime.runFork(program)
   }
 
-  const toggleSeen = () => {
+  const markRead = () => {
     const items = targets()
     if (items.length === 0) {
       options.onStatus("no message selected")
       return
     }
-    applySeen(items, !items.every((item) => item.seen))
+    applySeen(items, true)
+  }
+
+  const markUnread = () => {
+    const items = targets()
+    if (items.length === 0) {
+      options.onStatus("no message selected")
+      return
+    }
+    applySeen(items, false)
   }
 
   const move = (target: MailboxRow) => {
@@ -111,6 +151,8 @@ const useMessageActions = (options: MessageActionsOptions) => {
       options.onStatus(`account ${target.account_id} is not configured`)
       return
     }
+    const targetIds = items.map((item) => item.id)
+    addPending(targetIds)
     const program = Effect.gen(function* moveToMailbox() {
       const actions = yield* MailActions
       const outcome = yield* actions.move(
@@ -129,11 +171,17 @@ const useMessageActions = (options: MessageActionsOptions) => {
         options.onStatus(parts.join(" · "))
         options.onChanged(outcome.moved)
       })
-    })
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          removePending(targetIds)
+        }),
+      ),
+    )
     options.runtime.runFork(program)
   }
 
-  return { move, targets, toggleSeen }
+  return { markRead, markUnread, move, pendingMessageIds, targets }
 }
 
 export { useMessageActions, type MessageActionsOptions }

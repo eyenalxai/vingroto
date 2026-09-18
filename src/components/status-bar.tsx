@@ -1,11 +1,12 @@
 import { useTerminalDimensions } from "@opentui/solid"
 import { Show } from "solid-js"
 
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface StatusBarProps {
   readonly message: string
-  readonly syncing: boolean
+  readonly busy: boolean
   readonly hint: string
 }
 
@@ -18,15 +19,18 @@ const StatusBar = (props: StatusBarProps) => {
 
   return (
     <box flexDirection="row" gap={1} paddingLeft={1} paddingRight={1} flexShrink={0}>
-      <text
-        fg={props.syncing ? theme.accent : theme.text}
-        flexBasis={0}
-        flexGrow={1}
-        wrapMode="none"
-        truncate
+      <Show
+        when={props.busy}
+        fallback={
+          <text fg={theme.text} flexBasis={0} flexGrow={1} wrapMode="none" truncate>
+            {props.message}
+          </text>
+        }
       >
-        {props.message}
-      </text>
+        <box flexBasis={0} flexGrow={1} flexDirection="row" overflow="hidden">
+          <Spinner label={props.message} color={theme.accent} />
+        </box>
+      </Show>
       <Show when={hintVisible()}>
         <text fg={theme.muted} flexShrink={0} wrapMode="none" truncate>
           {props.hint}

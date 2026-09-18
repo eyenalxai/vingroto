@@ -16,6 +16,7 @@ interface FolderRow {
   readonly muted: boolean
   readonly accountId: string | undefined
   readonly mailboxPath: string | undefined
+  readonly mailboxId: number | undefined
 }
 
 type FolderTarget = VirtualFolderScope | { readonly kind: "mailbox"; readonly id: number }
@@ -64,6 +65,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       muted: false,
       accountId: undefined,
       mailboxPath: undefined,
+      mailboxId: undefined,
     },
     {
       key: "virtual:unread",
@@ -76,6 +78,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       muted: false,
       accountId: undefined,
       mailboxPath: undefined,
+      mailboxId: undefined,
     },
   ]
   for (const account of input.accounts) {
@@ -98,6 +101,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       muted: false,
       accountId: account.id,
       mailboxPath: undefined,
+      mailboxId: undefined,
     })
     if (folded) {
       continue
@@ -113,6 +117,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
       muted: false,
       accountId: account.id,
       mailboxPath: undefined,
+      mailboxId: undefined,
     })
     for (const row of siblings) {
       rows.push({
@@ -126,6 +131,7 @@ const buildFolderRows = (input: FolderTreeInput): readonly FolderRow[] => {
         muted: row.muted,
         accountId: account.id,
         mailboxPath: row.path,
+        mailboxId: row.id,
       })
     }
   }

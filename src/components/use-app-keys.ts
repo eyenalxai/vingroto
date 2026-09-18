@@ -147,8 +147,12 @@ const useAppKeys = (options: AppKeysOptions) => {
       return true
     }
     if (options.pane() === "list") {
+      if (key.name === "r" && !key.ctrl) {
+        options.store.markRead()
+        return true
+      }
       if (key.name === "u" && !key.ctrl) {
-        options.store.toggleSeen()
+        options.store.markUnread()
         return true
       }
       if (key.name === "m" && !key.ctrl) {

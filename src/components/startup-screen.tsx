@@ -2,6 +2,7 @@ import { Show } from "solid-js"
 
 import type { BootReport } from "@/lib/boot"
 
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface StartupScreenProps {
@@ -23,7 +24,9 @@ const StartupScreen = (props: StartupScreenProps) => {
   }
   return (
     <box flexGrow={1} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
-      <text fg={failed() ? theme.error : theme.muted}>{message()}</text>
+      <Show when={failed()} fallback={<Spinner label={message()} />}>
+        <text fg={theme.error}>{message()}</text>
+      </Show>
       <Show when={props.report}>
         {(value) => <text fg={theme.muted}>{value().paths.config}</text>}
       </Show>

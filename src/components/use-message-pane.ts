@@ -27,6 +27,10 @@ const useMessagePane = (options: MessagePaneOptions) => {
   const [body, setBody] = createSignal<BodyState | undefined>()
   const [selectedMessageId, setSelectedMessageId] = createSignal<number | undefined>()
   const [taggedIds, setTaggedIds] = createSignal<ReadonlySet<number>>(new Set())
+  const [loadingMessages, setLoadingMessages] = createSignal(false)
+  const [loadingDetail, setLoadingDetail] = createSignal(false)
+  const [loadedFolderKey, setLoadedFolderKey] = createSignal<string | undefined>()
+  let messageLoadToken = 0
 
   const selectedMessage = createMemo(() => messages().find((row) => row.id === selectedMessageId()))
 
@@ -50,6 +54,17 @@ const useMessagePane = (options: MessagePaneOptions) => {
       if (key === undefined || target === undefined) {
         return
       }
+      if (loadedFolderKey() !== key) {
+        setLoadedFolderKey(key)
+        setMessages([])
+        setDetail(undefined)
+        setBody(undefined)
+        setSelectedMessageId(undefined)
+        setLoadingDetail(false)
+      }
+      messageLoadToken += 1
+      const token = messageLoadToken
+      setLoadingMessages(true)
       const program = Effect.gen(function* loadMessageRows() {
         yield* Effect.gen(function* queryMessageRows() {
           const rows =
@@ -70,13 +85,22 @@ const useMessagePane = (options: MessagePaneOptions) => {
             }),
           ),
         )
-      })
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (messageLoadToken === token) {
+              setLoadingMessages(false)
+            }
+          }),
+        ),
+      )
       options.runtime.runFork(program)
     })
   }
 
   const loadDetail = (messageId: number) => {
     untrack(() => {
+      setLoadingDetail(true)
       const program = Effect.gen(function* loadMessageDetail() {
         yield* Effect.gen(function* queryMessageDetail() {
           const value = yield* getMessage(messageId)
@@ -92,7 +116,15 @@ const useMessagePane = (options: MessagePaneOptions) => {
             }),
           ),
         )
-      })
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (selectedMessageId() === messageId) {
+              setLoadingDetail(false)
+            }
+          }),
+        ),
+      )
       options.runtime.runFork(program)
     })
   }
@@ -208,9 +240,10 @@ const useMessagePane = (options: MessagePaneOptions) => {
 
   createEffect(() => {
     const messageId = selectedMessageId()
+    setDetail(undefined)
+    setBody(undefined)
     if (messageId === undefined) {
-      setDetail()
-      setBody(undefined)
+      setLoadingDetail(false)
       return
     }
     loadDetail(messageId)
@@ -228,6 +261,8 @@ const useMessagePane = (options: MessagePaneOptions) => {
     body,
     clearTags,
     detail,
+    loadingDetail,
+    loadingMessages,
     messages,
     moveMessageSelection,
     reloadCurrent,
