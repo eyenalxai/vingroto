@@ -1,14 +1,11 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
-import type { SyncEvent } from "@vingroto/core/protocol/events"
 
 import { describeError } from "@vingroto/core/errors"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as PubSub from "effect/PubSub"
 import * as Ref from "effect/Ref"
-import * as Stream from "effect/Stream"
 
 import type {
   MailboxSnapshot,
@@ -18,6 +15,7 @@ import type {
 import type { MailboxRow } from "@/lib/store/mailboxes"
 
 import { Database } from "@/lib/db/database"
+import { ServerEvents } from "@/lib/events"
 import { Imap } from "@/lib/mail/imap"
 import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/lib/store/mailboxes"
 import { deleteMailboxMessages, storeMessages } from "@/lib/store/messages"
@@ -33,7 +31,6 @@ interface SyncReport {
 }
 
 interface SyncShape {
-  readonly events: Stream.Stream<SyncEvent>
   readonly syncMailboxes: (
     account: AccountConfig,
     config: SyncConfig,
@@ -74,17 +71,15 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
     Effect.gen(function* makeSyncEngine() {
       const imap = yield* Imap
       const database = yield* Database
-      const pubsub = yield* PubSub.unbounded<SyncEvent>()
+      const events = yield* ServerEvents
       const busy = yield* Ref.make(false)
-
-      const emit = (event: SyncEvent) => PubSub.publish(pubsub, event)
 
       const reportMailboxError = (account: AccountConfig, path: string, message: string) =>
         Effect.gen(function* reportMailboxFailure() {
           yield* Effect.logWarning("mailbox sync failed").pipe(
             Effect.annotateLogs({ account: account.id, mailbox: path, reason: message }),
           )
-          yield* emit({ _tag: "mailbox-error", accountId: account.id, path, message })
+          yield* events.publish({ _tag: "mailbox-error", accountId: account.id, path, message })
         })
 
       const storeSnapshot = Effect.fn("Sync.storeSnapshot")(function* storeSnapshot(
@@ -114,7 +109,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
             stored: outcome.inserted,
           }),
         )
-        yield* emit({
+        yield* events.publish({
           _tag: "mailbox-done",
           accountId: account.id,
           path: row.path,
@@ -137,7 +132,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           (row) => row.selectable && (paths === undefined || paths.includes(row.path)),
         )
         for (const row of targets) {
-          yield* emit({ _tag: "mailbox-start", accountId: account.id, path: row.path })
+          yield* events.publish({ _tag: "mailbox-start", accountId: account.id, path: row.path })
         }
         const rowsByPath = new Map(stored.map((row) => [row.path, row]))
         const results = yield* imap.fetchMailboxWindows(
@@ -183,7 +178,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           const refreshedByPath = new Map(refreshed.map((row) => [row.path, row]))
           const retryRows = refreshed.filter((row) => recreated.has(row.id))
           for (const row of retryRows) {
-            yield* emit({ _tag: "mailbox-start", accountId: account.id, path: row.path })
+            yield* events.publish({ _tag: "mailbox-start", accountId: account.id, path: row.path })
           }
           const retry = yield* imap.fetchMailboxWindows(
             account,
@@ -240,7 +235,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           Effect.catch((error) =>
             Effect.gen(function* reportFailure() {
               const message = describeError(error)
-              yield* emit({ _tag: "sync-error", accountId: account.id, message })
+              yield* events.publish({ _tag: "sync-error", accountId: account.id, message })
               return { ...emptyReport(account), errors: [message] }
             }),
           ),
@@ -249,7 +244,6 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
       })
 
       return SyncEngine.of({
-        events: Stream.fromPubSub(pubsub),
         syncMailboxes: (account, config, paths) => {
           const program = syncMailboxes(account, config, paths).pipe(
             Effect.provideService(Database, database),

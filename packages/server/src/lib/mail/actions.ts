@@ -1,53 +1,52 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { MoveOutcome, SeenOutcome } from "@vingroto/core/protocol/mail"
+import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
+import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 
+import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
+import type { MessageActionTarget } from "@/lib/store/messages"
+
+import { loadConfig } from "@/lib/config/load"
 import { Database } from "@/lib/db/database"
+import { ServerEvents } from "@/lib/events"
 import { Imap } from "@/lib/mail/imap"
-import { deleteMessages, setMessagesSeen } from "@/lib/store/messages"
+import { listMailboxes } from "@/lib/store/mailboxes"
+import { deleteMessages, listMessageActionTargets, setMessagesSeen } from "@/lib/store/messages"
 
-interface MessageActionRequest {
-  readonly messageId: number
-  readonly mailboxPath: string
-  readonly uid: number
-}
-
-interface SeenOutcome {
-  readonly affected: number
-  readonly errors: readonly string[]
-}
-
-interface MoveOutcome {
-  readonly moved: number
-  readonly skipped: number
-  readonly errors: readonly string[]
-}
+class MessageActionError extends Schema.TaggedError<MessageActionError>()("MessageActionError", {
+  message: Schema.String,
+}) {}
 
 interface MailActionsShape {
-  readonly setSeen: (
-    account: AccountConfig,
-    requests: readonly MessageActionRequest[],
+  readonly setSeenByIds: (
+    ids: readonly number[],
     seen: boolean,
-  ) => Effect.Effect<SeenOutcome>
-  readonly move: (
-    account: AccountConfig,
-    requests: readonly MessageActionRequest[],
-    targetPath: string,
-  ) => Effect.Effect<MoveOutcome>
+  ) => Effect.Effect<SeenOutcome, ConfigInvalid | ConfigUnreadable | EffectDrizzleQueryError>
+  readonly moveByIds: (
+    ids: readonly number[],
+    targetMailboxId: number,
+  ) => Effect.Effect<
+    MoveOutcome,
+    MessageActionError | ConfigInvalid | ConfigUnreadable | EffectDrizzleQueryError
+  >
 }
 
 interface MailboxGroup {
   readonly mailboxPath: string
-  readonly requests: readonly MessageActionRequest[]
+  readonly requests: readonly MessageActionTarget[]
 }
 
 const seenFlag = String.raw`\Seen`
 
-const groupByMailbox = (requests: readonly MessageActionRequest[]): readonly MailboxGroup[] => {
-  const groups = new Map<string, MessageActionRequest[]>()
+const groupByMailbox = (requests: readonly MessageActionTarget[]): readonly MailboxGroup[] => {
+  const groups = new Map<string, MessageActionTarget[]>()
   for (const request of requests) {
     const bucket = groups.get(request.mailboxPath)
     if (bucket === undefined) {
@@ -61,6 +60,19 @@ const groupByMailbox = (requests: readonly MessageActionRequest[]): readonly Mai
   })
 }
 
+const groupByAccount = (requests: readonly MessageActionTarget[]) => {
+  const groups = new Map<string, MessageActionTarget[]>()
+  for (const request of requests) {
+    const bucket = groups.get(request.accountId)
+    if (bucket === undefined) {
+      groups.set(request.accountId, [request])
+      continue
+    }
+    bucket.push(request)
+  }
+  return groups
+}
+
 class MailActions extends Context.Service<MailActions, MailActionsShape>()(
   "vingroto/lib/mail/MailActions",
 ) {
@@ -69,10 +81,13 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
     Effect.gen(function* makeMailActions() {
       const imap = yield* Imap
       const database = yield* Database
+      const events = yield* ServerEvents
+      const paths = yield* AppPaths
+      const fs = yield* FileSystem.FileSystem
 
       const setSeen = Effect.fn("MailActions.setSeen")(function* applySeen(
         account: AccountConfig,
-        requests: readonly MessageActionRequest[],
+        requests: readonly MessageActionTarget[],
         seen: boolean,
       ) {
         const applied: number[] = []
@@ -107,7 +122,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
 
       const move = Effect.fn("MailActions.move")(function* moveToMailbox(
         account: AccountConfig,
-        requests: readonly MessageActionRequest[],
+        requests: readonly MessageActionTarget[],
         targetPath: string,
       ) {
         const eligible = requests.filter((request) => request.mailboxPath !== targetPath)
@@ -140,42 +155,96 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
         return { moved: moved.length, skipped: requests.length - eligible.length, errors }
       })
 
+      const setSeenByIds = Effect.fn("MailActions.setSeenByIds")(function* applySeenByIds(
+        ids: readonly number[],
+        seen: boolean,
+      ) {
+        const config = yield* loadConfig()
+        const targets = yield* listMessageActionTargets(ids)
+        const accounts = new Map(config.accounts.map((account) => [account.id, account]))
+        let affected = 0
+        const errors: string[] = []
+        for (const [accountId, group] of groupByAccount(targets)) {
+          const account = accounts.get(accountId)
+          if (account === undefined) {
+            errors.push(`account ${accountId} is not configured`)
+            continue
+          }
+          const outcome = yield* setSeen(account, group, seen).pipe(
+            Effect.catch((error) =>
+              Effect.succeed({
+                affected: 0,
+                errors: [`could not update the local cache · ${describeError(error)}`],
+              }),
+            ),
+          )
+          affected += outcome.affected
+          errors.push(...outcome.errors)
+        }
+        const missing = new Set(ids).size - targets.length
+        if (missing > 0) {
+          errors.push(`${missing} message(s) were not found locally`)
+        }
+        yield* events.publish({ _tag: "data-changed" })
+        return { affected, errors }
+      })
+
+      const moveByIds = Effect.fn("MailActions.moveByIds")(function* moveByIds(
+        ids: readonly number[],
+        targetMailboxId: number,
+      ) {
+        const targets = yield* listMessageActionTargets(ids)
+        const mailboxes = yield* listMailboxes()
+        const target = mailboxes.find((row) => row.id === targetMailboxId)
+        if (target === undefined) {
+          return yield* new MessageActionError({
+            message: `mailbox ${targetMailboxId} was not found`,
+          })
+        }
+        const accountIds = new Set(targets.map((entry) => entry.accountId))
+        if (accountIds.size > 1) {
+          return yield* new MessageActionError({
+            message: "messages from several accounts cannot be moved in one request",
+          })
+        }
+        const sourceAccountId = accountIds.values().next().value
+        if (sourceAccountId === undefined) {
+          return { errors: [], moved: 0, skipped: 0 }
+        }
+        const config = yield* loadConfig()
+        const account = config.accounts.find((entry) => entry.id === sourceAccountId)
+        if (account === undefined) {
+          return yield* new MessageActionError({
+            message: `account ${sourceAccountId} is not configured`,
+          })
+        }
+        const outcome = yield* move(account, targets, target.path).pipe(
+          Effect.catch((error) =>
+            Effect.succeed({
+              moved: 0,
+              skipped: 0,
+              errors: [`could not update the local cache · ${describeError(error)}`],
+            }),
+          ),
+        )
+        yield* events.publish({ _tag: "data-changed" })
+        return outcome
+      })
+
       const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-        Effect.provideService(effect, Database, database)
+        effect.pipe(
+          Effect.provideService(Database, database),
+          Effect.provideService(Imap, imap),
+          Effect.provideService(AppPaths, paths),
+          Effect.provideService(FileSystem.FileSystem, fs),
+        )
 
       return MailActions.of({
-        setSeen: (account, requests, seen) =>
-          Effect.gen(function* runSeenAction() {
-            return yield* provide(setSeen(account, requests, seen)).pipe(
-              Effect.catch((error) =>
-                Effect.succeed({
-                  affected: 0,
-                  errors: [`could not update the local cache · ${describeError(error)}`],
-                }),
-              ),
-            )
-          }),
-        move: (account, requests, targetPath) =>
-          Effect.gen(function* runMoveAction() {
-            return yield* provide(move(account, requests, targetPath)).pipe(
-              Effect.catch((error) =>
-                Effect.succeed({
-                  moved: 0,
-                  skipped: 0,
-                  errors: [`could not update the local cache · ${describeError(error)}`],
-                }),
-              ),
-            )
-          }),
+        setSeenByIds: (ids, seen) => provide(setSeenByIds(ids, seen)),
+        moveByIds: (ids, targetMailboxId) => provide(moveByIds(ids, targetMailboxId)),
       })
     }),
   )
 }
 
-export {
-  MailActions,
-  type MailActionsShape,
-  type MessageActionRequest,
-  type MoveOutcome,
-  type SeenOutcome,
-}
+export { MailActions, MessageActionError, type MailActionsShape }

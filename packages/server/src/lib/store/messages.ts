@@ -1,4 +1,5 @@
-import type { MailAddress } from "@vingroto/core/mail/address"
+import type { FolderScope, MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
+import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
 import { and, count, desc, eq, inArray } from "drizzle-orm"
 import * as Clock from "effect/Clock"
@@ -8,33 +9,6 @@ import type { MessageEnvelope } from "@/lib/mail/imap-types"
 
 import { Database } from "@/lib/db/database"
 import { MailboxTable, MessageTable } from "@/lib/db/schema"
-
-interface MessageListItem {
-  readonly id: number
-  readonly uid: number
-  readonly accountId: string
-  readonly mailboxId: number
-  readonly mailboxPath: string
-  readonly subject: string | null
-  readonly fromName: string | null
-  readonly fromAddress: string | null
-  readonly date: number | null
-  readonly seen: boolean
-  readonly flagged: boolean
-  readonly size: number | null
-  readonly hasAttachments: boolean
-  readonly snippet: string | null
-}
-
-interface MessageDetail extends MessageListItem {
-  readonly mailboxName: string
-  readonly messageId: string | null
-  readonly inReplyTo: string | null
-  readonly to: readonly MailAddress[] | null
-  readonly cc: readonly MailAddress[] | null
-  readonly answered: boolean
-  readonly draft: boolean
-}
 
 interface MailboxCounts {
   readonly total: number
@@ -148,7 +122,10 @@ const deleteMailboxMessages = Effect.fn("Message.deleteForMailbox")(function* de
   yield* database.client.delete(MessageTable).where(eq(MessageTable.mailbox_id, mailboxId))
 })
 
-const listMessages = Effect.fn("Message.list")(function* list(mailboxId: number, limit: number) {
+const listMessages = Effect.fn("Message.list")(function* list(
+  mailboxId: number,
+  limit: number,
+): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
   const database = yield* Database
   return yield* database.client
     .select(listColumns)
@@ -162,7 +139,7 @@ const listMessages = Effect.fn("Message.list")(function* list(mailboxId: number,
 const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtual(
   scope: VirtualFolderScope,
   limit: number,
-) {
+): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
   const database = yield* Database
   const filters =
     scope.kind === "unread"
@@ -183,7 +160,22 @@ const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtu
     .limit(limit)
 })
 
-const getMessage = Effect.fn("Message.get")(function* get(messageId: number) {
+const listMessagesForScope = Effect.fn("Message.listForScope")(function* listForScope(
+  scope: FolderScope,
+  limit: number,
+): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
+  if (scope.kind === "mailbox") {
+    return yield* listMessages(scope.mailboxId, limit)
+  }
+  if (scope.kind === "unread") {
+    return yield* listVirtualMessages({ accountId: scope.accountId, kind: "unread" }, limit)
+  }
+  return yield* listVirtualMessages({ kind: "all" }, limit)
+})
+
+const getMessage = Effect.fn("Message.get")(function* get(
+  messageId: number,
+): Effect.fn.Return<MessageDetail | undefined, EffectDrizzleQueryError, Database> {
   const database = yield* Database
   const rows = yield* database.client
     .select({
@@ -286,6 +278,7 @@ export {
   getMessage,
   listMessageActionTargets,
   listMessages,
+  listMessagesForScope,
   listVirtualMessages,
   messageCounts,
   setMessagesSeen,
@@ -293,8 +286,6 @@ export {
   unreadMessageCount,
   type MailboxCounts,
   type MessageActionTarget,
-  type MessageDetail,
-  type MessageListItem,
   type MessageStoreOutcome,
   type VirtualFolderScope,
 }

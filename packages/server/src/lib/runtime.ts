@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 
+import { Accounts } from "@/lib/accounts"
 import { Credential } from "@/lib/credential/service"
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
@@ -30,28 +31,28 @@ const InfraLayer = Layer.mergeAll(
   ServicesLayer,
   LifecycleLayer,
   LoggingLayer.server.pipe(Layer.provide(ServicesLayer)),
+  ServerEvents.layer,
 )
 
 const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideMerge(InfraLayer))
 
+const SyncLayer = Layer.mergeAll(SyncEngine.layer, MessagePrefetch.layer).pipe(
+  Layer.provide(CoreLayer),
+)
+
+const SchedulerLayer = Scheduler.layer.pipe(Layer.provide(SyncLayer), Layer.provide(CoreLayer))
+
 const AppLayer = Layer.mergeAll(
   CoreLayer,
+  SyncLayer,
+  SchedulerLayer,
   Discovery.layer,
   MailActions.layer.pipe(Layer.provide(CoreLayer)),
-  SyncEngine.layer.pipe(Layer.provide(CoreLayer)),
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
-  MessagePrefetch.layer.pipe(Layer.provide(CoreLayer)),
+  Accounts.layer.pipe(Layer.provide(SchedulerLayer), Layer.provide(CoreLayer)),
 )
 
-const EventsLayer = ServerEvents.layer.pipe(Layer.provide(AppLayer))
-
-const SchedulerLayer = Scheduler.layer.pipe(Layer.provide(EventsLayer), Layer.provide(AppLayer))
-
-const HandlersLayer = Handlers.pipe(
-  Layer.provide(SchedulerLayer),
-  Layer.provide(EventsLayer),
-  Layer.provide(AppLayer),
-)
+const HandlersLayer = Handlers.pipe(Layer.provide(AppLayer))
 
 const SocketServerLayer = Layer.unwrap(
   AppPaths.pipe(Effect.map((paths) => BunSocketServer.layer({ path: paths.socket }))),
