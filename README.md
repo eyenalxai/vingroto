@@ -33,15 +33,17 @@ The repository is a Bun workspace with three packages:
 Start the daemon in the background, then the client:
 
 ```sh
-bun server &             # or: bun run --filter @vingroto/server start &
-bun start
+bun server &   # daemon
+bun start      # client
 ```
 
 The client retries until the daemon answers, so it is fine to start the client first. Both processes meet at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/server.sock` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the socket, and the client never writes the config file or the database.
 
+The root scripts change into the package before starting it. Bun's workspace filter runner (`bun run --filter`) captures a child's stdout and stderr and points its stdin at `/dev/null`, which leaves the TUI unable to read input; the client also refuses to start when stdin or stdout is not an interactive terminal.
+
 ### systemd user service
 
-A user unit is provided in `packaging/vingroto.service`. Copy it into place, adjust `WorkingDirectory` and `Environment` if your checkout differs, then enable it:
+A user unit is provided in `packaging/vingroto.service`. Copy it into place, point `ExecStart` at the daemon binary if it is not `/usr/bin/vingroto-server`, then enable it:
 
 ```sh
 mkdir -p ~/.config/systemd/user
@@ -51,7 +53,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now vingroto.service
 ```
 
-The unit runs `bun run server` from the repository root, which delegates to the server workspace, so `WorkingDirectory` must point at the checkout (not at `packages/server`). Check on the daemon with `systemctl --user status vingroto` and follow it with `journalctl --user -u vingroto -f`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
+The unit starts the standalone `vingroto-server` binary and sends its stdout and stderr to the journal (`StandardOutput=journal`, `StandardError=journal`), so `journalctl --user -u vingroto -f` shows the readable log lines while `$XDG_STATE_HOME/vingroto/server.log` keeps the structured JSON records. Check on the daemon with `systemctl --user status vingroto`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
 
 ### Standalone binaries
 
@@ -126,7 +128,7 @@ Mailboxes are never mirrored in full. Each mailbox is fetched window by window: 
 
 `INBOX` is refreshed by the daemon on startup and then every `sync.intervalMinutes`, and a mailbox that has never been synced is fetched when it is first selected. `ctrl+x r` asks the daemon to sync the selected scope: a virtual folder syncs every account's `INBOX`, an account its `INBOX`, a mailbox that mailbox. Every pane shows a spinner while a query or sync is in flight instead of a stale or empty state.
 
-The daemon keeps the database in `$XDG_DATA_HOME/vingroto/vingroto.db` and writes its log to `$XDG_DATA_HOME/vingroto/vingroto.log`. Logs go to that file rather than the terminal; `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
+The daemon keeps the database in `$XDG_DATA_HOME/vingroto/vingroto.db` and writes structured JSON logs to `$XDG_STATE_HOME/vingroto/server.log` (default `~/.local/state/vingroto/server.log`), mirroring the same records to stderr as plain single-line entries for journald. The client keeps its own JSON log at `$XDG_STATE_HOME/vingroto/client.log` and never writes to the terminal. `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
 
 ## Reading
 
