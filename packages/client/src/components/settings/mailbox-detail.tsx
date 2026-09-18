@@ -23,10 +23,7 @@ const MailboxDetail = (props: MailboxDetailProps) => {
       { label: "Path", value: props.mailbox.path },
       { label: "Special use", value: props.mailbox.special_use ?? "none" },
       { label: "Messages", value: String(props.counts?.total ?? 0) },
-      {
-        label: "Unread",
-        value: props.mailbox.muted ? "not counted" : String(props.counts?.unread ?? 0),
-      },
+      { label: "Unread", value: String(props.counts?.unread ?? 0) },
     ] as const
 
   return (
@@ -60,7 +57,7 @@ const MailboxDetail = (props: MailboxDetailProps) => {
           when={props.muting}
           fallback={
             <Show when={props.mailbox.muted} fallback={<text fg={theme.muted}>no</text>}>
-              <text fg={theme.unread}>yes · excluded from unread counts</text>
+              <text fg={theme.unread}>yes · kept out of the Unread views</text>
             </Show>
           }
         >
