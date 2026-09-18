@@ -43,10 +43,11 @@ const toMailAddresses = (
   const addresses: MailAddress[] = []
   for (const entry of entries ?? []) {
     if (entry.address !== undefined) {
+      const name = entry.name
       addresses.push(
-        entry.name === undefined
+        name === undefined || name.trim().length === 0
           ? { address: entry.address }
-          : { name: entry.name, address: entry.address },
+          : { name, address: entry.address },
       )
     }
   }

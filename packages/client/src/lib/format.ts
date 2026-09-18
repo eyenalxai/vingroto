@@ -69,8 +69,15 @@ const truncate = (value: string, length: number): string => {
   return `${value.slice(0, Math.max(1, length - 1))}…`
 }
 
-const senderLabel = (fromName: string | null, fromAddress: string | null): string =>
-  fromName ?? fromAddress ?? "(unknown sender)"
+const senderLabel = (fromName: string | null, fromAddress: string | null): string => {
+  if (fromName !== null && fromName.trim().length > 0) {
+    return fromName
+  }
+  if (fromAddress !== null && fromAddress.trim().length > 0) {
+    return fromAddress
+  }
+  return "(unknown sender)"
+}
 
 export {
   addressLabel,

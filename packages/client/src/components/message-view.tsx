@@ -42,11 +42,11 @@ const messageBodyText = (state: BodyState | undefined): string => {
 }
 
 const senderValue = (detail: MessageDetail): string => {
-  if (detail.fromAddress === null) {
-    return detail.fromName ?? "(unknown sender)"
+  if (detail.fromName === null || detail.fromName.trim().length === 0) {
+    return detail.fromAddress ?? "(unknown sender)"
   }
-  if (detail.fromName === null || detail.fromName.length === 0) {
-    return detail.fromAddress
+  if (detail.fromAddress === null) {
+    return detail.fromName
   }
   return `${detail.fromName} <${detail.fromAddress}>`
 }
