@@ -52,6 +52,12 @@ const resolveInitialMode = (
 ): ThemeMode => detectedMode ?? (palette === null ? null : themeModeOf(palette)) ?? "dark"
 
 const program = Effect.gen(function* main() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    process.stderr.write("vingroto needs an interactive terminal on stdin and stdout\n")
+    yield* Effect.fail(
+      new StartupError({ message: "stdin and stdout must be an interactive terminal" }),
+    )
+  }
   const runtime = yield* Effect.acquireRelease(
     Effect.sync(() => createClientRuntime()),
     (value) => Effect.promise(async () => value.dispose()),

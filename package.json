@@ -8,8 +8,8 @@
   ],
   "type": "module",
   "scripts": {
-    "start": "bun run --filter @vingroto/client start",
-    "server": "bun run --filter @vingroto/server start",
+    "start": "cd packages/client && bun run start",
+    "server": "cd packages/server && bun run start",
     "build": "bun run --filter @vingroto/client build && bun run --filter @vingroto/server build",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
