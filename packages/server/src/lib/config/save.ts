@@ -13,29 +13,37 @@ class ConfigWriteError extends Schema.TaggedError<ConfigWriteError>()("ConfigWri
   message: Schema.String,
 }) {}
 
-const saveConfig = Effect.fn("Config.save")(function* save(config: AppConfig) {
-  const paths = yield* AppPaths
-  const fs = yield* FileSystem.FileSystem
+const saveConfigFile = Effect.fnUntraced(function* saveFile(
+  configPath: string,
+  fs: FileSystem.FileSystem,
+  config: AppConfig,
+): Effect.fn.Return<void, ConfigWriteError> {
   const file: AppConfigFile = { accounts: [...config.accounts], sync: config.sync }
   const encoded = yield* Schema.encodeEffect(Schema.fromJsonString(AppConfigFile, { space: 2 }))(
     file,
   ).pipe(
     Effect.mapError(
-      (error) => new ConfigWriteError({ path: paths.config, message: describeError(error) }),
+      (error) => new ConfigWriteError({ path: configPath, message: describeError(error) }),
     ),
   )
-  const temporary = `${paths.config}.tmp`
+  const temporary = `${configPath}.tmp`
   const writeError = (error: PlatformError) =>
-    new ConfigWriteError({ path: paths.config, message: error.message })
+    new ConfigWriteError({ path: configPath, message: error.message })
   yield* fs
     .writeFileString(temporary, `${encoded}\n`)
     .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(writeError(error))))
   yield* fs
-    .rename(temporary, paths.config)
+    .rename(temporary, configPath)
     .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(writeError(error))))
   yield* Effect.logInfo("configuration saved").pipe(
-    Effect.annotateLogs({ path: paths.config, accounts: config.accounts.length }),
+    Effect.annotateLogs({ path: configPath, accounts: config.accounts.length }),
   )
 })
 
-export { ConfigWriteError, saveConfig }
+const saveConfig = Effect.fn("Config.save")(function* save(config: AppConfig) {
+  const paths = yield* AppPaths
+  const fs = yield* FileSystem.FileSystem
+  return yield* saveConfigFile(paths.config, fs, config)
+})
+
+export { ConfigWriteError, saveConfig, saveConfigFile }

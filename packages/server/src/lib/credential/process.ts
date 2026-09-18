@@ -1,8 +1,9 @@
+import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
+
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Stream from "effect/Stream"
 import { ChildProcess } from "effect/unstable/process"
-import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 
 interface ProcessOutput {
   readonly exitCode: number
@@ -11,10 +12,13 @@ interface ProcessOutput {
 }
 
 // Both streams are drained concurrently so a chatty child cannot deadlock on a full pipe buffer.
-const runProcess = (command: string, args: readonly string[]) =>
+const runProcess = (
+  spawner: ChildProcessSpawner["Service"],
+  command: string,
+  args: readonly string[],
+) =>
   Effect.scoped(
     Effect.gen(function* execute() {
-      const spawner = yield* ChildProcessSpawner
       const handle = yield* spawner.spawn(ChildProcess.make(command, args))
       const stdout = yield* Effect.forkScoped(
         handle.stdout.pipe(Stream.decodeText(), Stream.mkString),

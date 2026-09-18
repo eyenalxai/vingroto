@@ -1,10 +1,11 @@
+import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
+
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import { ChildProcess } from "effect/unstable/process"
-import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 
 import { runProcess } from "@/lib/credential/process"
 
@@ -22,8 +23,11 @@ const timedOut = (operation: "lookup" | "store") =>
     message: `keyring ${operation} timed out after ${Duration.toSeconds(TIMEOUT)}s (is the keyring unlocked?)`,
   })
 
-const lookupSecret = Effect.fn("Keyring.lookupSecret")(function* lookup(reference: string) {
-  const result = yield* runProcess("secret-tool", [
+const lookupSecret = Effect.fn("Keyring.lookupSecret")(function* lookup(
+  spawner: ChildProcessSpawner["Service"],
+  reference: string,
+) {
+  const result = yield* runProcess(spawner, "secret-tool", [
     "lookup",
     "service",
     SERVICE,
@@ -51,11 +55,11 @@ const lookupSecret = Effect.fn("Keyring.lookupSecret")(function* lookup(referenc
 })
 
 const storeSecret = Effect.fn("Keyring.storeSecret")(function* store(
+  spawner: ChildProcessSpawner["Service"],
   reference: string,
   secret: string,
 ) {
   const exitCode = yield* Effect.gen(function* storeInKeyring() {
-    const spawner = yield* ChildProcessSpawner
     const handle = yield* spawner.spawn(
       ChildProcess.make("secret-tool", [
         "store",
