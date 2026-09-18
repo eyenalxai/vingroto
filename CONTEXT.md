@@ -1,6 +1,6 @@
 # vingroto
 
-A terminal mail client: an OpenTUI TUI talks to a long-running daemon over a Unix socket. The daemon owns the configuration, the OS keyring, the SQLite cache and every IMAP/SMTP connection.
+A terminal mail client: clients talk to a long-running daemon over a local HTTP API. The daemon owns the configuration, the OS keyring, the SQLite cache and every IMAP/SMTP connection.
 
 ## Language
 
@@ -54,7 +54,18 @@ Detecting a provider's IMAP and SMTP servers for an email address, in order: pub
 _Avoid_: Autoconfig
 
 **Daemon**:
-The process that owns the config file, the OS keyring, the database and every mail connection. It serves the client's RPC calls and syncs in the background.
+The process that owns the config file, the OS keyring, the database and every mail connection. It serves the API and syncs in the background.
+
+**API**:
+The daemon's HTTP interface, and the only way a client talks to it. The daemon serves its OpenAPI document beside the routes.
+
+**Token**:
+The local secret every API request carries. The daemon writes it to its runtime directory and clients read it there.
+_Avoid_: Password (that is a mail credential)
 
 **Client**:
-The TUI process. It is stateless: it never reads the config file, the keyring or the database, and it only talks to the daemon over RPC.
+Any process that talks to the daemon over the API: the TUI, the `api` command or a script. It is stateless: it never reads the config file, the keyring or the database.
+
+**TUI**:
+The interactive, full-screen client.
+_Avoid_: UI, app
