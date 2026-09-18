@@ -75,4 +75,4 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
   }
 })
 
-export { readServerStatus }
+export { readServerStatus, readVersion }

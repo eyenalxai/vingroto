@@ -25,6 +25,16 @@ const listMailboxes = Effect.fn("Mailbox.listAll")(function* listAll() {
     .orderBy(asc(MailboxTable.account_id), asc(MailboxTable.path))
 })
 
+const getMailbox = Effect.fn("Mailbox.get")(function* get(mailboxId: MailboxId) {
+  const database = yield* Database
+  const rows = yield* database.client
+    .select()
+    .from(MailboxTable)
+    .where(eq(MailboxTable.id, mailboxId))
+    .limit(1)
+  return rows[0]
+})
+
 const listAccountMailboxes = Effect.fn("Mailbox.listForAccount")(function* listForAccount(
   accountId: AccountId,
 ) {
@@ -100,6 +110,7 @@ const setMailboxSyncState = Effect.fn("Mailbox.setSyncState")(function* setSyncS
 })
 
 export {
+  getMailbox,
   listAccountMailboxes,
   listMailboxes,
   setMailboxMuted,
