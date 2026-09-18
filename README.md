@@ -53,6 +53,18 @@ systemctl --user enable --now vingroto.service
 
 The unit runs `bun run server` from the repository root, which delegates to the server workspace, so `WorkingDirectory` must point at the checkout (not at `packages/server`). Check on the daemon with `systemctl --user status vingroto` and follow it with `journalctl --user -u vingroto -f`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
 
+### Standalone binaries
+
+`bun run build` compiles both processes into self-contained executables under `packages/*/dist/`. Bun is only needed to build them, not to run them:
+
+```sh
+bun run build
+packages/server/dist/vingroto-server &   # daemon
+packages/client/dist/vingroto            # client
+```
+
+The daemon binary embeds the SQLite migrations and the app version, and the client binary embeds OpenTUI and its native library, so neither reads anything from the checkout at runtime.
+
 ## Accounts
 
 On the first run vingroto asks for an account. Enter the email address and password; the IMAP and SMTP servers are detected automatically (published autoconfiguration, DNS SRV records, then a hostname guess) and can be edited before saving. The mailbox name defaults to the email address and the sender name is optional. Press `ctrl+x a` at any time to add another account the same way, or `ctrl+x s` to edit an existing one in the settings screen.
@@ -151,6 +163,7 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 ```sh
 bun server         # run the daemon
 bun start          # run the client
+bun run build      # compile standalone binaries into packages/*/dist/
 bun db:generate    # generate a migration from packages/server/src/lib/db/schema.ts
 bun db:check       # validate the generated migrations
 bun run check      # format check, lint, typecheck

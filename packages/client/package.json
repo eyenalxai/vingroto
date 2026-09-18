@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.tsx",
+    "build": "bun run build.ts",
     "tsc": "tsc --noEmit"
   },
   "dependencies": {

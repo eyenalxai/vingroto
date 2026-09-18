@@ -3,6 +3,7 @@ import type { ConfigState, ServerStatus } from "@vingroto/core/protocol/accounts
 import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
 import { ServerError, ServerRpcs } from "@vingroto/core/protocol/rpc"
+import { isStandaloneExecutable } from "@vingroto/core/standalone"
 import { count } from "drizzle-orm"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -37,9 +38,13 @@ import {
 
 const toServerError = (error: unknown) => new ServerError({ message: describeError(error) })
 
+const packageJson = isStandaloneExecutable
+  ? path.join(import.meta.dirname, "package.json")
+  : path.join(import.meta.dirname, "../../../../package.json")
+
 const readVersion = Effect.gen(function* readPackageVersion() {
   const fs = yield* FileSystem.FileSystem
-  const raw = yield* fs.readFileString(path.join(import.meta.dirname, "../../../../package.json"))
+  const raw = yield* fs.readFileString(packageJson)
   const pkg = yield* Schema.decodeUnknownEffect(
     Schema.fromJsonString(Schema.Struct({ version: Schema.String })),
   )(raw)
