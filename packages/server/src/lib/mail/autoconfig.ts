@@ -1,4 +1,5 @@
-import { ServerConfig } from "@vingroto/core/config/schema"
+import type { ServerConfig } from "@vingroto/core/config/schema"
+
 import { describeError } from "@vingroto/core/errors"
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
@@ -85,11 +86,13 @@ const autoconfigServers = (
     return {}
   })
 
-const guessImap = (domain: string) =>
-  new ServerConfig({ host: `imap.${domain}`, port: 993, security: "tls" })
+const guessImap = (domain: string): ServerConfig => {
+  return { host: `imap.${domain}`, port: 993, security: "tls" }
+}
 
-const guessSmtp = (domain: string) =>
-  new ServerConfig({ host: `smtp.${domain}`, port: 465, security: "tls" })
+const guessSmtp = (domain: string): ServerConfig => {
+  return { host: `smtp.${domain}`, port: 465, security: "tls" }
+}
 
 const describeSource = (xml: PartialServers, srv: PartialServers) => {
   if (xml.imap !== undefined && xml.smtp !== undefined) {
@@ -119,7 +122,7 @@ const discover = Effect.fn("Autoconfig.discover")(function* discover(email: stri
     servers: {
       imap,
       smtp,
-      username: fromXml.username,
+      ...(fromXml.username === undefined ? {} : { username: fromXml.username }),
       source: describeSource(fromXml, fromSrv),
     },
   } as const

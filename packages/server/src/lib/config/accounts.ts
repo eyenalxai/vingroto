@@ -1,6 +1,6 @@
-import type { AppConfig, ServerConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, AppConfig } from "@vingroto/core/config/schema"
+import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
 
-import { AccountConfig } from "@vingroto/core/config/schema"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -13,20 +13,6 @@ class AccountNotFound extends Schema.TaggedError<AccountNotFound>()("AccountNotF
   id: Schema.String,
   message: Schema.String,
 }) {}
-
-interface AccountSave {
-  readonly label: string
-  readonly name: string | undefined
-  readonly imap: ServerConfig
-  readonly smtp: ServerConfig
-  readonly username: string
-  readonly password: string | undefined
-}
-
-interface NewAccount extends AccountSave {
-  readonly email: string
-  readonly password: string
-}
 
 const resolveAccountId = (accounts: readonly AccountConfig[], email: string) => {
   const normalized = email.trim().toLowerCase()
@@ -55,14 +41,14 @@ const submitAccount = (input: NewAccount) =>
   Effect.gen(function* persistAccount() {
     const config = yield* loadConfig()
     const id = resolveAccountId(config.accounts, input.email)
-    const account = new AccountConfig({
+    const account: AccountConfig = {
       id,
       label: input.label,
-      name: input.name,
       email: input.email,
       imap: input.imap,
       smtp: input.smtp,
-    })
+      ...(input.name === undefined ? {} : { name: input.name }),
+    }
     yield* storeCredentials(id, input)
     yield* saveConfig(upsertAccount(config, account))
     yield* Effect.logInfo("account saved").pipe(
@@ -78,14 +64,14 @@ const updateAccount = (id: string, input: AccountSave) =>
     if (existing === undefined) {
       return yield* new AccountNotFound({ id, message: `account ${id} is not configured` })
     }
-    const account = new AccountConfig({
+    const account: AccountConfig = {
       id: existing.id,
       label: input.label,
-      name: input.name,
       email: existing.email,
       imap: input.imap,
       smtp: input.smtp,
-    })
+      ...(input.name === undefined ? {} : { name: input.name }),
+    }
     yield* storeCredentials(id, input)
     yield* saveConfig(upsertAccount(config, account))
     yield* Effect.logInfo("account updated").pipe(
@@ -94,4 +80,4 @@ const updateAccount = (id: string, input: AccountSave) =>
     return account
   })
 
-export { AccountNotFound, submitAccount, updateAccount, type AccountSave, type NewAccount }
+export { AccountNotFound, submitAccount, updateAccount }

@@ -1,13 +1,13 @@
-import type { AppConfig } from "@vingroto/core/config/schema"
+import type { AppConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { PlatformError } from "effect/PlatformError"
 
 import { AppPaths } from "@vingroto/core/app-paths"
-import { AppConfigFile, SyncConfig } from "@vingroto/core/config/schema"
+import { AppConfigFile } from "@vingroto/core/config/schema"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 
-const defaultSync = new SyncConfig({ initialDays: 30, intervalMinutes: 5 })
+const defaultSync: SyncConfig = { initialDays: 30, intervalMinutes: 5 }
 
 const emptyConfig: AppConfig = { accounts: [], sync: defaultSync }
 

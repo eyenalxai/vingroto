@@ -16,7 +16,7 @@ class ConfigWriteError extends Schema.TaggedError<ConfigWriteError>()("ConfigWri
 const saveConfig = Effect.fn("Config.save")(function* save(config: AppConfig) {
   const paths = yield* AppPaths
   const fs = yield* FileSystem.FileSystem
-  const file = new AppConfigFile({ accounts: [...config.accounts], sync: config.sync })
+  const file: AppConfigFile = { accounts: [...config.accounts], sync: config.sync }
   const encoded = yield* Schema.encodeEffect(Schema.fromJsonString(AppConfigFile, { space: 2 }))(
     file,
   ).pipe(

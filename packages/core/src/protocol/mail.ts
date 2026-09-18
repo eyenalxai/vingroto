@@ -1,8 +1,8 @@
 import * as Schema from "effect/Schema"
 
-import { MailAddressSchema } from "../mail/address"
+import { MailAddress } from "../mail/address"
 
-const MailboxSchema = Schema.Struct({
+const Mailbox = Schema.Struct({
   id: Schema.Int,
   account_id: Schema.String,
   path: Schema.String,
@@ -18,37 +18,37 @@ const MailboxSchema = Schema.Struct({
   updated_at: Schema.Int,
 })
 
-type Mailbox = typeof MailboxSchema.Type
+interface Mailbox extends Schema.Schema.Type<typeof Mailbox> {}
 
-const MailboxCountsSchema = Schema.Struct({
+const MailboxCounts = Schema.Struct({
   total: Schema.Int,
   unread: Schema.Int,
 })
 
-type MailboxCounts = typeof MailboxCountsSchema.Type
+interface MailboxCounts extends Schema.Schema.Type<typeof MailboxCounts> {}
 
-const FolderScopeSchema = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal("all") }),
-  Schema.Struct({ kind: Schema.Literal("unread"), accountId: Schema.optional(Schema.String) }),
-  Schema.Struct({ kind: Schema.Literal("mailbox"), mailboxId: Schema.Int }),
-])
+const FolderScope = Schema.Union([
+  Schema.Struct({ kind: Schema.tag("all") }),
+  Schema.Struct({ kind: Schema.tag("unread"), accountId: Schema.optionalKey(Schema.String) }),
+  Schema.Struct({ kind: Schema.tag("mailbox"), mailboxId: Schema.Int }),
+]).pipe(Schema.toTaggedUnion("kind"))
 
-type FolderScope = typeof FolderScopeSchema.Type
+type FolderScope = typeof FolderScope.Type
 
-const FolderSnapshotSchema = Schema.Struct({
-  mailboxes: Schema.Array(MailboxSchema),
+const FolderSnapshot = Schema.Struct({
+  mailboxes: Schema.Array(Mailbox),
   counts: Schema.Array(
     Schema.Struct({
       mailboxId: Schema.Int,
-      counts: MailboxCountsSchema,
+      counts: MailboxCounts,
     }),
   ),
   unread: Schema.Int,
 })
 
-type FolderSnapshot = typeof FolderSnapshotSchema.Type
+interface FolderSnapshot extends Schema.Schema.Type<typeof FolderSnapshot> {}
 
-const messageListFields = {
+const MessageListItem = Schema.Struct({
   id: Schema.Int,
   uid: Schema.Int,
   accountId: Schema.String,
@@ -63,48 +63,46 @@ const messageListFields = {
   size: Schema.NullOr(Schema.Int),
   hasAttachments: Schema.Boolean,
   snippet: Schema.NullOr(Schema.String),
-} as const
+})
 
-const MessageListItemSchema = Schema.Struct(messageListFields)
+interface MessageListItem extends Schema.Schema.Type<typeof MessageListItem> {}
 
-type MessageListItem = typeof MessageListItemSchema.Type
-
-const MessageDetailSchema = Schema.Struct({
-  ...messageListFields,
+const MessageDetail = Schema.Struct({
+  ...MessageListItem.fields,
   mailboxName: Schema.String,
   messageId: Schema.NullOr(Schema.String),
   inReplyTo: Schema.NullOr(Schema.String),
-  to: Schema.NullOr(Schema.Array(MailAddressSchema)),
-  cc: Schema.NullOr(Schema.Array(MailAddressSchema)),
+  to: Schema.NullOr(Schema.Array(MailAddress)),
+  cc: Schema.NullOr(Schema.Array(MailAddress)),
   answered: Schema.Boolean,
   draft: Schema.Boolean,
 })
 
-type MessageDetail = typeof MessageDetailSchema.Type
+interface MessageDetail extends Schema.Schema.Type<typeof MessageDetail> {}
 
-const MessageBodySchema = Schema.Struct({
+const MessageBody = Schema.Struct({
   text: Schema.NullOr(Schema.String),
   html: Schema.NullOr(Schema.String),
 })
 
-type MessageBody = typeof MessageBodySchema.Type
+interface MessageBody extends Schema.Schema.Type<typeof MessageBody> {}
 
-const SeenOutcomeSchema = Schema.Struct({
+const SeenOutcome = Schema.Struct({
   affected: Schema.Int,
   errors: Schema.Array(Schema.String),
 })
 
-type SeenOutcome = typeof SeenOutcomeSchema.Type
+interface SeenOutcome extends Schema.Schema.Type<typeof SeenOutcome> {}
 
-const MoveOutcomeSchema = Schema.Struct({
+const MoveOutcome = Schema.Struct({
   moved: Schema.Int,
   skipped: Schema.Int,
   errors: Schema.Array(Schema.String),
 })
 
-type MoveOutcome = typeof MoveOutcomeSchema.Type
+interface MoveOutcome extends Schema.Schema.Type<typeof MoveOutcome> {}
 
-const SyncReportSchema = Schema.Struct({
+const SyncReport = Schema.Struct({
   accountId: Schema.String,
   mailboxes: Schema.Int,
   fetched: Schema.Int,
@@ -112,27 +110,17 @@ const SyncReportSchema = Schema.Struct({
   errors: Schema.Array(Schema.String),
 })
 
-type SyncReport = typeof SyncReportSchema.Type
+interface SyncReport extends Schema.Schema.Type<typeof SyncReport> {}
 
 export {
-  FolderScopeSchema,
-  FolderSnapshotSchema,
-  MailboxCountsSchema,
-  MailboxSchema,
-  MessageBodySchema,
-  MessageDetailSchema,
-  MessageListItemSchema,
-  MoveOutcomeSchema,
-  SeenOutcomeSchema,
-  SyncReportSchema,
-  type FolderScope,
-  type FolderSnapshot,
-  type Mailbox,
-  type MailboxCounts,
-  type MessageBody,
-  type MessageDetail,
-  type MessageListItem,
-  type MoveOutcome,
-  type SeenOutcome,
-  type SyncReport,
+  FolderScope,
+  FolderSnapshot,
+  Mailbox,
+  MailboxCounts,
+  MessageBody,
+  MessageDetail,
+  MessageListItem,
+  MoveOutcome,
+  SeenOutcome,
+  SyncReport,
 }

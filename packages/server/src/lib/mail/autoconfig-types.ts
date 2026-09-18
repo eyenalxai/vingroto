@@ -5,7 +5,7 @@ type Security = "tls" | "starttls" | "none"
 interface DiscoveredServers {
   readonly imap: ServerConfig
   readonly smtp: ServerConfig
-  readonly username: string | undefined
+  readonly username?: string
   readonly source: string
 }
 

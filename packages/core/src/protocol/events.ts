@@ -1,52 +1,44 @@
 import * as Schema from "effect/Schema"
 
-const SyncEventSchema = Schema.Union([
-  Schema.Struct({
-    _tag: Schema.Literal("mailbox-start"),
+const SyncEvent = Schema.Union([
+  Schema.TaggedStruct("mailbox-start", {
     accountId: Schema.String,
     path: Schema.String,
   }),
-  Schema.Struct({
-    _tag: Schema.Literal("mailbox-done"),
+  Schema.TaggedStruct("mailbox-done", {
     accountId: Schema.String,
     path: Schema.String,
     fetched: Schema.Int,
     stored: Schema.Int,
   }),
-  Schema.Struct({
-    _tag: Schema.Literal("mailbox-error"),
+  Schema.TaggedStruct("mailbox-error", {
     accountId: Schema.String,
     path: Schema.String,
     message: Schema.String,
   }),
-  Schema.Struct({
-    _tag: Schema.Literal("sync-error"),
+  Schema.TaggedStruct("sync-error", {
     accountId: Schema.String,
     message: Schema.String,
   }),
-])
+]).pipe(Schema.toTaggedUnion("_tag"))
 
-type SyncEvent = typeof SyncEventSchema.Type
+type SyncEvent = typeof SyncEvent.Type
 
-const ServerEventSchema = Schema.Union([
-  SyncEventSchema,
-  Schema.Struct({ _tag: Schema.Literal("data-changed") }),
-  Schema.Struct({ _tag: Schema.Literal("config-changed") }),
-])
+const ServerEvent = Schema.Union([
+  SyncEvent,
+  Schema.TaggedStruct("data-changed", {}),
+  Schema.TaggedStruct("config-changed", {}),
+]).pipe(Schema.toTaggedUnion("_tag"))
 
-type ServerEvent = typeof ServerEventSchema.Type
+type ServerEvent = typeof ServerEvent.Type
 
-const describeSyncEvent = (event: SyncEvent): string => {
-  if (event._tag === "mailbox-start") {
-    return `syncing ${event.path}`
-  }
-  if (event._tag === "mailbox-done") {
-    return event.stored === 0 ? `${event.path} · up to date` : `${event.path} · ${event.stored} new`
-  }
-  if (event._tag === "mailbox-error") {
-    return `${event.path} · ${event.message}`
-  }
-  return `sync failed · ${event.message}`
-}
+const describeSyncEvent = (event: SyncEvent): string =>
+  SyncEvent.match(event, {
+    "mailbox-start": ({ path }) => `syncing ${path}`,
+    "mailbox-done": ({ path, stored }) =>
+      stored === 0 ? `${path} · up to date` : `${path} · ${stored} new`,
+    "mailbox-error": ({ path, message }) => `${path} · ${message}`,
+    "sync-error": ({ message }) => `sync failed · ${message}`,
+  })
 
-export { ServerEventSchema, SyncEventSchema, describeSyncEvent, type ServerEvent, type SyncEvent }
+export { ServerEvent, SyncEvent, describeSyncEvent }

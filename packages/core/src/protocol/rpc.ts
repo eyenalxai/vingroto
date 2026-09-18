@@ -2,23 +2,17 @@ import * as Schema from "effect/Schema"
 import { Rpc, RpcGroup } from "effect/unstable/rpc"
 
 import { AccountConfig } from "../config/schema"
+import { AccountSave, DiscoveryResult, NewAccount, ServerStatus, SyncSettings } from "./accounts"
+import { ServerEvent } from "./events"
 import {
-  AccountSaveSchema,
-  DiscoveryResultSchema,
-  NewAccountSchema,
-  ServerStatusSchema,
-  SyncSettingsSchema,
-} from "./accounts"
-import { ServerEventSchema } from "./events"
-import {
-  FolderScopeSchema,
-  FolderSnapshotSchema,
-  MessageBodySchema,
-  MessageDetailSchema,
-  MessageListItemSchema,
-  MoveOutcomeSchema,
-  SeenOutcomeSchema,
-  SyncReportSchema,
+  FolderScope,
+  FolderSnapshot,
+  MessageBody,
+  MessageDetail,
+  MessageListItem,
+  MoveOutcome,
+  SeenOutcome,
+  SyncReport,
 } from "./mail"
 
 class ServerError extends Schema.TaggedError<ServerError>()("ServerError", {
@@ -26,31 +20,31 @@ class ServerError extends Schema.TaggedError<ServerError>()("ServerError", {
 }) {}
 
 const ServerRpcs = RpcGroup.make(
-  Rpc.make("status", { success: ServerStatusSchema, error: ServerError }),
-  Rpc.make("folderSnapshot", { success: FolderSnapshotSchema, error: ServerError }),
+  Rpc.make("status", { success: ServerStatus, error: ServerError }),
+  Rpc.make("folderSnapshot", { success: FolderSnapshot, error: ServerError }),
   Rpc.make("listMessages", {
-    payload: { scope: FolderScopeSchema, limit: Schema.Int },
-    success: Schema.Array(MessageListItemSchema),
+    payload: { scope: FolderScope, limit: Schema.Int },
+    success: Schema.Array(MessageListItem),
     error: ServerError,
   }),
   Rpc.make("getMessage", {
     payload: { id: Schema.Int },
-    success: Schema.NullOr(MessageDetailSchema),
+    success: Schema.NullOr(MessageDetail),
     error: ServerError,
   }),
   Rpc.make("loadBody", {
     payload: { id: Schema.Int },
-    success: MessageBodySchema,
+    success: MessageBody,
     error: ServerError,
   }),
   Rpc.make("setSeen", {
     payload: { ids: Schema.Array(Schema.Int), seen: Schema.Boolean },
-    success: SeenOutcomeSchema,
+    success: SeenOutcome,
     error: ServerError,
   }),
   Rpc.make("moveMessages", {
     payload: { ids: Schema.Array(Schema.Int), targetMailboxId: Schema.Int },
-    success: MoveOutcomeSchema,
+    success: MoveOutcome,
     error: ServerError,
   }),
   Rpc.make("setMailboxMuted", {
@@ -60,24 +54,24 @@ const ServerRpcs = RpcGroup.make(
   }),
   Rpc.make("sync", {
     payload: {
-      paths: Schema.optional(Schema.Array(Schema.String)),
-      accountId: Schema.optional(Schema.String),
+      paths: Schema.optionalKey(Schema.Array(Schema.String)),
+      accountId: Schema.optionalKey(Schema.String),
     },
-    success: Schema.Array(SyncReportSchema),
+    success: Schema.Array(SyncReport),
     error: ServerError,
   }),
   Rpc.make("discover", {
     payload: { email: Schema.String },
-    success: DiscoveryResultSchema,
+    success: DiscoveryResult,
     error: ServerError,
   }),
   Rpc.make("createAccount", {
-    payload: NewAccountSchema,
+    payload: NewAccount,
     success: AccountConfig,
     error: ServerError,
   }),
   Rpc.make("updateAccount", {
-    payload: { id: Schema.String, input: AccountSaveSchema },
+    payload: { id: Schema.String, input: AccountSave },
     success: AccountConfig,
     error: ServerError,
   }),
@@ -87,11 +81,11 @@ const ServerRpcs = RpcGroup.make(
     error: ServerError,
   }),
   Rpc.make("saveSyncSettings", {
-    payload: SyncSettingsSchema,
+    payload: SyncSettings,
     success: Schema.Void,
     error: ServerError,
   }),
-  Rpc.make("events", { success: ServerEventSchema, error: ServerError, stream: true }),
+  Rpc.make("events", { success: ServerEvent, error: ServerError, stream: true }),
 )
 
 export { ServerError, ServerRpcs }

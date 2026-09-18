@@ -229,7 +229,10 @@ const Handlers = ServerRpcs.toLayer({
   sync: ({ accountId, paths }) =>
     Effect.gen(function* syncMailboxes() {
       const scheduler = yield* Scheduler
-      return yield* scheduler.request({ accountId, paths })
+      return yield* scheduler.request({
+        ...(accountId === undefined ? {} : { accountId }),
+        ...(paths === undefined ? {} : { paths }),
+      })
     }).pipe(Effect.mapError(toServerError)),
   discover: ({ email }) =>
     Effect.gen(function* discoverProvider() {
@@ -240,15 +243,7 @@ const Handlers = ServerRpcs.toLayer({
     Effect.gen(function* createAccount() {
       const events = yield* ServerEvents
       const scheduler = yield* Scheduler
-      const account = yield* submitAccount({
-        email: input.email,
-        imap: input.imap,
-        label: input.label,
-        name: input.name,
-        password: input.password,
-        smtp: input.smtp,
-        username: input.username,
-      })
+      const account = yield* submitAccount(input)
       yield* events.publish({ _tag: "config-changed" })
       yield* scheduler.request({}).pipe(
         Effect.catch((error) =>
@@ -263,14 +258,7 @@ const Handlers = ServerRpcs.toLayer({
   updateAccount: ({ id, input }) =>
     Effect.gen(function* updateConfiguredAccount() {
       const events = yield* ServerEvents
-      const account = yield* updateAccount(id, {
-        imap: input.imap,
-        label: input.label,
-        name: input.name,
-        password: input.password,
-        smtp: input.smtp,
-        username: input.username,
-      })
+      const account = yield* updateAccount(id, input)
       yield* events.publish({ _tag: "config-changed" })
       return account
     }).pipe(Effect.mapError(toServerError)),

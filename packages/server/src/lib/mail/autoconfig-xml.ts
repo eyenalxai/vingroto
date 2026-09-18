@@ -1,4 +1,5 @@
-import { ServerConfig } from "@vingroto/core/config/schema"
+import type { ServerConfig } from "@vingroto/core/config/schema"
+
 import { XMLParser } from "fast-xml-parser"
 
 import type { ParsedAutoconfig, PartialServers, Security } from "@/lib/mail/autoconfig-types"
@@ -75,16 +76,16 @@ const serverFromRecord = (
   fallbackPort: number,
   fallbackSecurity: Security,
   replacements: Record<string, string>,
-) => {
+): ServerConfig | undefined => {
   const host = substitute(readString(node.hostname), replacements)
   if (host === undefined) {
     return host
   }
-  return new ServerConfig({
+  return {
     host,
     port: readInteger(node.port) ?? fallbackPort,
     security: securityFromSocketType(readString(node.socketType)) ?? fallbackSecurity,
-  })
+  }
 }
 
 const parseAutoconfig = (
@@ -120,8 +121,12 @@ const parseAutoconfig = (
     replacements,
   )
   const resolved = imap !== undefined || smtp !== undefined
-  const servers: PartialServers = { imap, smtp, username }
-  return { servers, redirect: resolved ? undefined : redirect }
+  const servers: PartialServers = {
+    ...(imap === undefined ? {} : { imap }),
+    ...(smtp === undefined ? {} : { smtp }),
+    ...(username === undefined ? {} : { username }),
+  }
+  return redirect === undefined || resolved ? { servers } : { servers, redirect }
 }
 
 export { parseAutoconfig }

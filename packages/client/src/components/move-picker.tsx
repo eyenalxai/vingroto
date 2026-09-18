@@ -138,7 +138,7 @@ const MovePicker = (props: MovePickerProps) => {
                   id={rowId(mailbox.id)}
                   flexDirection="row"
                   gap={1}
-                  backgroundColor={isSelected() ? theme.selectionBackground : undefined}
+                  {...(isSelected() ? { backgroundColor: theme.selectionBackground } : {})}
                 >
                   <text
                     fg={isSelected() ? theme.selectionForeground : theme.text}

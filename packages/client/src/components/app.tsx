@@ -106,7 +106,11 @@ const App = () => {
           `sync requested · paths=${paths?.join(",") ?? "all"} · account=${accountId ?? "all"}`,
         )
         const client = yield* MailClient
-        const result = yield* client.sync({ accountId, paths }).pipe(Effect.result)
+        const request = {
+          ...(accountId === undefined ? {} : { accountId }),
+          ...(paths === undefined ? {} : { paths }),
+        }
+        const result = yield* client.sync(request).pipe(Effect.result)
         if (result._tag === "Failure") {
           yield* Effect.sync(() => {
             const failure = describeClientFailure(result.failure)
@@ -135,9 +139,7 @@ const App = () => {
             : errors.length > 1
               ? `sync failed · ${failure} (+${errors.length - 1} more)`
               : `sync failed · ${failure}`
-        yield* Effect.sync(() => {
-          setStatus(message)
-        })
+        yield* Effect.sync(() => setStatus(message))
         yield* errors.length > 0
           ? Effect.logWarning(`sync failed · ${errors.join(" · ")}`)
           : Effect.logInfo(`sync finished · stored=${stored}`)
@@ -163,9 +165,7 @@ const App = () => {
     setStatus(`account ${account.label} saved · syncing`)
     const program = Effect.gen(function* reloadAfterSave() {
       yield* Effect.promise(async () => daemon.refresh())
-      yield* Effect.sync(() => {
-        syncWindow()
-      })
+      yield* Effect.sync(syncWindow)
     })
     runtime.runFork(program)
   }

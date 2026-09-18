@@ -1,4 +1,3 @@
-import { SyncConfig } from "@vingroto/core/config/schema"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -44,7 +43,7 @@ const updateSyncSettings = (input: SyncSettings) =>
       return
     }
     const config = yield* loadConfig()
-    yield* saveConfig({ ...config, sync: new SyncConfig(input) })
+    yield* saveConfig({ ...config, sync: { ...input } })
     yield* Effect.logInfo("sync settings saved").pipe(Effect.annotateLogs({ ...input }))
   })
 

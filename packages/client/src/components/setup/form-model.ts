@@ -1,7 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
+import type { ServerConfig } from "@vingroto/core/config/schema"
 import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
-
-import { ServerConfig } from "@vingroto/core/config/schema"
 
 type Security = "tls" | "starttls" | "none"
 
@@ -166,7 +165,7 @@ const parsePort = (value: string): number | undefined => {
 
 interface Profile {
   readonly label: string
-  readonly name: string | undefined
+  readonly name?: string
   readonly username: string
   readonly imap: ServerConfig
   readonly smtp: ServerConfig
@@ -193,18 +192,18 @@ const validateProfile = (draft: AccountDraft): ProfileResult => {
     _tag: "ok",
     value: {
       label: label.length === 0 ? email : label,
-      name: name.length === 0 ? undefined : name,
+      ...(name.length === 0 ? {} : { name }),
       username,
-      imap: new ServerConfig({
+      imap: {
         host: draft.imapHost.trim(),
         port: imapPort,
         security: draft.imapSecurity,
-      }),
-      smtp: new ServerConfig({
+      },
+      smtp: {
         host: draft.smtpHost.trim(),
         port: smtpPort,
         security: draft.smtpSecurity,
-      }),
+      },
     },
   }
 }
@@ -231,7 +230,10 @@ const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
   }
   return {
     _tag: "ok",
-    value: { ...profile.value, password: draft.password.length === 0 ? undefined : draft.password },
+    value: {
+      ...profile.value,
+      ...(draft.password.length === 0 ? {} : { password: draft.password }),
+    },
   }
 }
 

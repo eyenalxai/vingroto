@@ -96,7 +96,7 @@ const FolderPane = (props: FolderPaneProps) => {
                 id={rowId(row.key)}
                 flexDirection="row"
                 gap={1}
-                backgroundColor={isSelected() ? theme.selectionBackground : undefined}
+                {...(isSelected() ? { backgroundColor: theme.selectionBackground } : {})}
               >
                 <box flexGrow={1}>
                   <text fg={isSelected() ? theme.selectionForeground : theme.text}>
@@ -120,7 +120,7 @@ const FolderPane = (props: FolderPaneProps) => {
                 flexDirection="row"
                 gap={1}
                 paddingLeft={row.indented ? 2 : 0}
-                backgroundColor={isSelected() ? theme.selectionBackground : undefined}
+                {...(isSelected() ? { backgroundColor: theme.selectionBackground } : {})}
               >
                 <box flexGrow={1} flexDirection="row" gap={1}>
                   <Show

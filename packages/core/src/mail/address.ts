@@ -1,10 +1,10 @@
 import * as Schema from "effect/Schema"
 
-const MailAddressSchema = Schema.Struct({
-  name: Schema.optional(Schema.String),
+const MailAddress = Schema.Struct({
+  name: Schema.optionalKey(Schema.String),
   address: Schema.String,
 })
 
-type MailAddress = typeof MailAddressSchema.Type
+interface MailAddress extends Schema.Schema.Type<typeof MailAddress> {}
 
-export { MailAddressSchema, type MailAddress }
+export { MailAddress }

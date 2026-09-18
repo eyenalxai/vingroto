@@ -84,7 +84,7 @@ const MessageList = (props: MessageListProps) => {
                 id={`message-row-${message.id}`}
                 flexDirection="row"
                 gap={1}
-                backgroundColor={isSelected() ? theme.selectionBackground : undefined}
+                {...(isSelected() ? { backgroundColor: theme.selectionBackground } : {})}
               >
                 <box width={1} flexShrink={0}>
                   <Show
