@@ -149,6 +149,9 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
               focused={pane() === "reader"}
               accountLabels={accountLabels()}
               onOpenLink={openLink}
+              onBodyDisplayed={(messageId) => {
+                props.store.applyReadOnDisplay(messageId)
+              }}
               onScrollRef={(box) => {
                 setReaderScroll(box)
               }}

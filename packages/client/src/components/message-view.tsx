@@ -1,5 +1,5 @@
 import type { MouseEvent, ScrollBoxRenderable } from "@opentui/core"
-import type { AccountId } from "@vingroto/core/ids"
+import type { AccountId, MessageId } from "@vingroto/core/ids"
 import type { MessageDetail } from "@vingroto/core/protocol/mail"
 
 import { MouseButton } from "@opentui/core"
@@ -27,6 +27,7 @@ interface MessageViewProps {
   readonly accountLabels: ReadonlyMap<AccountId, string>
   readonly onScrollRef: (box: ScrollBoxRenderable) => void
   readonly onOpenLink: (url: string) => void
+  readonly onBodyDisplayed: (messageId: MessageId) => void
 }
 
 const leftMouseButton: number = MouseButton.LEFT
@@ -49,17 +50,6 @@ const senderValue = (detail: MessageDetail): string => {
     return detail.fromName
   }
   return `${detail.fromName} <${detail.fromAddress}>`
-}
-
-const flagsValue = (detail: MessageDetail): string => {
-  const flags = [
-    detail.seen ? "read" : "unread",
-    detail.flagged ? "flagged" : undefined,
-    detail.answered ? "answered" : undefined,
-    detail.draft ? "draft" : undefined,
-    detail.hasAttachments ? "attachments" : undefined,
-  ].filter((flag) => flag !== undefined)
-  return flags.join(" · ")
 }
 
 const MessageView = (props: MessageViewProps) => {
@@ -85,7 +75,6 @@ const MessageView = (props: MessageViewProps) => {
         value: `${formatMessageDateTime(detail.date)} · ${formatBytes(detail.size)}`,
       },
       { label: "Mailbox", value: `${account} · ${detail.mailboxName}` },
-      { label: "Flags", value: flagsValue(detail) },
     ]
   })
 
@@ -121,6 +110,15 @@ const MessageView = (props: MessageViewProps) => {
     }
   })
 
+  createEffect(() => {
+    const detail = props.detail
+    const body = props.body
+    if (detail === undefined || body === undefined || body._tag !== "loaded") {
+      return
+    }
+    props.onBodyDisplayed(detail.id)
+  })
+
   return (
     <box
       flexGrow={1}
@@ -147,7 +145,7 @@ const MessageView = (props: MessageViewProps) => {
       >
         {(detail) => (
           <box flexGrow={1} flexDirection="column">
-            <box flexDirection="column" paddingLeft={1} paddingRight={1}>
+            <box flexShrink={0} flexDirection="column" paddingLeft={1} paddingRight={1}>
               <text fg={theme.accent} wrapMode="word">
                 {detail().subject ?? "(no subject)"}
               </text>
