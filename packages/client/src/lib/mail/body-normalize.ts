@@ -66,57 +66,215 @@ const decodeHtmlEntities = (value: string): string =>
 const removeInvisibleCharacters = (value: string): string =>
   value.replaceAll(invisibleCharacters, "").replaceAll(combiningGraphemeJoiner, "")
 
-const cssSelectorStart = /^[\s@.#*:a-z0-9_,>+~[\]="'()-]+\{\s*$/iu
+const htmlTags: ReadonlySet<string> = new Set(
+  `a abbr acronym address area article aside audio b base basefont bdi bdo big blockquote body br button canvas
+  caption center cite code col colgroup data datalist dd del details dfn dialog dir div dl dt em embed fieldset
+  figcaption figure font footer form frame frameset h1 h2 h3 h4 h5 h6 head header hgroup hr html i iframe img
+  input ins kbd label legend li link main map mark marquee menu meta meter nav nobr noembed noframes noscript
+  object ol optgroup option output p param picture pre progress q rp rt ruby s samp script search section select
+  slot small source span strike strong style sub summary sup table tbody td template textarea tfoot th thead time
+  title tr track tt u ul var video wbr`.split(/\s+/u),
+)
 
-const cssDeclaration = /^[-a-z]+\s*:/iu
+const simpleSelector =
+  /(?:\*|[a-z][a-z0-9-]*|\.[-_a-z0-9]+|#[_a-z0-9-]+|::?[a-z-]+(?:\([^()]*\))?|\[[^\]]*\])/giu
 
-const singleLineCssRule = /^[\s@.#*:a-z0-9_,>+~[\]="'()-]+\{[^{}]*:\s*\S[^{}]*\}\s*$/iu
+const selectorChunk = /\[[^\]]*\]|\([^()]*\)|"[^"]*"|'[^']*'|[^\s>+~,[\]()'"]+/gu
 
-const countBraces = (line: string, brace: string): number => {
-  let count = 0
-  for (const character of line) {
-    if (character === brace) {
-      count += 1
+const selectorGap = /^[\s>+~,]*$/u
+
+const atRule =
+  /^@(?:-[a-z]+-)?(?:charset|container|document|font-face|import|keyframes|layer|media|namespace|page|property|scope|starting-style|supports|viewport)\b/iu
+
+const cssDeclaration = /(?:^|;)\s*[-a-z][-a-z0-9]*\s*:\s*\S/iu
+
+const splitSelector = (value: string): readonly string[] | null => {
+  const groups: string[] = []
+  let current = ""
+  let cursor = 0
+  for (const match of value.matchAll(selectorChunk)) {
+    const start = match.index
+    if (start === undefined || !selectorGap.test(value.slice(cursor, start))) {
+      return null
     }
+    if (start > cursor) {
+      if (current.length > 0) {
+        groups.push(current)
+      }
+      current = ""
+    }
+    current += match[0]
+    cursor = start + match[0].length
   }
-  return count
+  if (!selectorGap.test(value.slice(cursor))) {
+    return null
+  }
+  if (current.length > 0) {
+    groups.push(current)
+  }
+  return groups
+}
+
+const isSelectorGroup = (group: string): boolean => {
+  let cursor = 0
+  for (const match of group.matchAll(simpleSelector)) {
+    const start = match.index
+    if (start !== cursor) {
+      return false
+    }
+    const token = match[0]
+    if (/^[a-z]/iu.test(token) && !htmlTags.has(token.toLowerCase())) {
+      return false
+    }
+    cursor = start + token.length
+  }
+  return cursor === group.length
+}
+
+const isCssSelector = (candidate: string): boolean => {
+  const trimmed = candidate.trim()
+  if (trimmed.length === 0) {
+    return false
+  }
+  if (trimmed.startsWith("@")) {
+    return atRule.test(trimmed)
+  }
+  const groups = splitSelector(trimmed)
+  return groups !== null && groups.length > 0 && groups.every((group) => isSelectorGroup(group))
+}
+
+const matchingBrace = (value: string, open: number): number => {
+  let depth = 0
+  let index = open
+  for (const character of value.slice(open)) {
+    if (character === "{") {
+      depth += 1
+    } else if (character === "}") {
+      depth -= 1
+      if (depth === 0) {
+        return index
+      }
+    }
+    index += 1
+  }
+  return -1
+}
+
+const containsCssDeclaration = (body: string): boolean => {
+  let cursor = 0
+  for (;;) {
+    const open = body.indexOf("{", cursor)
+    if (open === -1) {
+      return cssDeclaration.test(body.slice(cursor))
+    }
+    if (cssDeclaration.test(body.slice(cursor, open))) {
+      return true
+    }
+    const close = matchingBrace(body, open)
+    if (close === -1) {
+      return false
+    }
+    if (containsCssDeclaration(body.slice(open + 1, close))) {
+      return true
+    }
+    cursor = close + 1
+  }
+}
+
+interface ParsedCssBlock {
+  readonly pendingLines: number
+  readonly endLine: number
+  readonly hasDeclarations: boolean
+}
+
+const openCssBlock = (
+  lines: readonly string[],
+  index: number,
+  pending: readonly string[],
+): ParsedCssBlock | null => {
+  let cursor = index
+  let head = ""
+  let openingBrace = -1
+  const selectorLines: string[] = []
+  while (openingBrace === -1) {
+    const line = lines[cursor]
+    if (line === undefined) {
+      return null
+    }
+    const brace = line.indexOf("{")
+    if (brace === -1) {
+      if (!isCssSelector(line)) {
+        return null
+      }
+      selectorLines.push(line)
+      cursor += 1
+      continue
+    }
+    head = line.slice(0, brace)
+    openingBrace = brace
+  }
+  let pendingLines = 0
+  while (pendingLines < pending.length) {
+    const candidate = pending[pending.length - 1 - pendingLines]
+    if (candidate === undefined || !isCssSelector([candidate, ...selectorLines, head].join("\n"))) {
+      break
+    }
+    pendingLines += 1
+  }
+  const selector = [...pending.slice(pending.length - pendingLines), ...selectorLines, head].join(
+    "\n",
+  )
+  if (!isCssSelector(selector)) {
+    return null
+  }
+  const rest = lines.slice(cursor).join("\n")
+  const close = matchingBrace(rest, head.length)
+  if (close === -1) {
+    return null
+  }
+  return {
+    pendingLines,
+    endLine: cursor + rest.slice(0, close).split("\n").length,
+    hasDeclarations: containsCssDeclaration(rest.slice(head.length + 1, close)),
+  }
 }
 
 const stripCssBlocks = (value: string): string => {
+  const lines = value.split("\n")
   const kept: string[] = []
-  let block: string[] = []
-  let depth = 0
-  let hasDeclaration = false
-  for (const line of value.split("\n")) {
-    if (depth === 0) {
-      if (singleLineCssRule.test(line)) {
-        continue
+  const pending: string[] = []
+  let index = 0
+  while (index < lines.length) {
+    const line = lines[index]
+    if (line === undefined) {
+      break
+    }
+    const block = line.includes("{") ? openCssBlock(lines, index, pending) : null
+    if (block === null) {
+      if (isCssSelector(line)) {
+        pending.push(line)
+      } else {
+        kept.push(...pending, line)
+        pending.length = 0
       }
-      if (cssSelectorStart.test(line)) {
-        block = [line]
-        depth = 1
-        hasDeclaration = false
-        continue
-      }
-      kept.push(line)
+      index += 1
       continue
     }
-    block.push(line)
-    depth += countBraces(line, "{") - countBraces(line, "}")
-    if (cssDeclaration.test(line.trim())) {
-      hasDeclaration = true
-    }
-    if (depth <= 0) {
-      if (!hasDeclaration) {
-        kept.push(...block)
+    kept.push(...pending.slice(0, pending.length - block.pendingLines))
+    const selector = pending.slice(pending.length - block.pendingLines)
+    pending.length = 0
+    if (!block.hasDeclarations) {
+      kept.push(...selector)
+      for (let cursor = index; cursor < block.endLine; cursor += 1) {
+        const blockLine = lines[cursor]
+        if (blockLine !== undefined) {
+          kept.push(blockLine)
+        }
       }
-      block = []
-      depth = 0
     }
+    index = block.endLine
   }
-  if (block.length > 0) {
-    kept.push(...block)
-  }
+  kept.push(...pending)
   return kept.join("\n")
 }
 
