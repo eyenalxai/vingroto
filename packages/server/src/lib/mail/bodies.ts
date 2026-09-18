@@ -63,74 +63,73 @@ class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()
       const paths = yield* AppPaths
       const fs = yield* FileSystem.FileSystem
 
-      const load = Effect.fn("MessageBodies.load")(function* loadBody(request: BodyRequest) {
-        const annotations = {
-          account: request.account.id,
-          mailbox: request.mailboxPath,
-          uid: request.uid,
-        }
-        const cached = yield* getMessageBody(request.messageId)
-        if (cached !== undefined) {
-          yield* Effect.logDebug("body read from the cache").pipe(Effect.annotateLogs(annotations))
-          return { text: cached.text, html: cached.html }
-        }
-        yield* Effect.logDebug("body cache miss, downloading").pipe(
-          Effect.annotateLogs(annotations),
-        )
-        const source = yield* imap.fetchMessageSource(
-          request.account,
-          request.mailboxPath,
-          request.uid,
-        )
-        const parsed = yield* parseMessageSource(source)
-        const body: MessageBody = { text: parsed.text, html: parsed.html }
-        yield* storeMessageBody(request.messageId, body, parsed.attachments > 0)
-        yield* Effect.logInfo("body cached").pipe(
-          Effect.annotateLogs({
-            ...annotations,
-            bytes: source.length,
-            attachments: parsed.attachments,
-          }),
-        )
-        return body
-      })
+      const load = Effect.fn("MessageBodies.load")(
+        function* loadBody(request: BodyRequest) {
+          const annotations = {
+            account: request.account.id,
+            mailbox: request.mailboxPath,
+            uid: request.uid,
+          }
+          const cached = yield* getMessageBody(request.messageId)
+          if (cached !== undefined) {
+            yield* Effect.logDebug("body read from the cache").pipe(
+              Effect.annotateLogs(annotations),
+            )
+            return { text: cached.text, html: cached.html }
+          }
+          yield* Effect.logDebug("body cache miss, downloading").pipe(
+            Effect.annotateLogs(annotations),
+          )
+          const source = yield* imap.fetchMessageSource(
+            request.account,
+            request.mailboxPath,
+            request.uid,
+          )
+          const parsed = yield* parseMessageSource(source)
+          const body: MessageBody = { text: parsed.text, html: parsed.html }
+          yield* storeMessageBody(request.messageId, body, parsed.attachments > 0)
+          yield* Effect.logInfo("body cached").pipe(
+            Effect.annotateLogs({
+              ...annotations,
+              bytes: source.length,
+              attachments: parsed.attachments,
+            }),
+          )
+          return body
+        },
+        Effect.provideService(Database, database),
+      )
 
-      const loadById = Effect.fn("MessageBodies.loadById")(function* loadById(messageId: number) {
-        const message = yield* getMessage(messageId)
-        if (message === undefined) {
-          return yield* new MessageNotFound({
+      const loadById = Effect.fn("MessageBodies.loadById")(
+        function* loadById(messageId: number) {
+          const message = yield* getMessage(messageId)
+          if (message === undefined) {
+            return yield* new MessageNotFound({
+              messageId,
+              message: `message ${messageId} was not found`,
+            })
+          }
+          const config = yield* loadConfig()
+          const account = config.accounts.find((entry) => entry.id === message.accountId)
+          if (account === undefined) {
+            return yield* new AccountNotConfigured({
+              accountId: message.accountId,
+              message: `account ${message.accountId} is not configured`,
+            })
+          }
+          return yield* load({
+            account,
+            mailboxPath: message.mailboxPath,
             messageId,
-            message: `message ${messageId} was not found`,
+            uid: message.uid,
           })
-        }
-        const config = yield* loadConfig()
-        const account = config.accounts.find((entry) => entry.id === message.accountId)
-        if (account === undefined) {
-          return yield* new AccountNotConfigured({
-            accountId: message.accountId,
-            message: `account ${message.accountId} is not configured`,
-          })
-        }
-        return yield* load({
-          account,
-          mailboxPath: message.mailboxPath,
-          messageId,
-          uid: message.uid,
-        })
-      })
+        },
+        Effect.provideService(Database, database),
+        Effect.provideService(AppPaths, paths),
+        Effect.provideService(FileSystem.FileSystem, fs),
+      )
 
-      const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-        effect.pipe(
-          Effect.provideService(Database, database),
-          Effect.provideService(Imap, imap),
-          Effect.provideService(AppPaths, paths),
-          Effect.provideService(FileSystem.FileSystem, fs),
-        )
-
-      return MessageBodies.of({
-        load: (request) => provide(load(request)),
-        loadById: (messageId) => provide(loadById(messageId)),
-      })
+      return MessageBodies.of({ load, loadById })
     }),
   )
 }

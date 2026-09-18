@@ -53,13 +53,17 @@ const withMailboxLock = <A, E, R>(
       }),
   )
 
-const releaseClient = (account: AccountConfig, client: ImapFlow) =>
-  Effect.gen(function* releaseConnection() {
-    yield* guard(account, "logout", logoutTimeout, async () => client.logout()).pipe(
-      Effect.catch((error) =>
-        Effect.logWarning(`IMAP logout failed for ${account.id}: ${error.message}`),
+const releaseClient = Effect.fn("Imap.releaseClient")(function* releaseConnection(
+  account: AccountConfig,
+  client: ImapFlow,
+) {
+  yield* guard(account, "logout", logoutTimeout, async () => client.logout()).pipe(
+    Effect.catch((error) =>
+      Effect.logWarning("IMAP logout failed").pipe(
+        Effect.annotateLogs({ account: account.id, reason: error.message }),
       ),
-    )
-  })
+    ),
+  )
+})
 
 export { commandTimeout, connectTimeout, guard, releaseClient, withMailboxLock }
