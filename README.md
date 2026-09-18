@@ -107,20 +107,20 @@ The window splits into three panes: mailboxes, the message list and the reader. 
 
 The mailbox pane starts with two virtual views, **All emails** and **All unread**, computed from the cached messages of every account. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups mailboxes by account the same way, with its own collapse state.
 
-Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox is dimmed, marked with `⊘`, and excluded from every unread count, from **All unread** and from body prefetching; its mail is still listed and readable.
+Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox is dimmed, marked with `⊘`, and excluded from **All unread**, from account and global unread totals and from body prefetching; its own unread count stays visible and its mail is still listed and readable.
 
 `tab` (or `left` / `right`) moves between panes, `escape` steps back.
 
 ## Settings
 
-`ctrl+x s` opens a full-screen settings screen: a sidebar with a search box on the left, the selected editor on the right.
+`ctrl+x s` opens a full-screen settings screen: a sidebar on the left, the selected editor on the right.
 
 - **Accounts** — edit the mailbox name, sender name, username, IMAP and SMTP servers. The email address is fixed; a new password can be entered, otherwise the stored one is kept.
-- **Mailboxes** — mute or unmute any synced mailbox. Mailboxes are grouped by account; `enter` on a group collapses or expands it.
+- **Mailboxes** — mute or unmute any synced mailbox. Mailboxes are grouped by account; `enter` or `space` collapses a group, and on a mailbox toggles its mute in place.
 - **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`).
 - **+ Add account** — closes settings and starts the account wizard.
 
-Typing in the search box filters both sections and entries; collapsed groups are expanded while a query is active. `tab` (or `enter`) focuses the editor, `esc` climbs back one step and closes the screen at the top.
+`enter` on an account or the sync settings opens its editor, `tab` moves between the sidebar and the editor, `esc` climbs back one step and closes the screen at the top.
 
 ## Syncing
 
