@@ -28,14 +28,13 @@ const probeSocket = (socketPath: string) =>
     socket.once("error", () => {
       finish(false)
     })
-    const timer = setTimeout(() => {
-      finish(false)
-    }, connectTimeoutMillis)
     return Effect.sync(() => {
-      clearTimeout(timer)
       socket.destroy()
     })
-  })
+  }).pipe(
+    Effect.timeout(connectTimeoutMillis),
+    Effect.orElseSucceed(() => false),
+  )
 
 class ServerAlreadyRunning extends Schema.TaggedError<ServerAlreadyRunning>()(
   "ServerAlreadyRunning",

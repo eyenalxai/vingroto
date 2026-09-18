@@ -98,27 +98,44 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
         )
 
       return Imap.of({
-        listMailboxes: (account) =>
-          withClient(account, (client) =>
+        listMailboxes: Effect.fn("Imap.listMailboxes")(function* listMailboxes(
+          account: AccountConfig,
+        ) {
+          return yield* withClient(account, (client) =>
             guard(account, "list mailboxes", commandTimeout, async () => client.list()).pipe(
               Effect.map((entries) => toMailboxInfos(entries)),
             ),
-          ),
-        fetchMailboxWindows: (account, requests) =>
-          withClient(account, (client) =>
+          )
+        }),
+        fetchMailboxWindows: Effect.fn("Imap.fetchMailboxWindows")(function* fetchMailboxWindows(
+          account: AccountConfig,
+          requests: readonly MailboxWindowRequest[],
+        ) {
+          return yield* withClient(account, (client) =>
             Effect.all(
               requests.map((request) => fetchMailboxResult(client, account, request)),
               { concurrency: 1 },
             ),
-          ),
-        fetchMessageSource: (account, mailboxPath, uid) =>
-          withClient(account, (client) => readMessageSource(client, account, mailboxPath, uid)),
-        fetchMessageSources: (account, requests) => {
+          )
+        }),
+        fetchMessageSource: Effect.fn("Imap.fetchMessageSource")(function* fetchMessageSource(
+          account: AccountConfig,
+          mailboxPath: string,
+          uid: number,
+        ) {
+          return yield* withClient(account, (client) =>
+            readMessageSource(client, account, mailboxPath, uid),
+          )
+        }),
+        fetchMessageSources: Effect.fn("Imap.fetchMessageSources")(function* fetchMessageSources(
+          account: AccountConfig,
+          requests: readonly MessageSourceRequest[],
+        ) {
           const groups = groupRequestsByMailbox(requests)
           if (groups.length === 0) {
-            return Effect.succeed([])
+            return []
           }
-          return withClient(account, (client) =>
+          return yield* withClient(account, (client) =>
             Effect.all(
               groups.map((group) =>
                 readMailboxSources(client, account, group.mailboxPath, group.uids),
@@ -126,15 +143,28 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
               { concurrency: 1 },
             ).pipe(Effect.map((chunks) => chunks.flat())),
           )
-        },
-        setFlags: (account, mailboxPath, uids, flags, mode) =>
-          withClient(account, (client) =>
+        }),
+        setFlags: Effect.fn("Imap.setFlags")(function* setFlags(
+          account: AccountConfig,
+          mailboxPath: string,
+          uids: readonly number[],
+          flags: readonly string[],
+          mode: FlagMode,
+        ) {
+          return yield* withClient(account, (client) =>
             updateFlags(client, account, mailboxPath, uids, flags, mode),
-          ),
-        moveMessages: (account, sourcePath, uids, targetPath) =>
-          withClient(account, (client) =>
+          )
+        }),
+        moveMessages: Effect.fn("Imap.moveMessages")(function* moveMessagesForAccount(
+          account: AccountConfig,
+          sourcePath: string,
+          uids: readonly number[],
+          targetPath: string,
+        ) {
+          return yield* withClient(account, (client) =>
             moveMessages(client, account, sourcePath, uids, targetPath),
-          ),
+          )
+        }),
       })
     }),
   )

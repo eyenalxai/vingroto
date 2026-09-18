@@ -7,6 +7,7 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Schedule from "effect/Schedule"
 import * as Semaphore from "effect/Semaphore"
 
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
@@ -73,17 +74,21 @@ class Scheduler extends Context.Service<Scheduler, SchedulerShape>()(
         return config.sync.intervalMinutes
       })
 
-      yield* Effect.forever(
-        cycle.pipe(
-          Effect.catch((error) =>
-            Effect.logWarning("scheduled sync failed").pipe(
-              Effect.annotateLogs({ reason: describeError(error) }),
-              Effect.as(defaultIntervalMinutes),
-            ),
+      const cadence = Schedule.spaced(Duration.zero).pipe(
+        Schedule.setInputType<number>(),
+        Schedule.modifyDelay(({ input }) => Effect.succeed(Duration.minutes(input))),
+      )
+
+      yield* cycle.pipe(
+        Effect.catch((error) =>
+          Effect.logWarning("scheduled sync failed").pipe(
+            Effect.annotateLogs({ reason: describeError(error) }),
+            Effect.as(defaultIntervalMinutes),
           ),
-          Effect.flatMap((minutes) => Effect.sleep(Duration.minutes(minutes))),
         ),
-      ).pipe(Effect.forkScoped)
+        Effect.repeat(cadence),
+        Effect.forkScoped,
+      )
 
       return Scheduler.of({ request })
     }),

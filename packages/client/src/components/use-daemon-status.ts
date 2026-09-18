@@ -2,16 +2,24 @@ import type { ServerStatus } from "@vingroto/core/protocol/accounts"
 
 import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
-import { Duration, Effect, Fiber, Stream } from "effect"
+import { Duration, Effect, Fiber, Schedule, Stream } from "effect"
 import { createEffect, createResource, createSignal, onCleanup } from "solid-js"
 
 import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { ClientConnection } from "@/lib/connection"
+import { describeClientFailure } from "@/lib/failure"
 
 const retryInitialDelayMs = 250
 const retryMaximumDelayMs = 5000
+
+const retrySchedule = Schedule.exponential(Duration.millis(retryInitialDelayMs)).pipe(
+  Schedule.jittered,
+  Schedule.modifyDelay(({ duration }) =>
+    Effect.succeed(Duration.min(duration, Duration.millis(retryMaximumDelayMs))),
+  ),
+)
 
 const useDaemonStatus = (runtime: AppRuntime) => {
   const [status, setStatus] = createSignal<ServerStatus | undefined>()
@@ -39,23 +47,22 @@ const useDaemonStatus = (runtime: AppRuntime) => {
     generation()
     const program = Effect.gen(function* pollStatus() {
       const client = yield* MailClient
-      let delay = retryInitialDelayMs
-      while (true) {
-        const result = yield* client.status().pipe(Effect.result)
-        if (result._tag === "Success") {
-          yield* Effect.sync(() => {
-            setStatus(result.success)
+      const poll = client.status().pipe(
+        Effect.tap((nextStatus) =>
+          Effect.sync(() => {
+            setStatus(nextStatus)
             setFailure(undefined)
-          })
-          return
-        }
-        yield* Effect.sync(() => {
-          setStatus(undefined)
-          setFailure(describeError(result.failure))
-        })
-        yield* Effect.sleep(Duration.millis(delay))
-        delay = Math.min(delay * 2, retryMaximumDelayMs)
-      }
+          }),
+        ),
+        Effect.tapError((error) =>
+          Effect.sync(() => {
+            setStatus(undefined)
+            setFailure(describeClientFailure(error).message)
+          }),
+        ),
+        Effect.retry(retrySchedule),
+      )
+      yield* poll
     })
     const fiber = runtime.runFork(program)
     onCleanup(() => {
