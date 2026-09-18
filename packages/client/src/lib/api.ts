@@ -6,6 +6,16 @@ import type {
   NewAccount,
   ServerStatus,
 } from "@vingroto/core/protocol/accounts"
+import type {
+  AccountNotFoundError,
+  CredentialsError,
+  InternalError,
+  InvalidRequestError,
+  MailboxNotFoundError,
+  MessageNotFoundError,
+  UnauthorizedError,
+  UpstreamError,
+} from "@vingroto/core/protocol/api/errors"
 import type { ServerEvent } from "@vingroto/core/protocol/events"
 import type {
   ListScope,
@@ -17,18 +27,29 @@ import type {
   SeenOutcome,
   SyncReport,
 } from "@vingroto/core/protocol/mail"
-import type { ServerError } from "@vingroto/core/protocol/rpc"
 import type { Effect, Stream } from "effect"
-import type { RpcClientError } from "effect/unstable/rpc"
+import type { HttpClientError } from "effect/unstable/http"
 
 import * as Context from "effect/Context"
 import * as Schema from "effect/Schema"
+
+import type { DaemonError } from "@/lib/daemon"
 
 class ClientDefect extends Schema.TaggedError<ClientDefect>()("ClientDefect", {
   message: Schema.String,
 }) {}
 
-type MailClientError = ServerError | RpcClientError.RpcClientError | ClientDefect
+type ContractError =
+  | AccountNotFoundError
+  | CredentialsError
+  | InternalError
+  | InvalidRequestError
+  | MailboxNotFoundError
+  | MessageNotFoundError
+  | UnauthorizedError
+  | UpstreamError
+
+type MailClientError = ContractError | HttpClientError.HttpClientError | ClientDefect | DaemonError
 
 interface SyncRequest {
   readonly paths?: readonly string[]

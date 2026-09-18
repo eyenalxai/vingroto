@@ -1,23 +1,29 @@
 import type { Stream } from "effect"
-import type { RpcClientError } from "effect/unstable/rpc"
+import type { HttpClientError } from "effect/unstable/http"
 
 import { describeError } from "@vingroto/core/errors"
 import * as Context from "effect/Context"
 
+import type { DaemonError } from "@/lib/daemon"
+
 interface ClientConnectionShape {
+  readonly endpoint: Stream.Stream<string | undefined>
   readonly openErrors: Stream.Stream<string>
 }
 
-// The rpc transport retries open errors silently, so the latest failure is published here for the ui.
+// Connection failures are published here so the ui can show the latest one while requests retry.
 class ClientConnection extends Context.Service<ClientConnection, ClientConnectionShape>()(
   "vingroto/lib/client/ClientConnection",
 ) {}
 
-const describeOpenError = (error: RpcClientError.RpcClientError): string => {
-  if (error.reason._tag === "SocketOpenError") {
-    return `could not connect to the daemon · ${describeError(error.reason.cause)}`
+const describeOpenError = (error: HttpClientError.HttpClientError | DaemonError): string => {
+  if (error._tag === "HttpClientError") {
+    if (error.reason._tag === "TransportError") {
+      return `could not connect to the daemon · ${describeError(error.reason.cause ?? error.reason)}`
+    }
+    return error.message
   }
-  return error.message
+  return `could not connect to the daemon · ${error.message}`
 }
 
 export { ClientConnection, describeOpenError, type ClientConnectionShape }
