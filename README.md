@@ -43,7 +43,7 @@ The root scripts change into the package before starting it. Bun's workspace fil
 
 ### systemd user service
 
-A user unit is provided in `packaging/vingroto.service`. Copy it into place, point `ExecStart` at the daemon binary if it is not `/usr/bin/vingroto-server`, then enable it:
+A user unit is provided in `packaging/vingroto.service`. Copy it into place, adjust `WorkingDirectory` and `Environment` if your checkout differs, then enable it:
 
 ```sh
 mkdir -p ~/.config/systemd/user
@@ -53,7 +53,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now vingroto.service
 ```
 
-The unit starts the standalone `vingroto-server` binary and sends its stdout and stderr to the journal (`StandardOutput=journal`, `StandardError=journal`), so `journalctl --user -u vingroto -f` shows the readable log lines while `$XDG_STATE_HOME/vingroto/server.log` keeps the structured JSON records. Check on the daemon with `systemctl --user status vingroto`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
+The unit runs `bun run server` from the repository root, which delegates to the server workspace, so `WorkingDirectory` must point at the checkout (not at `packages/server`). Its stdout and stderr go to the journal (`StandardOutput=journal`, `StandardError=journal`), so `journalctl --user -u vingroto -f` shows the readable log lines while `$XDG_STATE_HOME/vingroto/server.log` keeps the structured JSON records. Check on the daemon with `systemctl --user status vingroto`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
 
 ### Standalone binaries
 
