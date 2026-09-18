@@ -1,7 +1,6 @@
 import type { ServerStatus } from "@vingroto/core/protocol/accounts"
 
 import { AppPaths } from "@vingroto/core/app-paths"
-import { describeError } from "@vingroto/core/errors"
 import { Effect, Fiber, Stream } from "effect"
 import { createEffect, createResource, createSignal, onCleanup } from "solid-js"
 
@@ -87,7 +86,7 @@ const useDaemonStatus = (runtime: AppRuntime) => {
           return
         }
         setStatus(undefined)
-        setFailure(describeError(result.failure))
+        setFailure(describeClientFailure(result.failure).message)
       }),
     )
   }

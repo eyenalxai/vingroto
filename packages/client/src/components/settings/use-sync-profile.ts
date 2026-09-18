@@ -1,7 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
 import type { SyncConfig } from "@vingroto/core/config/schema"
 
-import { describeError } from "@vingroto/core/errors"
 import { Effect } from "effect"
 import { createEffect, createMemo, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -10,6 +9,7 @@ import type { FieldDescriptor } from "@/components/setup/form-model"
 import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
+import { describeClientFailure } from "@/lib/failure"
 
 type SyncFieldId = "initialDays" | "intervalMinutes"
 
@@ -22,6 +22,7 @@ interface UseSyncProfileOptions {
   readonly runtime: AppRuntime
   readonly sync: () => SyncConfig
   readonly onSaved: () => void
+  readonly onDisconnected: (message: string) => void
 }
 
 const syncFields: readonly FieldDescriptor<SyncFieldId>[] = [
@@ -92,7 +93,12 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
         Effect.catch((error) =>
           Effect.sync(() => {
             setBusy(false)
-            report(`could not save · ${describeError(error)}`, true)
+            const failure = describeClientFailure(error)
+            if (failure._tag === "connection") {
+              options.onDisconnected(failure.message)
+              return
+            }
+            report(`could not save · ${failure.message}`, true)
           }),
         ),
       )

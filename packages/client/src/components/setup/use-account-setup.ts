@@ -2,7 +2,6 @@ import type { KeyEvent } from "@opentui/core"
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { DiscoveryResult } from "@vingroto/core/protocol/accounts"
 
-import { describeError } from "@vingroto/core/errors"
 import { Effect, Fiber } from "effect"
 import { createMemo, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -25,6 +24,7 @@ import {
   validateDraft,
 } from "@/components/setup/form-model"
 import { MailClient } from "@/lib/api"
+import { describeClientFailure } from "@/lib/failure"
 
 interface UseAccountSetupOptions {
   readonly accounts: readonly AccountConfig[]
@@ -138,7 +138,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
         ),
         Effect.catch((error) =>
           Effect.sync(() => {
-            report(`server detection failed · ${describeError(error)}`, true)
+            report(`server detection failed · ${describeClientFailure(error).message}`, true)
           }),
         ),
       )
@@ -178,7 +178,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
         ),
         Effect.catch((error) =>
           Effect.sync(() => {
-            report(`could not save · ${describeError(error)}`, true)
+            report(`could not save · ${describeClientFailure(error).message}`, true)
           }),
         ),
       )

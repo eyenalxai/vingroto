@@ -30,6 +30,7 @@ interface SettingsScreenProps {
   readonly onAccountSaved: (account: AccountConfig) => void
   readonly onMailboxChanged: () => void
   readonly onSyncSaved: () => void
+  readonly onDisconnected: (message: string) => void
 }
 
 const SettingsScreen = (props: SettingsScreenProps) => {
@@ -62,6 +63,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       setStatus(message)
     },
     onChanged: props.onMailboxChanged,
+    onDisconnected: props.onDisconnected,
   })
   const mutingAccounts = createMemo(() => {
     const accounts = new Set<string>()
@@ -115,6 +117,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       setStatus(`account ${account.label} saved`)
       props.onAccountSaved(account)
     },
+    onDisconnected: props.onDisconnected,
   })
 
   onCleanup(accountProfile.dispose)
@@ -126,6 +129,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       setStatus("sync settings saved")
       props.onSyncSaved()
     },
+    onDisconnected: props.onDisconnected,
   })
 
   const toggleGroup = (accountId: string) => {

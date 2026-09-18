@@ -1,7 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
 import type { AccountConfig } from "@vingroto/core/config/schema"
 
-import { describeError } from "@vingroto/core/errors"
 import { Effect, Fiber } from "effect"
 import { createEffect, createMemo, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -17,12 +16,14 @@ import {
   validateEditDraft,
 } from "@/components/setup/form-model"
 import { MailClient } from "@/lib/api"
+import { describeClientFailure } from "@/lib/failure"
 
 interface UseAccountProfileOptions {
   readonly runtime: AppRuntime
   readonly account: () => AccountConfig | undefined
   readonly active: () => boolean
   readonly onSaved: (account: AccountConfig) => void
+  readonly onDisconnected: (message: string) => void
 }
 
 const draftFromAccount = (account: AccountConfig): AccountDraft => {
@@ -88,7 +89,10 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
         Effect.catch((error) =>
           Effect.sync(() => {
             if (options.account()?.id === account.id) {
-              report(`could not read the stored username · ${describeError(error)}`, true)
+              report(
+                `could not read the stored username · ${describeClientFailure(error).message}`,
+                true,
+              )
             }
             return account.email
           }),
@@ -182,7 +186,12 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
         Effect.catch((error) =>
           Effect.sync(() => {
             setBusy(false)
-            report(`could not save · ${describeError(error)}`, true)
+            const failure = describeClientFailure(error)
+            if (failure._tag === "connection") {
+              options.onDisconnected(failure.message)
+              return
+            }
+            report(`could not save · ${failure.message}`, true)
           }),
         ),
       )

@@ -274,6 +274,7 @@ const App = () => {
               onAccountSaved={handleAccountUpdated}
               onMailboxChanged={store.loadMailboxData}
               onSyncSaved={handleSyncSaved}
+              onDisconnected={daemon.retry}
             />
           )}
         </Show>
