@@ -1,6 +1,7 @@
 import { describeError } from "@vingroto/core/errors"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 
 class ExternalOpenError extends Schema.TaggedError<ExternalOpenError>()("ExternalOpenError", {
   url: Schema.String,
@@ -8,14 +9,14 @@ class ExternalOpenError extends Schema.TaggedError<ExternalOpenError>()("Externa
 }) {}
 
 // Opening in the user's browser is fire-and-forget: the child is detached so it outlives the TUI.
-const openerCommand = (): readonly string[] => {
+const openerCommand = (): { readonly command: string; readonly args: readonly string[] } => {
   if (process.platform === "darwin") {
-    return ["open"]
+    return { command: "open", args: [] }
   }
   if (process.platform === "win32") {
-    return ["cmd", "/c", "start", ""]
+    return { command: "cmd", args: ["/c", "start", ""] }
   }
-  return ["xdg-open"]
+  return { command: "xdg-open", args: [] }
 }
 
 const isHttpUrl = (value: string): boolean => {
@@ -35,17 +36,23 @@ const openExternal = Effect.fn("External.open")(function* open(value: string) {
     })
     return
   }
-  yield* Effect.try({
-    try: () => {
-      const child = Bun.spawn([...openerCommand(), value], {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  const opener = openerCommand()
+  yield* spawner
+    .spawn(
+      ChildProcess.make(opener.command, [...opener.args, value], {
         stdin: "ignore",
         stdout: "ignore",
         stderr: "ignore",
-      })
-      child.unref()
-    },
-    catch: (cause) => new ExternalOpenError({ url: value, message: describeError(cause) }),
-  })
+      }),
+    )
+    .pipe(
+      Effect.tap((handle) => handle.unref),
+      Effect.scoped,
+      Effect.mapError(
+        (cause) => new ExternalOpenError({ url: value, message: describeError(cause) }),
+      ),
+    )
 })
 
 export { ExternalOpenError, openExternal }
