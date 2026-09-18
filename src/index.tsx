@@ -6,13 +6,13 @@ import { render } from "@opentui/solid"
 import { Effect } from "effect"
 import * as Schema from "effect/Schema"
 
-import type { AppRuntime } from "@/lib/runtime"
+import type { AppRuntime } from "@/lib/client/runtime"
 
 import { App } from "@/components/app"
 import { RuntimeProvider } from "@/components/runtime-provider"
 import { ThemeProvider } from "@/components/theme-provider"
+import { createClientRuntime } from "@/lib/client/runtime"
 import { describeError } from "@/lib/errors"
-import { createAppRuntime } from "@/lib/runtime"
 import { themeModeOf } from "@/lib/theme"
 
 class StartupError extends Schema.TaggedError<StartupError>()("StartupError", {
@@ -53,7 +53,7 @@ const resolveInitialMode = (
 
 const program = Effect.gen(function* main() {
   const runtime = yield* Effect.acquireRelease(
-    Effect.sync(() => createAppRuntime()),
+    Effect.sync(() => createClientRuntime()),
     (value) => Effect.promise(async () => value.dispose()),
   )
   const renderer = yield* Effect.acquireRelease(

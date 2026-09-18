@@ -1,45 +1,20 @@
 import { Effect } from "effect"
 import { createSignal } from "solid-js"
 
-import type { AppConfig } from "@/lib/config/schema"
-import type { MessageActionRequest } from "@/lib/mail/actions"
-import type { AppRuntime } from "@/lib/runtime"
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MessageListItem } from "@/lib/store/messages"
+import type { MailClientError } from "@/lib/client/api"
+import type { AppRuntime } from "@/lib/client/runtime"
+import type { Mailbox, MessageListItem } from "@/lib/protocol/mail"
 
-import { MailActions } from "@/lib/mail/actions"
+import { MailClient } from "@/lib/client/api"
+import { describeClientFailure } from "@/lib/client/failure"
 
 interface MessageActionsOptions {
   readonly runtime: AppRuntime
-  readonly config: () => AppConfig | undefined
   readonly selectedMessage: () => MessageListItem | undefined
   readonly taggedMessages: () => readonly MessageListItem[]
   readonly onChanged: (affected: number) => void
   readonly onStatus: (status: string) => void
-}
-
-interface TargetGroup {
-  readonly accountId: string
-  readonly messages: readonly MessageListItem[]
-}
-
-const toRequest = (message: MessageListItem): MessageActionRequest => {
-  return { messageId: message.id, mailboxPath: message.mailboxPath, uid: message.uid }
-}
-
-const groupByAccount = (messages: readonly MessageListItem[]): readonly TargetGroup[] => {
-  const groups = new Map<string, MessageListItem[]>()
-  for (const message of messages) {
-    const bucket = groups.get(message.accountId)
-    if (bucket === undefined) {
-      groups.set(message.accountId, [message])
-      continue
-    }
-    bucket.push(message)
-  }
-  return [...groups].map(([accountId, entries]) => {
-    return { accountId, messages: entries }
-  })
+  readonly onDisconnected: (message: string) => void
 }
 
 const useMessageActions = (options: MessageActionsOptions) => {
@@ -52,6 +27,15 @@ const useMessageActions = (options: MessageActionsOptions) => {
     }
     const selected = options.selectedMessage()
     return selected === undefined ? [] : [selected]
+  }
+
+  const reportFailure = (label: string, error: MailClientError) => {
+    const failure = describeClientFailure(error)
+    if (failure._tag === "server") {
+      options.onStatus(`${label} · ${failure.message}`)
+      return
+    }
+    options.onDisconnected(failure.message)
   }
 
   const addPending = (ids: readonly number[]) => {
@@ -75,37 +59,26 @@ const useMessageActions = (options: MessageActionsOptions) => {
   }
 
   const applySeen = (items: readonly MessageListItem[], seen: boolean) => {
-    const groups = groupByAccount(items)
     const targetIds = items.map((item) => item.id)
     addPending(targetIds)
     const program = Effect.gen(function* updateSeen() {
-      const actions = yield* MailActions
-      let affected = 0
-      const errors: string[] = []
-      for (const group of groups) {
-        const account = options.config()?.accounts.find((entry) => entry.id === group.accountId)
-        if (account === undefined) {
-          errors.push(`account ${group.accountId} is not configured`)
-          continue
-        }
-        const outcome = yield* actions.setSeen(
-          account,
-          group.messages.map((message) => toRequest(message)),
-          seen,
-        )
-        affected += outcome.affected
-        errors.push(...outcome.errors)
-      }
+      const client = yield* MailClient
+      const result = yield* client.setSeen(targetIds, seen).pipe(Effect.result)
       yield* Effect.sync(() => {
         const label = seen ? "read" : "unread"
-        if (errors.length === 0) {
-          options.onStatus(`marked ${affected} message(s) as ${label}`)
+        if (result._tag === "Failure") {
+          reportFailure("could not update the messages", result.failure)
+          return
+        }
+        const outcome = result.success
+        if (outcome.errors.length === 0) {
+          options.onStatus(`marked ${outcome.affected} message(s) as ${label}`)
         } else {
           options.onStatus(
-            `marked ${affected} as ${label} · ${errors.length} failed · ${errors[0]}`,
+            `marked ${outcome.affected} as ${label} · ${outcome.errors.length} failed · ${outcome.errors[0]}`,
           )
         }
-        options.onChanged(affected)
+        options.onChanged(outcome.affected)
       })
     }).pipe(
       Effect.ensuring(
@@ -135,7 +108,7 @@ const useMessageActions = (options: MessageActionsOptions) => {
     applySeen(items, false)
   }
 
-  const move = (target: MailboxRow) => {
+  const move = (target: Mailbox) => {
     const items = targets()
     if (items.length === 0) {
       options.onStatus("no message selected")
@@ -146,21 +119,17 @@ const useMessageActions = (options: MessageActionsOptions) => {
       options.onStatus("select messages from one account to move them")
       return
     }
-    const account = options.config()?.accounts.find((entry) => entry.id === target.account_id)
-    if (account === undefined) {
-      options.onStatus(`account ${target.account_id} is not configured`)
-      return
-    }
     const targetIds = items.map((item) => item.id)
     addPending(targetIds)
     const program = Effect.gen(function* moveToMailbox() {
-      const actions = yield* MailActions
-      const outcome = yield* actions.move(
-        account,
-        items.map((item) => toRequest(item)),
-        target.path,
-      )
+      const client = yield* MailClient
+      const result = yield* client.moveMessages(targetIds, target.id).pipe(Effect.result)
       yield* Effect.sync(() => {
+        if (result._tag === "Failure") {
+          reportFailure("could not move the messages", result.failure)
+          return
+        }
+        const outcome = result.success
         const parts = [`moved ${outcome.moved} message(s) to ${target.name}`]
         if (outcome.skipped > 0) {
           parts.push(`${outcome.skipped} already there`)

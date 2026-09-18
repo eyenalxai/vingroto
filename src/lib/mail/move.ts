@@ -1,20 +1,19 @@
 import type { AccountConfig } from "@/lib/config/schema"
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MessageListItem } from "@/lib/store/messages"
+import type { Mailbox, MessageListItem } from "@/lib/protocol/mail"
 
 type MoveTargetsResult =
   | {
       readonly _tag: "ok"
       readonly accountId: string
       readonly accountLabel: string
-      readonly mailboxes: readonly MailboxRow[]
+      readonly mailboxes: readonly Mailbox[]
     }
   | { readonly _tag: "error"; readonly message: string }
 
 const resolveMoveTargets = (
   items: readonly MessageListItem[],
   accounts: readonly AccountConfig[],
-  mailboxes: readonly MailboxRow[],
+  mailboxes: readonly Mailbox[],
 ): MoveTargetsResult => {
   if (items.length === 0) {
     return { _tag: "error", message: "select a message to move" }

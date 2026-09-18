@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { createSignal } from "solid-js"
 
-import type { AppRuntime } from "@/lib/runtime"
+import type { AppRuntime } from "@/lib/client/runtime"
 
 import { MailClient } from "@/lib/client/api"
 import { describeError } from "@/lib/errors"

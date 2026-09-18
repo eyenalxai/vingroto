@@ -3,16 +3,16 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
-import type { MailboxRow } from "@/lib/store/mailboxes"
+import type { Mailbox } from "@/lib/protocol/mail"
 
 import { useTheme } from "@/components/theme-provider"
 import { matchesQuery } from "@/lib/search"
 
 interface MovePickerProps {
   readonly accountLabel: string
-  readonly mailboxes: readonly MailboxRow[]
+  readonly mailboxes: readonly Mailbox[]
   readonly onCancel: () => void
-  readonly onSelect: (mailbox: MailboxRow) => void
+  readonly onSelect: (mailbox: Mailbox) => void
 }
 
 const rowId = (mailboxId: number) => `move-row-${mailboxId}`

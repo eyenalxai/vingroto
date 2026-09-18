@@ -1,9 +1,9 @@
 import { useRenderer } from "@opentui/solid"
 import { Effect } from "effect"
-import { Show, createEffect, createMemo, createResource, createSignal } from "solid-js"
+import { Show, createEffect, createMemo, createSignal, untrack } from "solid-js"
 
-import type { AppConfig, AccountConfig } from "@/lib/config/schema"
-import type { MailboxRow } from "@/lib/store/mailboxes"
+import type { AccountConfig, AppConfig } from "@/lib/config/schema"
+import type { Mailbox } from "@/lib/protocol/mail"
 
 import { MailWorkspace } from "@/components/mail-workspace"
 import { MovePicker } from "@/components/move-picker"
@@ -11,28 +11,30 @@ import { useRuntime } from "@/components/runtime-provider"
 import { SettingsScreen } from "@/components/settings/settings-screen"
 import { AccountSetup } from "@/components/setup/account-setup"
 import { StartupScreen } from "@/components/startup-screen"
+import { useDaemonStatus } from "@/components/use-daemon-status"
 import { useMailStore } from "@/components/use-mail-store"
-import { useMailSyncing } from "@/components/use-mail-syncing"
-import { boot } from "@/lib/boot"
+import { MailClient } from "@/lib/client/api"
+import { describeClientFailure } from "@/lib/client/failure"
 import { resolveMoveTargets } from "@/lib/mail/move"
 import { clearSelection, isCollapsedSelection } from "@/lib/selection"
 
 interface MoveTargets {
   readonly accountLabel: string
-  readonly mailboxes: readonly MailboxRow[]
+  readonly mailboxes: readonly Mailbox[]
 }
 
 const App = () => {
   const runtime = useRuntime()
   const renderer = useRenderer()
-  const [report, { refetch }] = createResource(async () => runtime.runPromise(boot))
+  const daemon = useDaemonStatus(runtime)
   const [status, setStatus] = createSignal("loading")
+  const [syncing, setSyncing] = createSignal(false)
   const [addingAccount, setAddingAccount] = createSignal(false)
   const [settingsOpen, setSettingsOpen] = createSignal(false)
   const [moving, setMoving] = createSignal<MoveTargets | undefined>()
 
   const appConfig = createMemo((): AppConfig | undefined => {
-    const value = report()
+    const value = daemon.status()
     if (value === undefined || value.config._tag !== "ok") {
       return undefined
     }
@@ -42,14 +44,15 @@ const App = () => {
   const accounts = createMemo<readonly AccountConfig[]>(() => appConfig()?.accounts ?? [])
 
   const configError = createMemo((): string | undefined => {
-    const value = report()
+    const value = daemon.status()
     return value !== undefined && value.config._tag === "error" ? value.config.message : undefined
   })
 
-  const needsSetup = createMemo(() => report()?.config._tag === "empty")
+  const needsSetup = createMemo(() => daemon.status()?.config._tag === "empty")
+  const connected = createMemo(() => daemon.status() !== undefined)
   const mainVisible = createMemo(
     () =>
-      report() !== undefined &&
+      connected() &&
       configError() === undefined &&
       !needsSetup() &&
       !addingAccount() &&
@@ -58,7 +61,7 @@ const App = () => {
   )
   const setupVisible = createMemo(
     () =>
-      report() !== undefined &&
+      connected() &&
       configError() === undefined &&
       !settingsOpen() &&
       (needsSetup() || addingAccount()),
@@ -66,40 +69,100 @@ const App = () => {
   const settingsVisible = createMemo(
     () => settingsOpen() && appConfig() !== undefined && !addingAccount(),
   )
+  const screenMessage = createMemo(() => (connected() ? configError() : daemon.failure()))
 
   const store = useMailStore({
-    runtime,
     config: appConfig,
+    connected: () => connected(),
+    onConfigChanged: () => {
+      runtime.runFork(Effect.promise(async () => daemon.refresh()))
+    },
+    onDisconnected: (message: string) => {
+      daemon.retry(message)
+    },
     onStatus: (value: string) => {
       setStatus(value)
-    },
-  })
-
-  const { startPeriodic, syncWindow, syncing } = useMailSyncing({
-    config: appConfig,
-    onStatus: (value: string) => {
-      setStatus(value)
-    },
-    onSynced: () => {
-      store.loadFolderData()
-      store.prefetchUnread()
     },
     runtime,
   })
 
-  const reloadConfig = () =>
-    Effect.gen(function* reloadConfiguration() {
-      yield* Effect.promise(async () => refetch())
-      yield* Effect.sync(() => {
-        store.loadFolderData()
-      })
+  const syncWindow = (paths?: readonly string[], accountId?: string) => {
+    untrack(() => {
+      const config = appConfig()
+      if (config === undefined || syncing()) {
+        return
+      }
+      const accountsToSync =
+        accountId === undefined
+          ? config.accounts
+          : config.accounts.filter((account) => account.id === accountId)
+      if (accountsToSync.length === 0) {
+        return
+      }
+      setSyncing(true)
+      setStatus(paths === undefined ? "syncing all mailboxes" : `syncing ${paths.join(", ")}`)
+      const program = Effect.gen(function* runSync() {
+        yield* Effect.logInfo(
+          `sync requested · paths=${paths?.join(",") ?? "all"} · account=${accountId ?? "all"}`,
+        )
+        const client = yield* MailClient
+        const result = yield* client.sync({ accountId, paths }).pipe(Effect.result)
+        if (result._tag === "Failure") {
+          yield* Effect.sync(() => {
+            const failure = describeClientFailure(result.failure)
+            if (failure._tag === "server") {
+              setStatus(`sync failed · ${failure.message}`)
+              return
+            }
+            daemon.retry(failure.message)
+          })
+          return
+        }
+        const errors: string[] = []
+        let stored = 0
+        for (const report of result.success) {
+          stored += report.stored
+          for (const message of report.errors) {
+            errors.push(message)
+          }
+        }
+        const failure = errors[0]
+        const message =
+          failure === undefined
+            ? stored === 0
+              ? "up to date"
+              : `synced · ${stored} new`
+            : errors.length > 1
+              ? `sync failed · ${failure} (+${errors.length - 1} more)`
+              : `sync failed · ${failure}`
+        yield* Effect.sync(() => {
+          setStatus(message)
+        })
+        yield* errors.length > 0
+          ? Effect.logWarning(`sync failed · ${errors.join(" · ")}`)
+          : Effect.logInfo(`sync finished · stored=${stored}`)
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            setSyncing(false)
+            store.loadFolderData()
+          }),
+        ),
+      )
+      runtime.runFork(program)
     })
+  }
+
+  const refreshConfig = async () => {
+    await daemon.refresh()
+    store.loadFolderData()
+  }
 
   const handleAccountSaved = (account: AccountConfig) => {
     setAddingAccount(false)
     setStatus(`account ${account.label} saved · syncing`)
     const program = Effect.gen(function* reloadAfterSave() {
-      yield* Effect.promise(async () => refetch())
+      yield* Effect.promise(async () => daemon.refresh())
       yield* Effect.sync(() => {
         syncWindow()
       })
@@ -109,12 +172,12 @@ const App = () => {
 
   const handleAccountUpdated = (account: AccountConfig) => {
     setStatus(`account ${account.label} updated`)
-    runtime.runFork(reloadConfig())
+    runtime.runFork(Effect.promise(refreshConfig))
   }
 
   const handleSyncSaved = () => {
     setStatus("sync settings saved")
-    runtime.runFork(reloadConfig())
+    runtime.runFork(Effect.promise(refreshConfig))
   }
 
   const beginAddAccount = () => {
@@ -136,14 +199,6 @@ const App = () => {
       mailboxes: result.mailboxes,
     })
   }
-
-  createEffect(() => {
-    const config = appConfig()
-    if (config === undefined) {
-      return
-    }
-    startPeriodic(() => config.sync.intervalMinutes)
-  })
 
   const autoSyncedMailboxes = new Set<number>()
 
@@ -170,11 +225,8 @@ const App = () => {
         }
       }}
     >
-      <Show when={report() === undefined}>
-        <StartupScreen report={undefined} />
-      </Show>
-      <Show when={configError() !== undefined}>
-        <StartupScreen report={report()} />
+      <Show when={!connected() || configError() !== undefined}>
+        <StartupScreen socket={daemon.socket()} failure={screenMessage()} retrying={!connected()} />
       </Show>
       <Show when={mainVisible()}>
         <MailWorkspace

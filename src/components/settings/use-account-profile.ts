@@ -5,8 +5,8 @@ import { createEffect, createMemo, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 
 import type { AccountDraft, FieldDescriptor, FieldId } from "@/components/setup/form-model"
+import type { AppRuntime } from "@/lib/client/runtime"
 import type { AccountConfig } from "@/lib/config/schema"
-import type { AppRuntime } from "@/lib/runtime"
 
 import {
   applySecretKey,

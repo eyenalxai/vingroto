@@ -1,6 +1,5 @@
 import type { AccountConfig } from "@/lib/config/schema"
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts, VirtualFolderScope } from "@/lib/store/messages"
+import type { FolderScope, Mailbox, MailboxCounts } from "@/lib/protocol/mail"
 
 type FolderRowKind = "global" | "account" | "unread" | "mailbox"
 type FolderCountTone = "unread" | "muted"
@@ -19,11 +18,11 @@ interface FolderRow {
   readonly mailboxId: number | undefined
 }
 
-type FolderTarget = VirtualFolderScope | { readonly kind: "mailbox"; readonly id: number }
+type FolderTarget = FolderScope
 
 interface FolderTreeInput {
   readonly accounts: readonly AccountConfig[]
-  readonly mailboxes: readonly MailboxRow[]
+  readonly mailboxes: readonly Mailbox[]
   readonly counts: ReadonlyMap<number, MailboxCounts>
   readonly unread: number
   readonly collapsed: ReadonlySet<string>
@@ -39,7 +38,7 @@ const parseFolderKey = (key: string | undefined): FolderTarget | undefined => {
     return { kind: "all" }
   }
   if (key === "virtual:unread") {
-    return { kind: "unread", accountId: undefined }
+    return { kind: "unread" }
   }
   if (key.startsWith(accountUnreadPrefix)) {
     const accountId = key.slice(accountUnreadPrefix.length)
@@ -47,7 +46,7 @@ const parseFolderKey = (key: string | undefined): FolderTarget | undefined => {
   }
   if (key.startsWith("mailbox:")) {
     const id = Number(key.slice("mailbox:".length))
-    return Number.isNaN(id) ? undefined : { kind: "mailbox", id }
+    return Number.isNaN(id) ? undefined : { kind: "mailbox", mailboxId: id }
   }
   return undefined
 }

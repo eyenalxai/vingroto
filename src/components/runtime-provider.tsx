@@ -2,7 +2,7 @@ import type { JSX } from "@opentui/solid"
 
 import { createContext, useContext } from "solid-js"
 
-import type { AppRuntime } from "@/lib/runtime"
+import type { AppRuntime } from "@/lib/client/runtime"
 
 const RuntimeContext = createContext<AppRuntime>()
 

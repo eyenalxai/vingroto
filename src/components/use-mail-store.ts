@@ -1,34 +1,35 @@
-import { Effect, Fiber, Stream } from "effect"
-import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
+import { Effect } from "effect"
+import { createEffect, createMemo, createSignal, untrack } from "solid-js"
 
+import type { MailClientError } from "@/lib/client/api"
+import type { AppRuntime } from "@/lib/client/runtime"
 import type { AppConfig } from "@/lib/config/schema"
 import type { FolderRow } from "@/lib/mail/folders"
-import type { SyncEvent } from "@/lib/protocol/events"
-import type { AppRuntime } from "@/lib/runtime"
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts } from "@/lib/store/messages"
+import type { ServerEvent, SyncEvent } from "@/lib/protocol/events"
+import type { Mailbox, MailboxCounts } from "@/lib/protocol/mail"
 
 import { useMessageActions } from "@/components/use-message-actions"
 import { useMessagePane } from "@/components/use-message-pane"
-import { describeError } from "@/lib/errors"
+import { useServerEvents } from "@/components/use-server-events"
+import { MailClient } from "@/lib/client/api"
+import { describeClientFailure } from "@/lib/client/failure"
 import { buildFolderRows, parseFolderKey } from "@/lib/mail/folders"
-import { MessagePrefetch } from "@/lib/mail/prefetch"
-import { SyncEngine } from "@/lib/mail/sync"
 import { describeSyncEvent } from "@/lib/protocol/events"
-import { listMailboxes, setMailboxMuted } from "@/lib/store/mailboxes"
-import { messageCounts, unreadMessageCount } from "@/lib/store/messages"
 
 interface MailStoreOptions {
   readonly runtime: AppRuntime
   readonly config: () => AppConfig | undefined
+  readonly connected: () => boolean
   readonly onStatus: (status: string) => void
+  readonly onDisconnected: (message: string) => void
+  readonly onConfigChanged: () => void
 }
 
 const withoutId = (current: ReadonlySet<number>, id: number) =>
   new Set([...current].filter((entry) => entry !== id))
 
 const useMailStore = (options: MailStoreOptions) => {
-  const [mailboxes, setMailboxes] = createSignal<readonly MailboxRow[]>([])
+  const [mailboxes, setMailboxes] = createSignal<readonly Mailbox[]>([])
   const [counts, setCounts] = createSignal<ReadonlyMap<number, MailboxCounts>>(new Map())
   const [unread, setUnread] = createSignal(0)
   const [selectedFolderKey, setSelectedFolderKey] = createSignal<string | undefined>()
@@ -54,19 +55,28 @@ const useMailStore = (options: MailStoreOptions) => {
     folderRows().find((row) => row.key === selectedFolderKey()),
   )
 
-  const selectedMailbox = createMemo((): MailboxRow | undefined => {
+  const selectedMailbox = createMemo((): Mailbox | undefined => {
     const target = parseFolderKey(selectedFolderKey())
     if (target === undefined || target.kind !== "mailbox") {
       return undefined
     }
-    return visibleMailboxes().find((row) => row.id === target.id)
+    return visibleMailboxes().find((row) => row.id === target.mailboxId)
   })
 
+  const reportFailure = (label: string, error: MailClientError) => {
+    const failure = describeClientFailure(error)
+    if (failure._tag === "server") {
+      options.onStatus(`${label} · ${failure.message}`)
+      return
+    }
+    options.onDisconnected(failure.message)
+  }
+
   const messagePane = useMessagePane({
-    runtime: options.runtime,
-    config: options.config,
     folderKey: selectedFolderKey,
+    onDisconnected: options.onDisconnected,
     onStatus: options.onStatus,
+    runtime: options.runtime,
   })
 
   const selectInitialFolder = () => {
@@ -89,19 +99,22 @@ const useMailStore = (options: MailStoreOptions) => {
       setLoadingFolders(true)
       const program = Effect.gen(function* loadFolderRows() {
         yield* Effect.gen(function* queryFolderRows() {
-          const rows = yield* listMailboxes()
-          const counters = yield* messageCounts()
-          const unreadTotal = yield* unreadMessageCount()
+          const client = yield* MailClient
+          const snapshot = yield* client.folderSnapshot()
           yield* Effect.sync(() => {
-            setMailboxes(rows)
-            setCounts(counters)
-            setUnread(unreadTotal)
+            setMailboxes(snapshot.mailboxes)
+            const next = new Map<number, MailboxCounts>()
+            for (const entry of snapshot.counts) {
+              next.set(entry.mailboxId, entry.counts)
+            }
+            setCounts(next)
+            setUnread(snapshot.unread)
             selectInitialFolder()
           })
         }).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              options.onStatus(`database error · ${describeError(error)}`)
+              reportFailure("could not load the mailboxes", error)
             }),
           ),
         )
@@ -118,25 +131,7 @@ const useMailStore = (options: MailStoreOptions) => {
     })
   }
 
-  const prefetchUnread = () => {
-    untrack(() => {
-      const config = options.config()
-      if (config === undefined) {
-        return
-      }
-      const program = Effect.gen(function* prefetchUnreadBodies() {
-        const prefetch = yield* MessagePrefetch
-        yield* prefetch.unread(config.accounts)
-      })
-      options.runtime.runFork(program)
-    })
-  }
-
   const messageActions = useMessageActions({
-    runtime: options.runtime,
-    config: options.config,
-    selectedMessage: messagePane.selectedMessage,
-    taggedMessages: messagePane.taggedMessages,
     onChanged: (affected: number) => {
       loadFolderData()
       messagePane.reloadCurrent()
@@ -144,7 +139,11 @@ const useMailStore = (options: MailStoreOptions) => {
         messagePane.clearTags()
       }
     },
+    onDisconnected: options.onDisconnected,
     onStatus: options.onStatus,
+    runtime: options.runtime,
+    selectedMessage: messagePane.selectedMessage,
+    taggedMessages: messagePane.taggedMessages,
   })
 
   const toggleMailboxMuted = () => {
@@ -156,7 +155,8 @@ const useMailStore = (options: MailStoreOptions) => {
     const muted = !mailbox.muted
     setMutingMailboxIds((current) => new Set(current).add(mailbox.id))
     const program = Effect.gen(function* muteMailbox() {
-      yield* setMailboxMuted(mailbox.id, muted).pipe(
+      const client = yield* MailClient
+      yield* client.setMailboxMuted(mailbox.id, muted).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             options.onStatus(muted ? `${mailbox.name} muted` : `${mailbox.name} unmuted`)
@@ -165,7 +165,7 @@ const useMailStore = (options: MailStoreOptions) => {
         ),
         Effect.catch((error) =>
           Effect.sync(() => {
-            options.onStatus(`could not update the mailbox · ${describeError(error)}`)
+            reportFailure("could not update the mailbox", error)
           }),
         ),
       )
@@ -230,7 +230,7 @@ const useMailStore = (options: MailStoreOptions) => {
         return
       }
       if (target.kind === "mailbox") {
-        const mailbox = visibleMailboxes().find((row) => row.id === target.id)
+        const mailbox = visibleMailboxes().find((row) => row.id === target.mailboxId)
         if (
           event._tag === "mailbox-done" &&
           mailbox !== undefined &&
@@ -247,30 +247,31 @@ const useMailStore = (options: MailStoreOptions) => {
     })
   }
 
+  const applyEvent = (event: ServerEvent) => {
+    if (event._tag === "data-changed") {
+      loadFolderData()
+      messagePane.reloadCurrent()
+      return
+    }
+    if (event._tag === "config-changed") {
+      options.onConfigChanged()
+      return
+    }
+    applySyncEvent(event)
+  }
+
   createEffect(() => {
     if (options.config() === undefined) {
       return
     }
     loadFolderData()
-    prefetchUnread()
   })
 
-  createEffect(() => {
-    const program = SyncEngine.pipe(
-      Effect.flatMap((sync) =>
-        sync.events.pipe(
-          Stream.runForEach((event) =>
-            Effect.sync(() => {
-              applySyncEvent(event)
-            }),
-          ),
-        ),
-      ),
-    )
-    const fiber = options.runtime.runFork(program)
-    onCleanup(() => {
-      options.runtime.runFork(Fiber.interrupt(fiber))
-    })
+  useServerEvents({
+    enabled: options.connected,
+    onDisconnected: options.onDisconnected,
+    onEvent: applyEvent,
+    runtime: options.runtime,
   })
 
   return {
@@ -289,7 +290,6 @@ const useMailStore = (options: MailStoreOptions) => {
     visibleMailboxes,
     loadFolderData,
     moveFolderSelection,
-    prefetchUnread,
     toggleAccountRow,
     toggleMailboxMuted,
   }

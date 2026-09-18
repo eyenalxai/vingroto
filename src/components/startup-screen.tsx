@@ -1,38 +1,39 @@
+import { useKeyboard, useRenderer } from "@opentui/solid"
 import { Show } from "solid-js"
-
-import type { BootReport } from "@/lib/boot"
 
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface StartupScreenProps {
-  readonly report: BootReport | undefined
+  readonly socket: string | undefined
+  readonly failure: string | undefined
+  readonly retrying: boolean
 }
 
 const StartupScreen = (props: StartupScreenProps) => {
   const theme = useTheme()
-  const failed = () => props.report?.config._tag === "error"
-  const message = () => {
-    const value = props.report
-    if (value === undefined) {
-      return "starting…"
+  const renderer = useRenderer()
+
+  const label = () => (props.failure === undefined ? "connecting to the daemon…" : "retrying…")
+  const color = () => (props.failure === undefined ? theme.muted : theme.error)
+
+  useKeyboard((key) => {
+    if ((key.ctrl && key.name === "c") || (key.name === "q" && !key.ctrl)) {
+      key.preventDefault()
+      renderer.destroy()
     }
-    if (value.config._tag === "error") {
-      return value.config.message
-    }
-    return "preparing…"
-  }
+  })
+
   return (
     <box flexGrow={1} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
-      <Show when={failed()} fallback={<Spinner label={message()} />}>
-        <text fg={theme.error}>{message()}</text>
+      <Show when={props.retrying}>
+        <Spinner label={label()} color={color()} />
       </Show>
-      <Show when={props.report}>
-        {(value) => <text fg={theme.muted}>{value().paths.config}</text>}
-      </Show>
+      <Show when={props.failure}>{(message) => <text fg={theme.error}>{message()}</text>}</Show>
+      <Show when={props.socket}>{(path) => <text fg={theme.muted}>{path()}</text>}</Show>
       <text fg={theme.muted}>q quit</text>
     </box>
   )
 }
 
-export { StartupScreen }
+export { StartupScreen, type StartupScreenProps }

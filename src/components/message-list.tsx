@@ -2,7 +2,7 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 
 import { For, Show, createEffect, createSignal } from "solid-js"
 
-import type { MessageListItem } from "@/lib/store/messages"
+import type { MessageListItem } from "@/lib/protocol/mail"
 
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"

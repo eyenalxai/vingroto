@@ -2,23 +2,21 @@ import { Effect, Fiber } from "effect"
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 
 import type { BodyState } from "@/components/message-view"
-import type { AppConfig } from "@/lib/config/schema"
-import type { AppRuntime } from "@/lib/runtime"
-import type { MessageDetail, MessageListItem } from "@/lib/store/messages"
+import type { MailClientError } from "@/lib/client/api"
+import type { AppRuntime } from "@/lib/client/runtime"
+import type { MessageDetail, MessageListItem } from "@/lib/protocol/mail"
 
-import { describeError } from "@/lib/errors"
-import { MessageBodies } from "@/lib/mail/bodies"
+import { MailClient } from "@/lib/client/api"
+import { describeClientFailure } from "@/lib/client/failure"
 import { parseFolderKey } from "@/lib/mail/folders"
-import { getMessageBody } from "@/lib/store/bodies"
-import { getMessage, listMessages, listVirtualMessages } from "@/lib/store/messages"
 
 const messageWindow = 500
 
 interface MessagePaneOptions {
   readonly runtime: AppRuntime
-  readonly config: () => AppConfig | undefined
   readonly folderKey: () => string | undefined
   readonly onStatus: (status: string) => void
+  readonly onDisconnected: (message: string) => void
 }
 
 const useMessagePane = (options: MessagePaneOptions) => {
@@ -38,6 +36,15 @@ const useMessagePane = (options: MessagePaneOptions) => {
     const ids = taggedIds()
     return messages().filter((row) => ids.has(row.id))
   })
+
+  const reportFailure = (label: string, error: MailClientError) => {
+    const failure = describeClientFailure(error)
+    if (failure._tag === "server") {
+      options.onStatus(`${label} · ${failure.message}`)
+      return
+    }
+    options.onDisconnected(failure.message)
+  }
 
   const applyMessageRows = (rows: readonly MessageListItem[]) => {
     setMessages(rows)
@@ -67,10 +74,8 @@ const useMessagePane = (options: MessagePaneOptions) => {
       setLoadingMessages(true)
       const program = Effect.gen(function* loadMessageRows() {
         yield* Effect.gen(function* queryMessageRows() {
-          const rows =
-            target.kind === "mailbox"
-              ? yield* listMessages(target.id, messageWindow)
-              : yield* listVirtualMessages(target, messageWindow)
+          const client = yield* MailClient
+          const rows = yield* client.listMessages(target, messageWindow)
           yield* Effect.sync(() => {
             // The selection may have moved on while the query ran: never apply rows for another folder.
             if (options.folderKey() !== key) {
@@ -81,7 +86,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
         }).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              options.onStatus(`database error · ${describeError(error)}`)
+              reportFailure("could not load the messages", error)
             }),
           ),
         )
@@ -103,16 +108,17 @@ const useMessagePane = (options: MessagePaneOptions) => {
       setLoadingDetail(true)
       const program = Effect.gen(function* loadMessageDetail() {
         yield* Effect.gen(function* queryMessageDetail() {
-          const value = yield* getMessage(messageId)
+          const client = yield* MailClient
+          const value = yield* client.getMessage(messageId)
           yield* Effect.sync(() => {
             if (selectedMessageId() === messageId) {
-              setDetail(value)
+              setDetail(value ?? undefined)
             }
           })
         }).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              options.onStatus(`database error · ${describeError(error)}`)
+              reportFailure("could not load the message", error)
             }),
           ),
         )
@@ -138,46 +144,23 @@ const useMessagePane = (options: MessagePaneOptions) => {
   const loadBody = (messageId: number) =>
     untrack(() => {
       const program = Effect.gen(function* loadMessageBody() {
-        yield* Effect.gen(function* readMessageBody() {
-          const message = messages().find((row) => row.id === messageId)
-          const config = options.config()
-          if (message === undefined || config === undefined) {
-            return
-          }
-          const account = config.accounts.find((entry) => entry.id === message.accountId)
-          if (account === undefined) {
-            yield* Effect.sync(() => {
-              applyBody(messageId, {
-                _tag: "error",
-                message: `account ${message.accountId} is not part of the configuration`,
-              })
-            })
-            return
-          }
-          const cached = yield* getMessageBody(messageId)
-          if (cached !== undefined) {
-            yield* Effect.sync(() => {
-              applyBody(messageId, { _tag: "loaded", text: cached.text, html: cached.html })
-            })
-            return
-          }
-          yield* Effect.sync(() => {
-            applyBody(messageId, { _tag: "loading" })
-          })
-          const bodies = yield* MessageBodies
-          const loaded = yield* bodies.load({
-            account,
-            mailboxPath: message.mailboxPath,
-            messageId,
-            uid: message.uid,
-          })
-          yield* Effect.sync(() => {
-            applyBody(messageId, { _tag: "loaded", text: loaded.text, html: loaded.html })
-          })
-        }).pipe(
+        yield* Effect.sync(() => {
+          applyBody(messageId, { _tag: "loading" })
+        })
+        const client = yield* MailClient
+        yield* client.loadBody(messageId).pipe(
+          Effect.tap((loaded) =>
+            Effect.sync(() => {
+              applyBody(messageId, { _tag: "loaded", html: loaded.html, text: loaded.text })
+            }),
+          ),
           Effect.catch((error) =>
             Effect.sync(() => {
-              applyBody(messageId, { _tag: "error", message: describeError(error) })
+              const failure = describeClientFailure(error)
+              applyBody(messageId, { _tag: "error", message: failure.message })
+              if (failure._tag === "connection") {
+                options.onDisconnected(failure.message)
+              }
             }),
           ),
         )

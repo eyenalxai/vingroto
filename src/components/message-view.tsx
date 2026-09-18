@@ -4,7 +4,7 @@ import { MouseButton } from "@opentui/core"
 import { useRenderer } from "@opentui/solid"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
-import type { MessageDetail } from "@/lib/store/messages"
+import type { MessageDetail } from "@/lib/protocol/mail"
 
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"

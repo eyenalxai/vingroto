@@ -5,8 +5,8 @@ import { createEffect, createMemo, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 
 import type { FieldDescriptor } from "@/components/setup/form-model"
+import type { AppRuntime } from "@/lib/client/runtime"
 import type { SyncConfig } from "@/lib/config/schema"
-import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/client/api"
 import { describeError } from "@/lib/errors"
