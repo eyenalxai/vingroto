@@ -20,6 +20,9 @@ _Avoid_: Virtual folder
 What the message list shows right now: a view or a mailbox.
 _Avoid_: Filter
 
+**Read on display**:
+Marking a message read once its body is displayed in the reader. The message keeps its place in the current Unread view — marker cleared, counts already updated — until that view is visited again.
+
 **Marked message**:
 A message in the multi-select set that batch actions — read, unread, move — apply to.
 _Avoid_: Tagged, checked
@@ -37,7 +40,7 @@ A message's parsed text and HTML parts. Fetched from the server on demand and ca
 The daemon's background fetching of bodies for unread messages in unmuted mailboxes. A body that fails once is skipped for the rest of the session.
 
 **Mute**:
-A mailbox marked to be excluded from unread counts, from the Unread views and from prefetching, while staying listed and readable.
+A mailbox marked to be excluded from the Unread views, from account and global unread totals and from prefetching, while still showing its own unread count and staying listed and readable.
 
 **Count tone**:
 Whether a mailbox-pane count draws attention (unread) or is quiet.
