@@ -5,7 +5,7 @@ import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface StartupScreenProps {
-  readonly socket: string | undefined
+  readonly endpoint: string | undefined
   readonly failure: string | undefined
   readonly retrying: boolean
 }
@@ -30,7 +30,7 @@ const StartupScreen = (props: StartupScreenProps) => {
         <Spinner label={label()} color={color()} />
       </Show>
       <Show when={props.failure}>{(message) => <text fg={theme.error}>{message()}</text>}</Show>
-      <Show when={props.socket}>{(path) => <text fg={theme.muted}>{path()}</text>}</Show>
+      <Show when={props.endpoint}>{(url) => <text fg={theme.muted}>{url()}</text>}</Show>
       <text fg={theme.muted}>q quit</text>
     </box>
   )

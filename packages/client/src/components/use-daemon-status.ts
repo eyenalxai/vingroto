@@ -1,8 +1,7 @@
 import type { ServerStatus } from "@vingroto/core/protocol/accounts"
 
-import { AppPaths } from "@vingroto/core/app-paths"
 import { Effect, Fiber, Stream } from "effect"
-import { createEffect, createResource, createSignal, onCleanup } from "solid-js"
+import { createEffect, createSignal, onCleanup } from "solid-js"
 
 import type { AppRuntime } from "@/lib/runtime"
 
@@ -14,6 +13,7 @@ import { retrySchedule } from "@/lib/retry"
 const useDaemonStatus = (runtime: AppRuntime) => {
   const [status, setStatus] = createSignal<ServerStatus | undefined>()
   const [failure, setFailure] = createSignal<string | undefined>()
+  const [endpoint, setEndpoint] = createSignal<string | undefined>()
   const [generation, setGeneration] = createSignal(0)
 
   createEffect(() => {
@@ -23,6 +23,23 @@ const useDaemonStatus = (runtime: AppRuntime) => {
         Stream.runForEach((message) =>
           Effect.sync(() => {
             setFailure(message)
+          }),
+        ),
+      )
+    })
+    const fiber = runtime.runFork(program)
+    onCleanup(() => {
+      runtime.runFork(Fiber.interrupt(fiber))
+    })
+  })
+
+  createEffect(() => {
+    const program = Effect.gen(function* watchEndpoint() {
+      const connection = yield* ClientConnection
+      yield* connection.endpoint.pipe(
+        Stream.runForEach((value) =>
+          Effect.sync(() => {
+            setEndpoint(value)
           }),
         ),
       )
@@ -60,15 +77,6 @@ const useDaemonStatus = (runtime: AppRuntime) => {
     })
   })
 
-  const [socket] = createResource(async () =>
-    runtime.runPromise(
-      Effect.gen(function* resolveSocketPath() {
-        const paths = yield* AppPaths
-        return paths.socket
-      }),
-    ),
-  )
-
   const retry = (message: string) => {
     setStatus(undefined)
     setFailure(message)
@@ -91,7 +99,7 @@ const useDaemonStatus = (runtime: AppRuntime) => {
     )
   }
 
-  return { failure, refresh, retry, socket, status }
+  return { endpoint, failure, refresh, retry, status }
 }
 
 export { useDaemonStatus }

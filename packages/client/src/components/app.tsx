@@ -28,6 +28,7 @@ const App = () => {
   const runtime = useRuntime()
   const renderer = useRenderer()
   const daemon = useDaemonStatus(runtime)
+  const endpoint = daemon.endpoint
   const [status, setStatus] = createSignal("ready")
   const [syncing, setSyncing] = createSignal(false)
   const [addingAccount, setAddingAccount] = createSignal(false)
@@ -222,7 +223,7 @@ const App = () => {
       }}
     >
       <Show when={!connected() || configError() !== undefined}>
-        <StartupScreen socket={daemon.socket()} failure={screenMessage()} retrying={!connected()} />
+        <StartupScreen endpoint={endpoint()} failure={screenMessage()} retrying={!connected()} />
       </Show>
       <Show when={mainVisible()}>
         <MailWorkspace
