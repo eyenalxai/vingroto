@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@vingroto/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./app-paths": "./src/app-paths.ts",
+    "./config/schema": "./src/config/schema.ts",
+    "./errors": "./src/errors.ts",
+    "./logging": "./src/logging.ts",
+    "./mail/address": "./src/mail/address.ts",
+    "./protocol/accounts": "./src/protocol/accounts.ts",
+    "./protocol/events": "./src/protocol/events.ts",
+    "./protocol/mail": "./src/protocol/mail.ts",
+    "./protocol/rpc": "./src/protocol/rpc.ts"
+  },
+  "scripts": {
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "4.0.0-rc.115"
+  }
+}

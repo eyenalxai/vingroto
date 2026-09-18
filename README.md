@@ -6,10 +6,22 @@ A terminal mail client: an OpenTUI (Solid) TUI talking to a daemon over a Unix-s
 
 **TUI client ↔ Unix-socket RPC ↔ daemon.**
 
-- **TUI client** (`src/index.tsx`, `bun start`) renders the interface and sends commands over RPC. It never reads the config file, touches the keyring or the database, or opens an IMAP/SMTP connection. While the daemon is unreachable it shows a connecting screen and keeps retrying.
-- **Daemon** (`src/server.ts`, `bun server`) owns the configuration file, the OS keyring, the SQLite database and every IMAP/SMTP connection. It serves the client's requests and syncs mail in the background.
+- **TUI client** (`packages/client/src/index.tsx`, `bun start`) renders the interface and sends commands over RPC. It never reads the config file, touches the keyring or the database, or opens an IMAP/SMTP connection. While the daemon is unreachable it shows a connecting screen and keeps retrying.
+- **Daemon** (`packages/server/src/server.ts`, `bun server`) owns the configuration file, the OS keyring, the SQLite database and every IMAP/SMTP connection. It serves the client's requests and syncs mail in the background.
 
-The two processes find each other at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/vingroto/server.sock` when `XDG_RUNTIME_DIR` is not set. Accounts, credentials, sync settings and cached mail live on the daemon side; passwords stay in the keyring and never cross the socket, so the client cannot leak them and closing the TUI does not stop syncing.
+The two processes find each other at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/server.sock` when `XDG_RUNTIME_DIR` is not set. Accounts, credentials, sync settings and cached mail live on the daemon side; passwords stay in the keyring and never cross the socket, so the client cannot leak them and closing the TUI does not stop syncing.
+
+## Workspace
+
+The repository is a Bun workspace with three packages:
+
+| Package            | Contents                                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `@vingroto/core`   | Paths, logging, errors, config schema, mail addresses and the wire protocol; the protocol is a frozen contract. |
+| `@vingroto/client` | The OpenTUI (Solid) interface and the client runtime that speaks RPC.                                           |
+| `@vingroto/server` | The daemon: config, credentials, SQLite, IMAP/SMTP, sync and RPC handlers.                                      |
+
+`@vingroto/core` is imported by its subpaths (`@vingroto/core/protocol/rpc`, …) and the client and server use the `@/*` alias inside their own package. `tsconfig.base.json` holds the shared compiler options, each package has its own `tsconfig.json`, and `packages/client/bunfig.toml` preloads the OpenTUI Solid transform.
 
 ## Requirements
 
@@ -21,11 +33,11 @@ The two processes find each other at `$XDG_RUNTIME_DIR/vingroto/server.sock`, fa
 Start the daemon in the background, then the client:
 
 ```sh
-bun server &             # or: bun run src/server.ts &
+bun server &             # or: bun run --filter @vingroto/server start &
 bun start
 ```
 
-The client retries until the daemon answers, so it is fine to start the client first. Both processes meet at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/vingroto/server.sock` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the socket, and the client never writes the config file or the database.
+The client retries until the daemon answers, so it is fine to start the client first. Both processes meet at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/server.sock` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the socket, and the client never writes the config file or the database.
 
 ### systemd user service
 
@@ -39,7 +51,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now vingroto.service
 ```
 
-Check on the daemon with `systemctl --user status vingroto` and follow it with `journalctl --user -u vingroto -f`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
+The unit runs `bun run server` from the repository root, which delegates to the server workspace, so `WorkingDirectory` must point at the checkout (not at `packages/server`). Check on the daemon with `systemctl --user status vingroto` and follow it with `journalctl --user -u vingroto -f`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
 
 ## Accounts
 
@@ -139,9 +151,9 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 ```sh
 bun server         # run the daemon
 bun start          # run the client
-bun db:generate    # generate a migration from src/lib/db/schema.ts
+bun db:generate    # generate a migration from packages/server/src/lib/db/schema.ts
 bun db:check       # validate the generated migrations
 bun run check      # format check, lint, typecheck
 ```
 
-Migrations live in `drizzle/` and are applied by the daemon on startup.
+Migrations live in `packages/server/drizzle/` and are applied by the daemon on startup.

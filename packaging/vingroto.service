@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/env bun run src/server.ts
+ExecStart=/usr/bin/env bun run server
 WorkingDirectory=%h/Projects/js/vingroto
 Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
 Restart=on-failure

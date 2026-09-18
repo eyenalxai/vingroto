@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@vingroto/client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.tsx",
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.0.0-rc.115",
+    "@opentui/core": "0.5.11",
+    "@opentui/keymap": "0.5.11",
+    "@opentui/solid": "0.5.11",
+    "@vingroto/core": "workspace:*",
+    "effect": "4.0.0-rc.115",
+    "html-to-text": "10.0.1",
+    "solid-js": "1.9.12"
+  },
+  "devDependencies": {
+    "@types/html-to-text": "9.0.4"
+  }
+}

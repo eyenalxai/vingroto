@@ -105,6 +105,16 @@ export default defineConfig({
   plugins: basePlugins,
   categories,
   rules: baseRules,
+  overrides: [
+    {
+      files: ["packages/core/**/*.{ts,tsx}"],
+      rules: {
+        // Core deliberately has no path aliases: it is loaded with an arbitrary
+        // cwd, so its own child directories are reached with relative imports.
+        "import/no-relative-parent-imports": "off",
+      },
+    },
+  ],
   env: {
     builtin: true,
   },

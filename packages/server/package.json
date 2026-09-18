@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@vingroto/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "tsc": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.0.0-rc.115",
+    "@effect/sql-sqlite-bun": "4.0.0-rc.115",
+    "@vingroto/core": "workspace:*",
+    "drizzle-orm": "1.0.0-rc.5-5935859",
+    "effect": "4.0.0-rc.115",
+    "fast-xml-parser": "5.11.1",
+    "imapflow": "2.0.2",
+    "nodemailer": "10.0.7",
+    "postal-mime": "3.0.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "1.0.0-rc.5-5935859"
+  }
+}

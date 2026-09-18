@@ -3,38 +3,24 @@
   "name": "vingroto",
   "version": "0.8.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "type": "module",
   "scripts": {
-    "start": "bun run src/index.tsx",
-    "server": "bun run src/server.ts",
+    "start": "bun run --filter @vingroto/client start",
+    "server": "bun run --filter @vingroto/server start",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
-    "tsc": "tsc --noEmit",
+    "tsc": "bun run --filter '*' tsc",
     "check": "bun run format:check && bun run lint && bun run tsc",
-    "db:generate": "drizzle-kit generate",
-    "db:check": "drizzle-kit check"
-  },
-  "dependencies": {
-    "@effect/platform-bun": "4.0.0-rc.115",
-    "@effect/sql-sqlite-bun": "4.0.0-rc.115",
-    "@opentui/core": "0.5.11",
-    "@opentui/keymap": "0.5.11",
-    "@opentui/solid": "0.5.11",
-    "drizzle-orm": "1.0.0-rc.5-5935859",
-    "effect": "4.0.0-rc.115",
-    "fast-xml-parser": "5.11.1",
-    "html-to-text": "10.0.1",
-    "imapflow": "2.0.2",
-    "nodemailer": "10.0.7",
-    "postal-mime": "3.0.0",
-    "solid-js": "1.9.12"
+    "db:generate": "bun run --filter @vingroto/server db:generate",
+    "db:check": "bun run --filter @vingroto/server db:check"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",
-    "@types/html-to-text": "9.0.4",
-    "drizzle-kit": "1.0.0-rc.5-5935859",
     "oxfmt": "0.67.0",
     "oxlint": "1.82.0",
     "oxlint-tsgolint": "7.0.2001",
