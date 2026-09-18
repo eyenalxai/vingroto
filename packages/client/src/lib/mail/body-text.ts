@@ -6,6 +6,7 @@ import type {
   SelectorDefinition,
 } from "html-to-text"
 
+import { Predicate } from "effect"
 import { compile } from "html-to-text"
 
 import {
@@ -67,16 +68,13 @@ const compactSelectors: readonly SelectorDefinition[] = [
   { selector: "hr", options: { leadingLineBreaks: 1, trailingLineBreaks: 1, length: 12 } },
 ]
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
-
 const attributeOf = (elem: DomNode, name: string): string | null => {
   const attributes: unknown = elem.attribs
-  if (!isRecord(attributes)) {
+  if (!Predicate.isObject(attributes)) {
     return null
   }
   const value = attributes[name]
-  return typeof value === "string" ? value : null
+  return Predicate.isString(value) ? value : null
 }
 
 const anchorHref = (elem: DomNode, options: FormatOptions): string | null => {

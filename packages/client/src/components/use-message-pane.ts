@@ -3,12 +3,13 @@ import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mai
 import { Effect, Fiber } from "effect"
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 
-import type { BodyState } from "@/components/message-view"
 import type { MailClientError } from "@/lib/api"
+import type { BodyState } from "@/lib/mail/body-state"
 import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
+import { bodyState } from "@/lib/mail/body-state"
 import { parseListKey } from "@/lib/mail/mailbox-tree"
 
 const messageWindow = 500
@@ -146,19 +147,19 @@ const useMessagePane = (options: MessagePaneOptions) => {
     untrack(() => {
       const program = Effect.gen(function* loadMessageBody() {
         yield* Effect.sync(() => {
-          applyBody(messageId, { _tag: "loading" })
+          applyBody(messageId, bodyState.loading())
         })
         const client = yield* MailClient
         yield* client.loadBody(messageId).pipe(
           Effect.tap((loaded) =>
             Effect.sync(() => {
-              applyBody(messageId, { _tag: "loaded", html: loaded.html, text: loaded.text })
+              applyBody(messageId, bodyState.loaded({ html: loaded.html, text: loaded.text }))
             }),
           ),
           Effect.catch((error) =>
             Effect.sync(() => {
               const failure = describeClientFailure(error)
-              applyBody(messageId, { _tag: "error", message: failure.message })
+              applyBody(messageId, bodyState.error({ message: failure.message }))
               if (failure._tag === "connection") {
                 options.onDisconnected(failure.message)
               }

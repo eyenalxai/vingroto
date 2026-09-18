@@ -1,15 +1,16 @@
-import { describeError } from "@vingroto/core/errors"
 import { Effect } from "effect"
 import { createSignal } from "solid-js"
 
 import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
+import { describeClientFailure } from "@/lib/failure"
 
 interface UseMailboxMuteOptions {
   readonly runtime: AppRuntime
   readonly onStatus: (message: string) => void
   readonly onChanged: () => void
+  readonly onDisconnected: (message: string) => void
 }
 
 const useMailboxMute = (options: UseMailboxMuteOptions) => {
@@ -43,7 +44,12 @@ const useMailboxMute = (options: UseMailboxMuteOptions) => {
         ),
         Effect.catch((error) =>
           Effect.sync(() => {
-            options.onStatus(`could not update the mailbox · ${describeError(error)}`)
+            const failure = describeClientFailure(error)
+            if (failure._tag === "connection") {
+              options.onDisconnected(failure.message)
+              return
+            }
+            options.onStatus(`could not update the mailbox · ${failure.message}`)
           }),
         ),
       )

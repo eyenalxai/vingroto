@@ -1,9 +1,14 @@
+import * as Data from "effect/Data"
+
 import type { MailClientError } from "@/lib/api"
 
-type ClientFailure =
-  | { readonly _tag: "server"; readonly message: string }
-  | { readonly _tag: "connection"; readonly message: string }
-  | { readonly _tag: "unexpected"; readonly message: string }
+type ClientFailure = Data.TaggedEnum<{
+  server: { readonly message: string }
+  connection: { readonly message: string }
+  unexpected: { readonly message: string }
+}>
+
+const clientFailure = Data.taggedEnum<ClientFailure>()
 
 const connectionReasonTags: ReadonlySet<string> = new Set([
   "SocketCloseError",
@@ -16,21 +21,21 @@ const connectionReasonTags: ReadonlySet<string> = new Set([
 
 const describeClientFailure = (error: MailClientError): ClientFailure => {
   if (error._tag === "ServerError") {
-    return { _tag: "server", message: error.message }
+    return clientFailure.server({ message: error.message })
   }
   if (error._tag === "ClientDefect") {
-    return { _tag: "unexpected", message: error.message }
+    return clientFailure.unexpected({ message: error.message })
   }
   if (error.reason._tag === "SocketCloseError") {
-    return { _tag: "connection", message: "the daemon closed the connection" }
+    return clientFailure.connection({ message: "the daemon closed the connection" })
   }
   if (error.reason._tag === "SocketReadError") {
-    return { _tag: "connection", message: "the connection to the daemon was lost" }
+    return clientFailure.connection({ message: "the connection to the daemon was lost" })
   }
   if (connectionReasonTags.has(error.reason._tag)) {
-    return { _tag: "connection", message: error.message }
+    return clientFailure.connection({ message: error.message })
   }
-  return { _tag: "unexpected", message: error.message }
+  return clientFailure.unexpected({ message: error.message })
 }
 
 export { describeClientFailure, type ClientFailure }

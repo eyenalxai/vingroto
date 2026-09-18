@@ -3,7 +3,7 @@ import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import { createEffect, createMemo, createSignal } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 
 import { useRuntime } from "@/components/runtime-provider"
 import { SettingsDetail } from "@/components/settings/settings-detail"
@@ -30,6 +30,7 @@ interface SettingsScreenProps {
   readonly onAccountSaved: (account: AccountConfig) => void
   readonly onMailboxChanged: () => void
   readonly onSyncSaved: () => void
+  readonly onDisconnected: (message: string) => void
 }
 
 const SettingsScreen = (props: SettingsScreenProps) => {
@@ -62,6 +63,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       setStatus(message)
     },
     onChanged: props.onMailboxChanged,
+    onDisconnected: props.onDisconnected,
   })
   const mutingAccounts = createMemo(() => {
     const accounts = new Set<string>()
@@ -115,7 +117,10 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       setStatus(`account ${account.label} saved`)
       props.onAccountSaved(account)
     },
+    onDisconnected: props.onDisconnected,
   })
+
+  onCleanup(accountProfile.dispose)
 
   const syncProfile = useSyncProfile({
     runtime,
@@ -124,6 +129,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       setStatus("sync settings saved")
       props.onSyncSaved()
     },
+    onDisconnected: props.onDisconnected,
   })
 
   const toggleGroup = (accountId: string) => {
