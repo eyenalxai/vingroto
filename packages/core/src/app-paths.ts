@@ -13,7 +13,6 @@ interface AppPathsShape {
   readonly logsDir: string
   readonly database: string
   readonly config: string
-  readonly socket: string
   readonly registration: string
   readonly token: string
   readonly lock: string
@@ -49,7 +48,6 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
         logsDir,
         database: path.join(dataDir, "vingroto.db"),
         config: path.join(configDir, "config.json"),
-        socket: path.join(runtimeDir, "server.sock"),
         registration: path.join(runtimeDir, "server.json"),
         token: path.join(runtimeDir, "token"),
         lock: path.join(runtimeDir, "server.lock"),

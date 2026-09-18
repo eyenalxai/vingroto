@@ -49,7 +49,6 @@ const ServerStatus = Schema.Struct({
   version: Schema.String,
   pid: Schema.Int,
   startedAt: Schema.Int,
-  socket: Schema.String,
   config: ConfigState,
   database: Schema.Union([
     Schema.TaggedStruct("ok", {}),

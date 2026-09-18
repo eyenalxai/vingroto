@@ -16,7 +16,6 @@
     "./protocol/api/errors": "./src/protocol/api/errors.ts",
     "./protocol/events": "./src/protocol/events.ts",
     "./protocol/mail": "./src/protocol/mail.ts",
-    "./protocol/rpc": "./src/protocol/rpc.ts",
     "./standalone": "./src/standalone.ts"
   },
   "scripts": {

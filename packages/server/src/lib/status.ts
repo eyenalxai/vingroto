@@ -69,7 +69,6 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
     version,
     pid: process.pid,
     startedAt: lifecycle.startedAt,
-    socket: lifecycle.socket,
     config,
     database: databaseState,
   }
