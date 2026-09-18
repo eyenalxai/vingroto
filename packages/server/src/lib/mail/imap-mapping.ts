@@ -1,6 +1,9 @@
 import type { MailAddress } from "@vingroto/core/mail/address"
 import type { FetchMessageObject, ListResponse, MessageAddressObject } from "imapflow"
 
+import * as DateTime from "effect/DateTime"
+import * as Option from "effect/Option"
+
 import type { MailboxInfo, MessageEnvelope } from "@/lib/mail/imap-types"
 
 const systemFlags = {
@@ -53,9 +56,8 @@ const toTimestamp = (value: Date | string | undefined): number | undefined => {
   if (value === undefined) {
     return undefined
   }
-  const date = value instanceof Date ? value : new Date(value)
-  const time = date.getTime()
-  return Number.isNaN(time) ? undefined : time
+  const date = DateTime.make(value)
+  return Option.isSome(date) ? DateTime.toEpochMillis(date.value) : undefined
 }
 
 const toMessageEnvelope = (message: FetchMessageObject): MessageEnvelope => {
