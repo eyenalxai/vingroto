@@ -21,11 +21,17 @@ const ThemeContext = createContext<() => Theme>()
 
 const paletteQueryTimeoutMs = 1500
 
-const ThemeProvider = (props: { readonly children: JSX.Element }) => {
+const ThemeProvider = (props: {
+  readonly children: JSX.Element
+  readonly initialColors?: TerminalColors | null
+  readonly initialMode?: ThemeMode
+}) => {
   const renderer = useRenderer()
   const runtime = useRuntime()
-  const [mode, setMode] = createSignal<ThemeMode>(renderer.themeMode ?? "dark")
-  const [colors, setColors] = createSignal<TerminalColors>()
+  const [mode, setMode] = createSignal<ThemeMode>(props.initialMode ?? renderer.themeMode ?? "dark")
+  const [colors, setColors] = createSignal<TerminalColors | undefined>(
+    props.initialColors === null ? undefined : props.initialColors,
+  )
 
   const theme = createMemo(() => resolveTheme(colors(), mode()))
 
