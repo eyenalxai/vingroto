@@ -52,17 +52,6 @@ const senderValue = (detail: MessageDetail): string => {
   return `${detail.fromName} <${detail.fromAddress}>`
 }
 
-const flagsValue = (detail: MessageDetail): string => {
-  const flags = [
-    detail.seen ? "read" : "unread",
-    detail.flagged ? "flagged" : undefined,
-    detail.answered ? "answered" : undefined,
-    detail.draft ? "draft" : undefined,
-    detail.hasAttachments ? "attachments" : undefined,
-  ].filter((flag) => flag !== undefined)
-  return flags.join(" · ")
-}
-
 const MessageView = (props: MessageViewProps) => {
   const renderer = useRenderer()
   const theme = useTheme()
@@ -86,7 +75,6 @@ const MessageView = (props: MessageViewProps) => {
         value: `${formatMessageDateTime(detail.date)} · ${formatBytes(detail.size)}`,
       },
       { label: "Mailbox", value: `${account} · ${detail.mailboxName}` },
-      { label: "Flags", value: flagsValue(detail) },
     ]
   })
 
