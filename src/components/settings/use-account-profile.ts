@@ -15,9 +15,7 @@ import {
   emptyDraft,
   validateEditDraft,
 } from "@/components/setup/form-model"
-import { updateAccount } from "@/lib/config/accounts"
-import { usernameReference } from "@/lib/credential/refs"
-import { Credential } from "@/lib/credential/service"
+import { MailClient } from "@/lib/client/api"
 import { describeError } from "@/lib/errors"
 
 interface UseAccountProfileOptions {
@@ -85,8 +83,8 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
     const token = loadToken
     setLoading(true)
     const program = Effect.gen(function* loadStoredUsername() {
-      const credential = yield* Credential
-      const stored = yield* credential.get(usernameReference(account.id)).pipe(
+      const client = yield* MailClient
+      const stored = yield* client.accountUsername(account.id).pipe(
         Effect.catch((error) =>
           Effect.sync(() => {
             if (options.account()?.id === account.id) {
@@ -98,7 +96,7 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
       )
       yield* Effect.sync(() => {
         if (!usernameEdited && options.account()?.id === account.id) {
-          setDraft("username", stored)
+          setDraft("username", stored ?? account.email)
         }
       })
     }).pipe(
@@ -172,7 +170,8 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
     setBusy(true)
     report("saving…")
     const program = Effect.gen(function* persistProfile() {
-      yield* updateAccount(account.id, result.value).pipe(
+      const client = yield* MailClient
+      yield* client.updateAccount(account.id, result.value).pipe(
         Effect.tap((updated) =>
           Effect.sync(() => {
             setBusy(false)

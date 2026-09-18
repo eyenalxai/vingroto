@@ -1,5 +1,5 @@
 import type { AccountConfig, SyncConfig } from "@/lib/config/schema"
-import type { MailboxRow } from "@/lib/store/mailboxes"
+import type { Mailbox } from "@/lib/protocol/mail"
 
 import { matchesQuery, queryTerms } from "@/lib/search"
 
@@ -34,7 +34,7 @@ interface SettingsGroup {
 
 interface SettingsEntriesInput {
   readonly accounts: readonly AccountConfig[]
-  readonly mailboxes: readonly MailboxRow[]
+  readonly mailboxes: readonly Mailbox[]
   readonly sync: SyncConfig
 }
 

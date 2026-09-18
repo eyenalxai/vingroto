@@ -11,7 +11,7 @@ import type {
   TextFieldId,
 } from "@/components/setup/form-model"
 import type { AccountConfig } from "@/lib/config/schema"
-import type { DiscoveryResult } from "@/lib/mail/autoconfig-types"
+import type { DiscoveryResult } from "@/lib/protocol/accounts"
 
 import { useRuntime } from "@/components/runtime-provider"
 import {
@@ -23,9 +23,8 @@ import {
   serverFields,
   validateDraft,
 } from "@/components/setup/form-model"
-import { submitAccount } from "@/lib/config/accounts"
+import { MailClient } from "@/lib/client/api"
 import { describeError } from "@/lib/errors"
-import { Discovery } from "@/lib/mail/autoconfig"
 
 interface UseAccountSetupOptions {
   readonly accounts: readonly AccountConfig[]
@@ -130,8 +129,8 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     setSource(undefined)
     report("detecting mail servers…")
     const program = Effect.gen(function* runDiscovery() {
-      const discovery = yield* Discovery
-      yield* discovery.discover(email).pipe(
+      const client = yield* MailClient
+      yield* client.discover(email).pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
             applyDiscovery(result)
@@ -169,7 +168,8 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     setBusy(true)
     report("saving account…")
     const program = Effect.gen(function* persistAccount() {
-      yield* submitAccount(result.value).pipe(
+      const client = yield* MailClient
+      yield* client.createAccount(result.value).pipe(
         Effect.tap((account) =>
           Effect.sync(() => {
             report(`saved ${account.label}`)

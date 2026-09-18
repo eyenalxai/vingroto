@@ -3,8 +3,8 @@ import { createSignal } from "solid-js"
 
 import type { AppRuntime } from "@/lib/runtime"
 
+import { MailClient } from "@/lib/client/api"
 import { describeError } from "@/lib/errors"
-import { setMailboxMuted } from "@/lib/store/mailboxes"
 
 interface UseFolderMuteOptions {
   readonly runtime: AppRuntime
@@ -33,7 +33,8 @@ const useFolderMute = (options: UseFolderMuteOptions) => {
     }
     setMuting(mailboxId, true)
     const program = Effect.gen(function* muteFolder() {
-      yield* setMailboxMuted(mailboxId, !muted).pipe(
+      const client = yield* MailClient
+      yield* client.setMailboxMuted(mailboxId, !muted).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             options.onStatus(muted ? `${name} unmuted` : `${name} muted`)

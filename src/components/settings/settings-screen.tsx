@@ -4,8 +4,7 @@ import { useKeyboard, useRenderer } from "@opentui/solid"
 import { createEffect, createMemo, createSignal } from "solid-js"
 
 import type { AccountConfig, SyncConfig } from "@/lib/config/schema"
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts } from "@/lib/store/messages"
+import type { Mailbox, MailboxCounts } from "@/lib/protocol/mail"
 
 import { useRuntime } from "@/components/runtime-provider"
 import { SettingsDetail } from "@/components/settings/settings-detail"
@@ -24,7 +23,7 @@ import { useTheme } from "@/components/theme-provider"
 
 interface SettingsScreenProps {
   readonly accounts: readonly AccountConfig[]
-  readonly mailboxes: readonly MailboxRow[]
+  readonly mailboxes: readonly Mailbox[]
   readonly counts: ReadonlyMap<number, MailboxCounts>
   readonly sync: SyncConfig
   readonly onAddAccount: () => void

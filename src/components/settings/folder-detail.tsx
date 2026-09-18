@@ -1,13 +1,12 @@
 import { For, Show } from "solid-js"
 
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts } from "@/lib/store/messages"
+import type { Mailbox, MailboxCounts } from "@/lib/protocol/mail"
 
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface FolderDetailProps {
-  readonly mailbox: MailboxRow
+  readonly mailbox: Mailbox
   readonly accountLabel: string
   readonly counts: MailboxCounts | undefined
   readonly muting: boolean

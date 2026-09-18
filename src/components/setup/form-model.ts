@@ -1,6 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
 
-import type { AccountSave, NewAccount } from "@/lib/config/accounts"
+import type { AccountSave, NewAccount } from "@/lib/protocol/accounts"
 
 import { ServerConfig } from "@/lib/config/schema"
 

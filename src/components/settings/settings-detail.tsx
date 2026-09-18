@@ -4,8 +4,7 @@ import type { SettingsEntry } from "@/components/settings/settings-entries"
 import type { useAccountProfile } from "@/components/settings/use-account-profile"
 import type { useSyncProfile } from "@/components/settings/use-sync-profile"
 import type { AccountConfig } from "@/lib/config/schema"
-import type { MailboxRow } from "@/lib/store/mailboxes"
-import type { MailboxCounts } from "@/lib/store/messages"
+import type { Mailbox, MailboxCounts } from "@/lib/protocol/mail"
 
 import { FolderDetail } from "@/components/settings/folder-detail"
 import { SettingsForm } from "@/components/settings/settings-form"
@@ -16,7 +15,7 @@ interface SettingsDetailProps {
   readonly entry: SettingsEntry | undefined
   readonly zone: "nav" | "detail"
   readonly account: AccountConfig | undefined
-  readonly mailbox: MailboxRow | undefined
+  readonly mailbox: Mailbox | undefined
   readonly accountLabel: string
   readonly counts: ReadonlyMap<number, MailboxCounts>
   readonly accountProfile: ReturnType<typeof useAccountProfile>

@@ -8,7 +8,7 @@ import type { FieldDescriptor } from "@/components/setup/form-model"
 import type { SyncConfig } from "@/lib/config/schema"
 import type { AppRuntime } from "@/lib/runtime"
 
-import { updateSyncSettings } from "@/lib/config/sync"
+import { MailClient } from "@/lib/client/api"
 import { describeError } from "@/lib/errors"
 
 type SyncFieldId = "initialDays" | "intervalMinutes"
@@ -80,7 +80,8 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
     setBusy(true)
     report("saving…")
     const program = Effect.gen(function* persistSyncSettings() {
-      yield* updateSyncSettings({ initialDays, intervalMinutes }).pipe(
+      const client = yield* MailClient
+      yield* client.saveSyncSettings({ initialDays, intervalMinutes }).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             setBusy(false)
