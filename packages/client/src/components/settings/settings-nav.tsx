@@ -10,21 +10,17 @@ import { useTheme } from "@/components/theme-provider"
 import { truncate } from "@/lib/format"
 
 interface SettingsNavProps {
-  readonly query: string
-  readonly onQuery: (value: string) => void
   readonly groups: readonly SettingsGroup[]
   readonly collapsed: ReadonlySet<AccountId>
   readonly mutingIds: ReadonlySet<MailboxId>
   readonly mutingAccounts: ReadonlySet<AccountId>
   readonly selectedKey: string | undefined
-  readonly searchFocused: boolean
   readonly onSelect: (key: string) => void
   readonly onActivate: (key: string) => void
 }
 
 interface SettingsRowProps {
   readonly entry: SettingsEntry
-  readonly query: string
   readonly collapsed: ReadonlySet<AccountId>
   readonly mutingIds: ReadonlySet<MailboxId>
   readonly mutingAccounts: ReadonlySet<AccountId>
@@ -35,8 +31,8 @@ interface SettingsRowProps {
 
 const rowId = (key: string) => `settings-row-${key.replaceAll(":", "-")}`
 
-const groupCollapsed = (entry: SettingsEntry, query: string, collapsed: ReadonlySet<AccountId>) =>
-  entry.kind === "mailbox-group" && query.trim().length === 0 && collapsed.has(entry.accountId)
+const groupCollapsed = (entry: SettingsEntry, collapsed: ReadonlySet<AccountId>) =>
+  entry.kind === "mailbox-group" && collapsed.has(entry.accountId)
 
 const isMuting = (
   entry: SettingsEntry,
@@ -54,7 +50,7 @@ const isMuting = (
 
 const SettingsRow = (props: SettingsRowProps) => {
   const theme = useTheme()
-  const collapsed = () => groupCollapsed(props.entry, props.query, props.collapsed)
+  const collapsed = () => groupCollapsed(props.entry, props.collapsed)
   const muted = () => props.entry.kind === "mailbox" && props.entry.muted
   const textColor = () => {
     if (props.selected) {
@@ -79,7 +75,9 @@ const SettingsRow = (props: SettingsRowProps) => {
       backgroundColor={props.selected ? theme.selectionBackground : "transparent"}
       onMouseDown={() => {
         props.onSelect(props.entry.key)
-        props.onActivate(props.entry.key)
+        if (props.entry.kind !== "mailbox") {
+          props.onActivate(props.entry.key)
+        }
       }}
     >
       <box flexShrink={0}>
@@ -101,13 +99,23 @@ const SettingsNav = (props: SettingsNavProps) => {
   const theme = useTheme()
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
-  const selectedIsGroup = createMemo(() =>
-    props.groups.some((group) =>
-      group.entries.some(
-        (entry) => entry.key === props.selectedKey && entry.kind === "mailbox-group",
-      ),
-    ),
+  const selectedEntry = createMemo(() =>
+    props.groups.flatMap((group) => group.entries).find((entry) => entry.key === props.selectedKey),
   )
+
+  const activationHint = () => {
+    const entry = selectedEntry()
+    if (entry?.kind === "mailbox-group") {
+      return "toggle"
+    }
+    if (entry?.kind === "mailbox") {
+      return entry.muted ? "unmute" : "mute"
+    }
+    if (entry?.kind === "add-account") {
+      return "add"
+    }
+    return "edit"
+  }
 
   createEffect(() => {
     const box = scrollBox()
@@ -127,19 +135,6 @@ const SettingsNav = (props: SettingsNavProps) => {
       title="settings"
       titleColor={theme.muted}
     >
-      <box paddingLeft={1} paddingRight={1} flexShrink={0}>
-        <input
-          value={props.query}
-          onInput={props.onQuery}
-          focused={props.searchFocused}
-          placeholder="search settings…"
-          placeholderColor={theme.muted}
-          textColor={theme.text}
-          focusedTextColor={theme.text}
-          cursorColor={theme.accent}
-          flexGrow={1}
-        />
-      </box>
       <scrollbox
         ref={(box) => {
           setScrollBox(box)
@@ -148,11 +143,6 @@ const SettingsNav = (props: SettingsNavProps) => {
         paddingLeft={1}
         paddingRight={1}
       >
-        <Show when={props.groups.length === 0}>
-          <text fg={theme.muted} wrapMode="none" truncate>
-            no matches
-          </text>
-        </Show>
         <For each={props.groups}>
           {(group) => (
             <>
@@ -165,7 +155,6 @@ const SettingsNav = (props: SettingsNavProps) => {
                 {(entry) => (
                   <SettingsRow
                     entry={entry}
-                    query={props.query}
                     collapsed={props.collapsed}
                     mutingIds={props.mutingIds}
                     mutingAccounts={props.mutingAccounts}
@@ -181,7 +170,7 @@ const SettingsNav = (props: SettingsNavProps) => {
       </scrollbox>
       <box paddingLeft={1} paddingRight={1} flexShrink={0}>
         <text fg={theme.muted} wrapMode="none" truncate>
-          {`↑↓ move · ⏎ ${selectedIsGroup() ? "toggle" : "edit"} · esc close`}
+          {`↑↓ move · ⏎ ${activationHint()} · esc close`}
         </text>
       </box>
     </box>

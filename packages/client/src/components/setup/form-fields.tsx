@@ -1,6 +1,6 @@
 import type { FieldDescriptor } from "@/components/setup/form-model"
 
-import { maskSecret, securityLabel } from "@/components/setup/form-model"
+import { maskSecret, securityLabel, storedSecretMask } from "@/components/setup/form-model"
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
@@ -8,6 +8,7 @@ interface FieldRowProps<Id extends string> {
   readonly field: FieldDescriptor<Id>
   readonly focused: boolean
   readonly value: string
+  readonly stored?: boolean
   readonly pending?: boolean
   readonly onInput: (value: string) => void
 }
@@ -18,6 +19,8 @@ const FieldRow = <Id extends string>(props: FieldRowProps<Id>) => {
   const theme = useTheme()
   const labelColor = () => (props.focused ? theme.accent : theme.muted)
   const valueColor = () => (props.focused ? theme.text : theme.muted)
+  const secretText = () =>
+    props.value === "" && props.stored === true ? storedSecretMask : maskSecret(props.value)
   if (props.pending === true) {
     return (
       <box flexDirection="row" gap={1}>
@@ -64,7 +67,7 @@ const FieldRow = <Id extends string>(props: FieldRowProps<Id>) => {
       <box flexGrow={1} flexDirection="row">
         <text fg={valueColor()} wrapMode="none" truncate>
           {props.field.kind === "secret"
-            ? `${maskSecret(props.value)}${props.focused ? "▏" : ""}`
+            ? `${secretText()}${props.focused ? "▏" : ""}`
             : securityLabel(props.value)}
         </text>
       </box>

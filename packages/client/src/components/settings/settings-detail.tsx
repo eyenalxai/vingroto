@@ -44,6 +44,7 @@ const SettingsDetail = (props: SettingsDetailProps) => {
             active={props.zone === "detail"}
             valueOf={props.accountProfile.fieldValue}
             onInput={props.accountProfile.input}
+            storedSecretOf={(id) => id === "password"}
             pending={props.accountProfile.busy()}
             fieldPending={(id) => props.accountProfile.loading() && id === "username"}
             status={props.accountProfile.busy() ? "saving…" : props.accountProfile.status()}
@@ -108,11 +109,6 @@ const SettingsDetail = (props: SettingsDetailProps) => {
         >
           <text fg={theme.text}>Connect another mailbox.</text>
           <text fg={theme.muted}>⏎ start the account setup</text>
-        </box>
-      </Show>
-      <Show when={props.entry === undefined}>
-        <box flexGrow={1} paddingLeft={2} paddingRight={2} paddingTop={1}>
-          <text fg={theme.muted}>no settings match the search</text>
         </box>
       </Show>
     </box>

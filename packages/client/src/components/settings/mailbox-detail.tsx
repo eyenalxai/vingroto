@@ -64,7 +64,7 @@ const MailboxDetail = (props: MailboxDetailProps) => {
           <Spinner />
         </Show>
       </box>
-      <text fg={theme.muted}>⏎ toggle mute · esc back</text>
+      <text fg={theme.muted}>⏎ toggle mute · esc close</text>
     </box>
   )
 }
