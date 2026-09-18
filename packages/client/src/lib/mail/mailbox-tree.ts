@@ -133,7 +133,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
         label: row.name,
         marker: row.muted ? "⊘" : "",
         indented: true,
-        count: row.muted ? 0 : (input.counts.get(row.id)?.unread ?? 0),
+        count: input.counts.get(row.id)?.unread ?? 0,
         countTone: row.muted ? "quiet" : "attention",
         muted: row.muted,
         accountId: account.id,
