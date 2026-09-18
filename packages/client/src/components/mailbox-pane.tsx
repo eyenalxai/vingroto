@@ -47,7 +47,7 @@ const MailboxPane = (props: MailboxPaneProps) => {
     if (selected) {
       return theme.selectionForeground
     }
-    return row.tone === "unread" ? theme.unread : theme.muted
+    return row.countTone === "attention" ? theme.unread : theme.muted
   }
 
   const textColor = (row: MailboxTreeRow, selected: boolean) => {

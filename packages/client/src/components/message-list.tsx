@@ -11,7 +11,7 @@ interface MessageListProps {
   readonly title: string
   readonly messages: readonly MessageListItem[]
   readonly selectedId: number | undefined
-  readonly tagged: ReadonlySet<number>
+  readonly marked: ReadonlySet<number>
   readonly pending: ReadonlySet<number>
   readonly loading: boolean
   readonly focused: boolean
@@ -65,7 +65,7 @@ const MessageList = (props: MessageListProps) => {
         <For each={props.messages}>
           {(message) => {
             const isSelected = () => message.id === props.selectedId
-            const isTagged = () => props.tagged.has(message.id)
+            const isMarked = () => props.marked.has(message.id)
             const rowColor = () => {
               if (isSelected()) {
                 return theme.selectionForeground
@@ -73,7 +73,7 @@ const MessageList = (props: MessageListProps) => {
               return message.seen ? theme.muted : theme.text
             }
             const marker = () => {
-              if (isTagged()) {
+              if (isMarked()) {
                 return "✓"
               }
               return message.seen ? " " : "•"

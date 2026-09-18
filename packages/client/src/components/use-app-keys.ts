@@ -140,7 +140,7 @@ const useAppKeys = (options: AppKeysOptions) => {
     }
     if (key.name === "space") {
       if (options.pane() === "list") {
-        options.store.tagCurrent()
+        options.store.toggleMarkCurrent()
         return true
       }
       toggleFocusedAccount()
@@ -160,7 +160,7 @@ const useAppKeys = (options: AppKeysOptions) => {
         return true
       }
       if (key.ctrl && key.name === "a") {
-        options.store.toggleTagAll()
+        options.store.toggleMarkAll()
         return true
       }
     }
@@ -209,8 +209,8 @@ const useAppKeys = (options: AppKeysOptions) => {
       return true
     }
     if (key.name === "escape") {
-      if (options.pane() === "list" && options.store.taggedIds().size > 0) {
-        options.store.clearTags()
+      if (options.pane() === "list" && options.store.markedIds().size > 0) {
+        options.store.clearMarks()
         return true
       }
       if (options.pane() !== "mailbox") {

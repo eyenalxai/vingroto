@@ -15,8 +15,8 @@ import { MessageView } from "@/components/message-view"
 import {
   describePaneHint,
   mailboxPaneWidthFor,
+  markedHint,
   resolveLayoutMode,
-  taggedHint,
   visiblePanesFor,
 } from "@/components/pane-layout"
 import { useRuntime } from "@/components/runtime-provider"
@@ -70,9 +70,9 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const listTitle = createMemo(() => {
     const row = props.store.selectedMailboxTreeRow()
     const parts = [`${row?.label ?? "messages"} · ${props.store.messages().length}`]
-    const tagged = props.store.taggedMessages().length
-    if (tagged > 0) {
-      parts.push(`${tagged} selected`)
+    const marked = props.store.markedMessages().length
+    if (marked > 0) {
+      parts.push(`${marked} marked`)
     }
     return parts.join(" · ")
   })
@@ -81,8 +81,8 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     if (keys.leaderActive()) {
       return describeLeaderHint()
     }
-    if (pane() === "list" && props.store.taggedMessages().length > 0) {
-      return taggedHint
+    if (pane() === "list" && props.store.markedMessages().length > 0) {
+      return markedHint
     }
     return describePaneHint(pane())
   })
@@ -132,7 +132,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
               title={listTitle()}
               messages={props.store.messages()}
               selectedId={props.store.selectedMessageId()}
-              tagged={props.store.taggedIds()}
+              marked={props.store.markedIds()}
               pending={props.store.pendingMessageIds()}
               loading={props.store.loadingMessages()}
               focused={pane() === "list"}

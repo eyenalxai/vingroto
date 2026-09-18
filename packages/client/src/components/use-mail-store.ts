@@ -137,14 +137,14 @@ const useMailStore = (options: MailStoreOptions) => {
       loadMailboxData()
       messagePane.reloadCurrent()
       if (affected > 0) {
-        messagePane.clearTags()
+        messagePane.clearMarks()
       }
     },
     onDisconnected: options.onDisconnected,
     onStatus: options.onStatus,
     runtime: options.runtime,
     selectedMessage: messagePane.selectedMessage,
-    taggedMessages: messagePane.taggedMessages,
+    markedMessages: messagePane.markedMessages,
   })
 
   const toggleMailboxMuted = () => {

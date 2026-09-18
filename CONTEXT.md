@@ -20,6 +20,10 @@ _Avoid_: Virtual folder
 What the message list shows right now: a view or a mailbox.
 _Avoid_: Filter
 
+**Marked message**:
+A message in the multi-select set that batch actions — read, unread, move — apply to.
+_Avoid_: Tagged, checked
+
 **Message**:
 A cached mail header: UID, account, mailbox, subject, sender, date, flags, size and snippet.
 
@@ -34,6 +38,10 @@ The daemon's background fetching of bodies for unread messages in unmuted mailbo
 
 **Mute**:
 A mailbox marked to be excluded from unread counts, from the Unread views and from prefetching, while staying listed and readable.
+
+**Count tone**:
+Whether a mailbox-pane count draws attention (unread) or is quiet.
+_Avoid_: Muted (that is the mailbox state)
 
 **Sync**:
 The daemon fetching new messages into the cache. A mailbox's first sync covers the last `sync.initialDays`; later syncs fetch only messages above its last seen UID. When a server reassigns a mailbox's UID validity, the cached messages are dropped and the mailbox is synced from the date window again.

@@ -12,7 +12,7 @@ import { describeClientFailure } from "@/lib/failure"
 interface MessageActionsOptions {
   readonly runtime: AppRuntime
   readonly selectedMessage: () => MessageListItem | undefined
-  readonly taggedMessages: () => readonly MessageListItem[]
+  readonly markedMessages: () => readonly MessageListItem[]
   readonly onChanged: (affected: number) => void
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
@@ -22,9 +22,9 @@ const useMessageActions = (options: MessageActionsOptions) => {
   const [pendingMessageIds, setPendingMessageIds] = createSignal<ReadonlySet<number>>(new Set())
 
   const targets = () => {
-    const tagged = options.taggedMessages()
-    if (tagged.length > 0) {
-      return tagged
+    const marked = options.markedMessages()
+    if (marked.length > 0) {
+      return marked
     }
     const selected = options.selectedMessage()
     return selected === undefined ? [] : [selected]

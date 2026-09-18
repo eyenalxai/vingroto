@@ -2,7 +2,7 @@ import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { ListScope, Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
 type MailboxTreeRowKind = "global" | "account" | "unread" | "mailbox"
-type CountTone = "unread" | "muted"
+type CountTone = "attention" | "quiet"
 
 interface MailboxTreeRow {
   readonly key: string
@@ -11,7 +11,7 @@ interface MailboxTreeRow {
   readonly marker: string
   readonly indented: boolean
   readonly count: number | undefined
-  readonly tone: CountTone
+  readonly countTone: CountTone
   readonly muted: boolean
   readonly accountId: string | undefined
   readonly mailboxPath: string | undefined
@@ -60,7 +60,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
       marker: "",
       indented: false,
       count: undefined,
-      tone: "muted",
+      countTone: "quiet",
       muted: false,
       accountId: undefined,
       mailboxPath: undefined,
@@ -73,7 +73,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
       marker: "",
       indented: false,
       count: input.unread,
-      tone: "unread",
+      countTone: "attention",
       muted: false,
       accountId: undefined,
       mailboxPath: undefined,
@@ -96,7 +96,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
       marker: folded ? "▸" : "▾",
       indented: false,
       count: unread,
-      tone: "unread",
+      countTone: "attention",
       muted: false,
       accountId: account.id,
       mailboxPath: undefined,
@@ -112,7 +112,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
       marker: "",
       indented: true,
       count: unread,
-      tone: "unread",
+      countTone: "attention",
       muted: false,
       accountId: account.id,
       mailboxPath: undefined,
@@ -126,7 +126,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
         marker: row.muted ? "⊘" : "",
         indented: true,
         count: row.muted ? 0 : (input.counts.get(row.id)?.unread ?? 0),
-        tone: row.muted ? "muted" : "unread",
+        countTone: row.muted ? "quiet" : "attention",
         muted: row.muted,
         accountId: account.id,
         mailboxPath: row.path,

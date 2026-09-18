@@ -25,7 +25,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
   const [detail, setDetail] = createSignal<MessageDetail | undefined>()
   const [body, setBody] = createSignal<BodyState | undefined>()
   const [selectedMessageId, setSelectedMessageId] = createSignal<number | undefined>()
-  const [taggedIds, setTaggedIds] = createSignal<ReadonlySet<number>>(new Set())
+  const [markedIds, setMarkedIds] = createSignal<ReadonlySet<number>>(new Set())
   const [loadingMessages, setLoadingMessages] = createSignal(false)
   const [loadingDetail, setLoadingDetail] = createSignal(false)
   const [loadedListKey, setLoadedListKey] = createSignal<string | undefined>()
@@ -33,8 +33,8 @@ const useMessagePane = (options: MessagePaneOptions) => {
 
   const selectedMessage = createMemo(() => messages().find((row) => row.id === selectedMessageId()))
 
-  const taggedMessages = createMemo(() => {
-    const ids = taggedIds()
+  const markedMessages = createMemo(() => {
+    const ids = markedIds()
     return messages().filter((row) => ids.has(row.id))
   })
 
@@ -179,8 +179,8 @@ const useMessagePane = (options: MessagePaneOptions) => {
     }
   }
 
-  const toggleTag = (messageId: number) => {
-    setTaggedIds((current) => {
+  const toggleMark = (messageId: number) => {
+    setMarkedIds((current) => {
       const next = new Set<number>(current)
       if (next.has(messageId)) {
         next.delete(messageId)
@@ -191,25 +191,25 @@ const useMessagePane = (options: MessagePaneOptions) => {
     })
   }
 
-  const tagCurrent = () => {
+  const toggleMarkCurrent = () => {
     const messageId = selectedMessageId()
     if (messageId === undefined) {
       return
     }
-    toggleTag(messageId)
+    toggleMark(messageId)
     moveMessageSelection(1)
   }
 
-  const toggleTagAll = () => {
+  const toggleMarkAll = () => {
     const rows = messages()
-    setTaggedIds((current) => {
-      const allTagged = rows.length > 0 && rows.every((row) => current.has(row.id))
-      return allTagged ? new Set<number>() : new Set<number>(rows.map((row) => row.id))
+    setMarkedIds((current) => {
+      const allMarked = rows.length > 0 && rows.every((row) => current.has(row.id))
+      return allMarked ? new Set<number>() : new Set<number>(rows.map((row) => row.id))
     })
   }
 
-  const clearTags = () => {
-    setTaggedIds(new Set<number>())
+  const clearMarks = () => {
+    setMarkedIds(new Set<number>())
   }
 
   const reloadCurrent = () => {
@@ -218,7 +218,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
 
   createEffect(() => {
     options.listKey()
-    clearTags()
+    clearMarks()
     loadListMessages()
   })
 
@@ -243,19 +243,19 @@ const useMessagePane = (options: MessagePaneOptions) => {
 
   return {
     body,
-    clearTags,
+    clearMarks,
     detail,
     loadingDetail,
     loadingMessages,
+    markedIds,
+    markedMessages,
     messages,
     moveMessageSelection,
     reloadCurrent,
     selectedMessage,
     selectedMessageId,
-    tagCurrent,
-    taggedIds,
-    taggedMessages,
-    toggleTagAll,
+    toggleMarkAll,
+    toggleMarkCurrent,
   }
 }
 

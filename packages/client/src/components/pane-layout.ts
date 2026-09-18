@@ -14,7 +14,7 @@ const hints = {
   reader: "↑↓ scroll · pgup/pgdn · esc back · ctrl+x · q quit",
 } as const
 
-const taggedHint = "r read · u unread · m move · ctrl+a select all · esc clear"
+const markedHint = "r read · u unread · m move · ctrl+a mark all · esc clear"
 
 const resolveLayoutMode = (width: number): LayoutMode => {
   if (width >= wideLayoutWidth) {
@@ -53,7 +53,7 @@ export {
   mailboxPaneWidthFor,
   paneOrder,
   resolveLayoutMode,
-  taggedHint,
+  markedHint,
   visiblePanesFor,
   type LayoutMode,
   type Pane,
