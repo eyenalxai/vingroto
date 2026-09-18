@@ -5,16 +5,13 @@ import { MouseButton } from "@opentui/core"
 import { useRenderer } from "@opentui/solid"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
+import type { BodyState } from "@/lib/mail/body-state"
+
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { addressList, formatBytes, formatMessageDateTime } from "@/lib/format"
 import { splitLinks } from "@/lib/link"
 import { renderBodyText } from "@/lib/mail/body-text"
-
-type BodyState =
-  | { readonly _tag: "loading" }
-  | { readonly _tag: "error"; readonly message: string }
-  | { readonly _tag: "loaded"; readonly text: string | null; readonly html: string | null }
 
 interface HeaderLine {
   readonly label: string
@@ -213,4 +210,4 @@ const MessageView = (props: MessageViewProps) => {
   )
 }
 
-export { MessageView, type BodyState, type MessageViewProps }
+export { MessageView, type MessageViewProps }
