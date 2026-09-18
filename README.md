@@ -6,7 +6,7 @@ A terminal mail client: an OpenTUI (Solid) TUI talking to a daemon over a Unix-s
 
 **TUI client ↔ Unix-socket RPC ↔ daemon.**
 
-- **TUI client** (`packages/client/src/index.tsx`, `bun start`) renders the interface and sends commands over RPC. It never reads the config file, touches the keyring or the database, or opens an IMAP/SMTP connection. While the daemon is unreachable it shows a connecting screen and keeps retrying.
+- **TUI client** (`packages/client/src/index.tsx`, `bun client`) renders the interface and sends commands over RPC. It never reads the config file, touches the keyring or the database, or opens an IMAP/SMTP connection. While the daemon is unreachable it shows a connecting screen and keeps retrying.
 - **Daemon** (`packages/server/src/server.ts`, `bun server`) owns the configuration file, the OS keyring, the SQLite database and every IMAP/SMTP connection. It serves the client's requests and syncs mail in the background.
 
 The two processes find each other at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/server.sock` when `XDG_RUNTIME_DIR` is not set. Accounts, credentials, sync settings and cached mail live on the daemon side; passwords stay in the keyring and never cross the socket, so the client cannot leak them and closing the TUI does not stop syncing.
@@ -34,7 +34,7 @@ Start the daemon in the background, then the client:
 
 ```sh
 bun server &   # daemon
-bun start      # client
+bun client     # client
 ```
 
 The client retries until the daemon answers, so it is fine to start the client first. Both processes meet at `$XDG_RUNTIME_DIR/vingroto/server.sock`, falling back to `$XDG_DATA_HOME/vingroto/run/server.sock` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the socket, and the client never writes the config file or the database.
@@ -164,7 +164,7 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 
 ```sh
 bun server         # run the daemon
-bun start          # run the client
+bun client         # run the client
 bun run build      # compile standalone binaries into packages/*/dist/
 bun db:generate    # generate a migration from packages/server/src/lib/db/schema.ts
 bun db:check       # validate the generated migrations
