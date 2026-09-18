@@ -8,8 +8,9 @@ import type { MessageDetail } from "@/lib/store/messages"
 
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
-import { addressList, formatBytes, formatMessageDateTime, htmlToText } from "@/lib/format"
+import { addressList, formatBytes, formatMessageDateTime } from "@/lib/format"
 import { splitLinks } from "@/lib/link"
+import { renderBodyText } from "@/lib/mail/body-text"
 
 type BodyState =
   | { readonly _tag: "loading" }
@@ -40,16 +41,7 @@ const messageBodyText = (state: BodyState | undefined): string => {
   if (state._tag === "error") {
     return `could not load the message\n\n${state.message}`
   }
-  if (state.text !== null && state.text.trim().length > 0) {
-    return state.text
-  }
-  if (state.html !== null) {
-    const converted = htmlToText(state.html)
-    if (converted.length > 0) {
-      return converted
-    }
-  }
-  return "(this message has no readable text body)"
+  return renderBodyText(state.text, state.html)
 }
 
 const senderValue = (detail: MessageDetail): string => {
