@@ -109,6 +109,8 @@ const isServerField = (id: FieldId) =>
 
 const maskSecret = (value: string) => "•".repeat(value.length)
 
+const storedSecretMask = "*".repeat(12)
+
 const securityLabel = (value: string) => {
   if (value === "tls") {
     return "TLS"
@@ -247,6 +249,7 @@ export {
   maskSecret,
   securityLabel,
   serverFields,
+  storedSecretMask,
   validateDraft,
   validateEditDraft,
   type AccountDraft,

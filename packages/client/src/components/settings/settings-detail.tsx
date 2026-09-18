@@ -44,6 +44,7 @@ const SettingsDetail = (props: SettingsDetailProps) => {
             active={props.zone === "detail"}
             valueOf={props.accountProfile.fieldValue}
             onInput={props.accountProfile.input}
+            storedSecretOf={(id) => id === "password"}
             pending={props.accountProfile.busy()}
             fieldPending={(id) => props.accountProfile.loading() && id === "username"}
             status={props.accountProfile.busy() ? "saving…" : props.accountProfile.status()}

@@ -14,6 +14,7 @@ interface SettingsFormProps<Id extends string> {
   readonly active: boolean
   readonly valueOf: (id: Id) => string
   readonly onInput: (id: Id, value: string) => void
+  readonly storedSecretOf?: (id: Id) => boolean
   readonly status: string
   readonly statusError: boolean
   readonly pending?: boolean
@@ -41,6 +42,7 @@ const SettingsForm = <Id extends string>(props: SettingsFormProps<Id>) => {
               field={field}
               focused={props.active && props.focusedId === field.id}
               value={props.valueOf(field.id)}
+              stored={props.storedSecretOf?.(field.id) ?? false}
               pending={props.fieldPending?.(field.id) ?? false}
               onInput={(value) => {
                 props.onInput(field.id, value)
