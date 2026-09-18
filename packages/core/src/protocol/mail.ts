@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { MailAddress } from "../mail/address"
+import { MailAddressSchema } from "../mail/address"
 
 const MailboxSchema = Schema.Struct({
   id: Schema.Int,
@@ -74,8 +74,8 @@ const MessageDetailSchema = Schema.Struct({
   mailboxName: Schema.String,
   messageId: Schema.NullOr(Schema.String),
   inReplyTo: Schema.NullOr(Schema.String),
-  to: Schema.NullOr(Schema.Array(MailAddress)),
-  cc: Schema.NullOr(Schema.Array(MailAddress)),
+  to: Schema.NullOr(Schema.Array(MailAddressSchema)),
+  cc: Schema.NullOr(Schema.Array(MailAddressSchema)),
   answered: Schema.Boolean,
   draft: Schema.Boolean,
 })

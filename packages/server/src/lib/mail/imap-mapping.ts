@@ -1,6 +1,5 @@
+import type { MailAddress } from "@vingroto/core/mail/address"
 import type { FetchMessageObject, ListResponse, MessageAddressObject } from "imapflow"
-
-import { MailAddress } from "@vingroto/core/mail/address"
 
 import type { MailboxInfo, MessageEnvelope } from "@/lib/mail/imap-types"
 
@@ -42,8 +41,8 @@ const toMailAddresses = (
     if (entry.address !== undefined) {
       addresses.push(
         entry.name === undefined
-          ? new MailAddress({ address: entry.address })
-          : new MailAddress({ name: entry.name, address: entry.address }),
+          ? { address: entry.address }
+          : { name: entry.name, address: entry.address },
       )
     }
   }

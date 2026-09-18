@@ -22,8 +22,13 @@ import type { Effect, Stream } from "effect"
 import type { RpcClientError } from "effect/unstable/rpc"
 
 import * as Context from "effect/Context"
+import * as Schema from "effect/Schema"
 
-type MailClientError = ServerError | RpcClientError.RpcClientError
+class ClientDefect extends Schema.TaggedError<ClientDefect>()("ClientDefect", {
+  message: Schema.String,
+}) {}
+
+type MailClientError = ServerError | RpcClientError.RpcClientError | ClientDefect
 
 interface SyncRequest {
   readonly paths?: readonly string[]
@@ -67,4 +72,4 @@ class MailClient extends Context.Service<MailClient, MailClientShape>()(
   "vingroto/lib/client/MailClient",
 ) {}
 
-export { MailClient, type MailClientError, type MailClientShape, type SyncRequest }
+export { ClientDefect, MailClient, type MailClientError, type MailClientShape, type SyncRequest }

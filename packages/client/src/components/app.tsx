@@ -27,7 +27,7 @@ const App = () => {
   const runtime = useRuntime()
   const renderer = useRenderer()
   const daemon = useDaemonStatus(runtime)
-  const [status, setStatus] = createSignal("loading")
+  const [status, setStatus] = createSignal("ready")
   const [syncing, setSyncing] = createSignal(false)
   const [addingAccount, setAddingAccount] = createSignal(false)
   const [settingsOpen, setSettingsOpen] = createSignal(false)
@@ -110,11 +110,11 @@ const App = () => {
         if (result._tag === "Failure") {
           yield* Effect.sync(() => {
             const failure = describeClientFailure(result.failure)
-            if (failure._tag === "server") {
-              setStatus(`sync failed · ${failure.message}`)
+            if (failure._tag === "connection") {
+              daemon.retry(failure.message)
               return
             }
-            daemon.retry(failure.message)
+            setStatus(`sync failed · ${failure.message}`)
           })
           return
         }

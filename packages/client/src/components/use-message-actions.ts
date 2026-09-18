@@ -32,11 +32,11 @@ const useMessageActions = (options: MessageActionsOptions) => {
 
   const reportFailure = (label: string, error: MailClientError) => {
     const failure = describeClientFailure(error)
-    if (failure._tag === "server") {
-      options.onStatus(`${label} · ${failure.message}`)
+    if (failure._tag === "connection") {
+      options.onDisconnected(failure.message)
       return
     }
-    options.onDisconnected(failure.message)
+    options.onStatus(`${label} · ${failure.message}`)
   }
 
   const addPending = (ids: readonly number[]) => {

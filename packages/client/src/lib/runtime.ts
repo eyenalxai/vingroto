@@ -1,5 +1,6 @@
 import { BunServices, BunSocket } from "@effect/platform-bun"
 import { AppPaths } from "@vingroto/core/app-paths"
+import { describeError } from "@vingroto/core/errors"
 import { LoggingLayer } from "@vingroto/core/logging"
 import { ServerRpcs } from "@vingroto/core/protocol/rpc"
 import * as Effect from "effect/Effect"
@@ -9,7 +10,7 @@ import * as PubSub from "effect/PubSub"
 import * as Stream from "effect/Stream"
 import { RpcClient, RpcSerialization } from "effect/unstable/rpc"
 
-import { MailClient } from "@/lib/api"
+import { ClientDefect, MailClient } from "@/lib/api"
 import { ClientConnection, describeOpenError } from "@/lib/connection"
 
 const ServicesLayer = Layer.mergeAll(AppPaths.layer).pipe(Layer.provideMerge(BunServices.layer))
@@ -42,26 +43,40 @@ const ConnectionLayer = Layer.unwrap(
   }),
 )
 
+// Defects would otherwise kill the calling fiber silently, so the ui can report them as a failure.
+const guard = <A, E>(effect: Effect.Effect<A, E>) =>
+  effect.pipe(
+    Effect.catchDefect((defect) =>
+      Effect.fail(new ClientDefect({ message: describeError(defect) })),
+    ),
+  )
+
 const MailClientLayer = Layer.effect(
   MailClient,
   Effect.gen(function* makeMailClient() {
     const client = yield* RpcClient.make(ServerRpcs)
     return MailClient.of({
-      accountUsername: (id) => client.accountUsername({ id }),
-      createAccount: (input) => client.createAccount(input),
-      discover: (email) => client.discover({ email }),
-      events: client.events(),
-      folderSnapshot: () => client.folderSnapshot(),
-      getMessage: (id) => client.getMessage({ id }),
-      listMessages: (scope, limit) => client.listMessages({ limit, scope }),
-      loadBody: (id) => client.loadBody({ id }),
-      moveMessages: (ids, targetMailboxId) => client.moveMessages({ ids, targetMailboxId }),
-      saveSyncSettings: (settings) => client.saveSyncSettings(settings),
-      setMailboxMuted: (mailboxId, muted) => client.setMailboxMuted({ mailboxId, muted }),
-      setSeen: (ids, seen) => client.setSeen({ ids, seen }),
-      status: () => client.status(),
-      sync: (request) => client.sync(request),
-      updateAccount: (id, input) => client.updateAccount({ id, input }),
+      accountUsername: (id) => guard(client.accountUsername({ id })),
+      createAccount: (input) => guard(client.createAccount(input)),
+      discover: (email) => guard(client.discover({ email })),
+      events: client
+        .events()
+        .pipe(
+          Stream.catchDefect((defect) =>
+            Stream.fail(new ClientDefect({ message: describeError(defect) })),
+          ),
+        ),
+      folderSnapshot: () => guard(client.folderSnapshot()),
+      getMessage: (id) => guard(client.getMessage({ id })),
+      listMessages: (scope, limit) => guard(client.listMessages({ limit, scope })),
+      loadBody: (id) => guard(client.loadBody({ id })),
+      moveMessages: (ids, targetMailboxId) => guard(client.moveMessages({ ids, targetMailboxId })),
+      saveSyncSettings: (settings) => guard(client.saveSyncSettings(settings)),
+      setMailboxMuted: (mailboxId, muted) => guard(client.setMailboxMuted({ mailboxId, muted })),
+      setSeen: (ids, seen) => guard(client.setSeen({ ids, seen })),
+      status: () => guard(client.status()),
+      sync: (request) => guard(client.sync(request)),
+      updateAccount: (id, input) => guard(client.updateAccount({ id, input })),
     })
   }),
 )
