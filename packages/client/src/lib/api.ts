@@ -1,10 +1,9 @@
-import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type {
   AccountSave,
   DiscoveryResult,
   NewAccount,
   ServerStatus,
-  SyncSettings,
 } from "@vingroto/core/protocol/accounts"
 import type { ServerEvent } from "@vingroto/core/protocol/events"
 import type {
@@ -64,7 +63,7 @@ interface MailClientShape {
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, MailClientError>
   readonly accountUsername: (id: string) => Effect.Effect<string | null, MailClientError>
-  readonly saveSyncSettings: (settings: SyncSettings) => Effect.Effect<void, MailClientError>
+  readonly saveSyncSettings: (settings: SyncConfig) => Effect.Effect<void, MailClientError>
   readonly events: Stream.Stream<ServerEvent, MailClientError>
 }
 

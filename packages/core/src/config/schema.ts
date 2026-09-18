@@ -6,7 +6,7 @@ const ServerConfig = Schema.Struct({
   security: Schema.Literals(["tls", "starttls", "none"]),
 })
 
-interface ServerConfig extends Schema.Schema.Type<typeof ServerConfig> {}
+type ServerConfig = Schema.Schema.Type<typeof ServerConfig>
 
 const AccountConfig = Schema.Struct({
   id: Schema.String,
@@ -17,25 +17,27 @@ const AccountConfig = Schema.Struct({
   smtp: ServerConfig,
 })
 
-interface AccountConfig extends Schema.Schema.Type<typeof AccountConfig> {}
+type AccountConfig = Schema.Schema.Type<typeof AccountConfig>
 
 const SyncConfig = Schema.Struct({
   initialDays: Schema.Int,
   intervalMinutes: Schema.Int,
 })
 
-interface SyncConfig extends Schema.Schema.Type<typeof SyncConfig> {}
+type SyncConfig = Schema.Schema.Type<typeof SyncConfig>
+
+const AppConfig = Schema.Struct({
+  accounts: Schema.Array(AccountConfig),
+  sync: SyncConfig,
+})
+
+type AppConfig = Schema.Schema.Type<typeof AppConfig>
 
 const AppConfigFile = Schema.Struct({
-  accounts: Schema.Array(AccountConfig),
+  ...AppConfig.fields,
   sync: Schema.optionalKey(SyncConfig),
 })
 
-interface AppConfigFile extends Schema.Schema.Type<typeof AppConfigFile> {}
+type AppConfigFile = Schema.Schema.Type<typeof AppConfigFile>
 
-interface AppConfig {
-  readonly accounts: readonly AccountConfig[]
-  readonly sync: SyncConfig
-}
-
-export { AccountConfig, AppConfigFile, ServerConfig, SyncConfig, type AppConfig }
+export { AccountConfig, AppConfig, AppConfigFile, ServerConfig, SyncConfig }

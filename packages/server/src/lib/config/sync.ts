@@ -1,3 +1,5 @@
+import type { SyncConfig } from "@vingroto/core/config/schema"
+
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -8,15 +10,10 @@ class SyncSettingsInvalid extends Schema.TaggedError<SyncSettingsInvalid>()("Syn
   message: Schema.String,
 }) {}
 
-interface SyncSettings {
-  readonly initialDays: number
-  readonly intervalMinutes: number
-}
-
 const maxInitialDays = 3650
 const maxIntervalMinutes = 1440
 
-const updateSyncSettings = (input: SyncSettings) =>
+const updateSyncSettings = (input: SyncConfig) =>
   Effect.gen(function* persistSyncSettings() {
     if (
       !Number.isInteger(input.initialDays) ||
@@ -47,4 +44,4 @@ const updateSyncSettings = (input: SyncSettings) =>
     yield* Effect.logInfo("sync settings saved").pipe(Effect.annotateLogs({ ...input }))
   })
 
-export { SyncSettingsInvalid, updateSyncSettings, type SyncSettings }
+export { SyncSettingsInvalid, updateSyncSettings }

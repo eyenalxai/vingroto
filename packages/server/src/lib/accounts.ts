@@ -1,5 +1,5 @@
-import type { AccountConfig } from "@vingroto/core/config/schema"
-import type { AccountSave, NewAccount, SyncSettings } from "@vingroto/core/protocol/accounts"
+import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
 
 import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
@@ -30,7 +30,7 @@ interface AccountsShape {
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, AccountWriteError | AccountNotFound>
   readonly saveSyncSettings: (
-    settings: SyncSettings,
+    settings: SyncConfig,
   ) => Effect.Effect<
     void,
     ConfigInvalid | ConfigUnreadable | ConfigWriteError | SyncSettingsInvalid
@@ -79,7 +79,7 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
       })
 
       const saveSyncSettings = Effect.fn("Accounts.saveSyncSettings")(function* persistSyncSettings(
-        settings: SyncSettings,
+        settings: SyncConfig,
       ) {
         yield* provide(updateSyncSettings(settings))
         yield* events.publish({ _tag: "config-changed" })

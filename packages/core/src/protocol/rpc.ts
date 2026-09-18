@@ -1,8 +1,8 @@
 import * as Schema from "effect/Schema"
 import { Rpc, RpcGroup } from "effect/unstable/rpc"
 
-import { AccountConfig } from "../config/schema"
-import { AccountSave, DiscoveryResult, NewAccount, ServerStatus, SyncSettings } from "./accounts"
+import { AccountConfig, SyncConfig } from "../config/schema"
+import { AccountSave, DiscoveryResult, NewAccount, ServerStatus } from "./accounts"
 import { ServerEvent } from "./events"
 import {
   FolderScope,
@@ -81,7 +81,7 @@ const ServerRpcs = RpcGroup.make(
     error: ServerError,
   }),
   Rpc.make("saveSyncSettings", {
-    payload: SyncSettings,
+    payload: SyncConfig,
     success: Schema.Void,
     error: ServerError,
   }),

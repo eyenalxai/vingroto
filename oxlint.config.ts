@@ -112,13 +112,10 @@ export default defineConfig({
         // Core deliberately has no path aliases: it is loaded with an arbitrary
         // cwd, so its own child directories are reached with relative imports.
         "import/no-relative-parent-imports": "off",
-        // Core data models pair every Schema.Struct with a same-name interface
-        // that extends the struct's decoded type. The base rule cannot see TS
-        // declaration merging, while the empty-type rules have options for the
-        // intentional single-extends shape.
+        // Core data models pair every Schema.Struct with a same-name type alias
+        // for its decoded type. The rule does not distinguish the value and
+        // type declaration spaces, so it reads the pair as a redeclaration.
         "no-redeclare": "off",
-        "typescript/no-empty-interface": ["error", { allowSingleExtends: true }],
-        "typescript/no-empty-object-type": ["error", { allowInterfaces: "with-single-extends" }],
       },
     },
   ],
