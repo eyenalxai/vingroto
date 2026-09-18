@@ -1,5 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountId } from "@vingroto/core/ids"
 
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { Effect } from "effect"
@@ -29,7 +30,7 @@ interface MailWorkspaceProps {
   readonly accounts: readonly AccountConfig[]
   readonly syncing: boolean
   readonly status: string
-  readonly syncWindow: (paths: readonly string[] | undefined, accountId?: string) => void
+  readonly syncWindow: (paths: readonly string[] | undefined, accountId?: AccountId) => void
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
   readonly onOpenSettings: () => void
@@ -47,7 +48,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const visiblePanes = createMemo(() => visiblePanesFor(layout(), pane()))
   const showPane = (target: Pane) => visiblePanes().includes(target)
 
-  const accountLabels = createMemo<ReadonlyMap<string, string>>(
+  const accountLabels = createMemo<ReadonlyMap<AccountId, string>>(
     () => new Map(props.accounts.map((account) => [account.id, account.label])),
   )
 

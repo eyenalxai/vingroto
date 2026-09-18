@@ -1,4 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
+import type { AccountId, MailboxId } from "@vingroto/core/ids"
 
 import { For, Show, createEffect, createSignal } from "solid-js"
 
@@ -13,8 +14,8 @@ interface MailboxPaneProps {
   readonly selectedKey: string | undefined
   readonly focused: boolean
   readonly loading: boolean
-  readonly syncingIds: ReadonlySet<number>
-  readonly mutingIds: ReadonlySet<number>
+  readonly syncingIds: ReadonlySet<MailboxId>
+  readonly mutingIds: ReadonlySet<MailboxId>
 }
 
 const rowId = (key: string) => `mailbox-row-${key.replaceAll(":", "-")}`
@@ -40,7 +41,7 @@ const MailboxPane = (props: MailboxPaneProps) => {
     return props.syncingIds.has(row.mailboxId) || props.mutingIds.has(row.mailboxId)
   }
 
-  const accountBusy = (accountId: string) =>
+  const accountBusy = (accountId: AccountId) =>
     props.rows.some((row) => row.accountId === accountId && mailboxBusy(row))
 
   const badgeColor = (row: MailboxTreeRow, selected: boolean) => {

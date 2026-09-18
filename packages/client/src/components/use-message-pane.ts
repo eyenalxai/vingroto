@@ -1,3 +1,4 @@
+import type { MessageId } from "@vingroto/core/ids"
 import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 
 import { Effect, Fiber } from "effect"
@@ -25,8 +26,8 @@ const useMessagePane = (options: MessagePaneOptions) => {
   const [messages, setMessages] = createSignal<readonly MessageListItem[]>([])
   const [detail, setDetail] = createSignal<MessageDetail | undefined>()
   const [body, setBody] = createSignal<BodyState | undefined>()
-  const [selectedMessageId, setSelectedMessageId] = createSignal<number | undefined>()
-  const [markedIds, setMarkedIds] = createSignal<ReadonlySet<number>>(new Set())
+  const [selectedMessageId, setSelectedMessageId] = createSignal<MessageId | undefined>()
+  const [markedIds, setMarkedIds] = createSignal<ReadonlySet<MessageId>>(new Set())
   const [loadingMessages, setLoadingMessages] = createSignal(false)
   const [loadingDetail, setLoadingDetail] = createSignal(false)
   const [loadedListKey, setLoadedListKey] = createSignal<string | undefined>()
@@ -105,7 +106,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
     })
   }
 
-  const loadDetail = (messageId: number) => {
+  const loadDetail = (messageId: MessageId) => {
     untrack(() => {
       setLoadingDetail(true)
       const program = Effect.gen(function* loadMessageDetail() {
@@ -137,13 +138,13 @@ const useMessagePane = (options: MessagePaneOptions) => {
     })
   }
 
-  const applyBody = (messageId: number, state: BodyState) => {
+  const applyBody = (messageId: MessageId, state: BodyState) => {
     if (selectedMessageId() === messageId) {
       setBody(state)
     }
   }
 
-  const loadBody = (messageId: number) =>
+  const loadBody = (messageId: MessageId) =>
     untrack(() => {
       const program = Effect.gen(function* loadMessageBody() {
         yield* Effect.sync(() => {
@@ -180,9 +181,9 @@ const useMessagePane = (options: MessagePaneOptions) => {
     }
   }
 
-  const toggleMark = (messageId: number) => {
+  const toggleMark = (messageId: MessageId) => {
     setMarkedIds((current) => {
-      const next = new Set<number>(current)
+      const next = new Set<MessageId>(current)
       if (next.has(messageId)) {
         next.delete(messageId)
       } else {
@@ -205,12 +206,12 @@ const useMessagePane = (options: MessagePaneOptions) => {
     const rows = messages()
     setMarkedIds((current) => {
       const allMarked = rows.length > 0 && rows.every((row) => current.has(row.id))
-      return allMarked ? new Set<number>() : new Set<number>(rows.map((row) => row.id))
+      return allMarked ? new Set<MessageId>() : new Set<MessageId>(rows.map((row) => row.id))
     })
   }
 
   const clearMarks = () => {
-    setMarkedIds(new Set<number>())
+    setMarkedIds(new Set<MessageId>())
   }
 
   const reloadCurrent = () => {

@@ -1,4 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
+import type { AccountId, MailboxId } from "@vingroto/core/ids"
 
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
@@ -12,9 +13,9 @@ interface SettingsNavProps {
   readonly query: string
   readonly onQuery: (value: string) => void
   readonly groups: readonly SettingsGroup[]
-  readonly collapsed: ReadonlySet<string>
-  readonly mutingIds: ReadonlySet<number>
-  readonly mutingAccounts: ReadonlySet<string>
+  readonly collapsed: ReadonlySet<AccountId>
+  readonly mutingIds: ReadonlySet<MailboxId>
+  readonly mutingAccounts: ReadonlySet<AccountId>
   readonly selectedKey: string | undefined
   readonly searchFocused: boolean
   readonly onSelect: (key: string) => void
@@ -24,9 +25,9 @@ interface SettingsNavProps {
 interface SettingsRowProps {
   readonly entry: SettingsEntry
   readonly query: string
-  readonly collapsed: ReadonlySet<string>
-  readonly mutingIds: ReadonlySet<number>
-  readonly mutingAccounts: ReadonlySet<string>
+  readonly collapsed: ReadonlySet<AccountId>
+  readonly mutingIds: ReadonlySet<MailboxId>
+  readonly mutingAccounts: ReadonlySet<AccountId>
   readonly selected: boolean
   readonly onSelect: (key: string) => void
   readonly onActivate: (key: string) => void
@@ -34,13 +35,13 @@ interface SettingsRowProps {
 
 const rowId = (key: string) => `settings-row-${key.replaceAll(":", "-")}`
 
-const groupCollapsed = (entry: SettingsEntry, query: string, collapsed: ReadonlySet<string>) =>
+const groupCollapsed = (entry: SettingsEntry, query: string, collapsed: ReadonlySet<AccountId>) =>
   entry.kind === "mailbox-group" && query.trim().length === 0 && collapsed.has(entry.accountId)
 
 const isMuting = (
   entry: SettingsEntry,
-  mutingIds: ReadonlySet<number>,
-  accounts: ReadonlySet<string>,
+  mutingIds: ReadonlySet<MailboxId>,
+  accounts: ReadonlySet<AccountId>,
 ) => {
   if (entry.kind === "mailbox") {
     return mutingIds.has(entry.mailboxId)

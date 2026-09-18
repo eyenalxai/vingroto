@@ -1,4 +1,5 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { matchesQuery, queryTerms } from "@/lib/search"
@@ -14,12 +15,12 @@ interface SettingsEntryBase {
 
 type SettingsEntry =
   | (SettingsEntryBase & { readonly kind: "add-account" })
-  | (SettingsEntryBase & { readonly kind: "account"; readonly accountId: string })
-  | (SettingsEntryBase & { readonly kind: "mailbox-group"; readonly accountId: string })
+  | (SettingsEntryBase & { readonly kind: "account"; readonly accountId: AccountId })
+  | (SettingsEntryBase & { readonly kind: "mailbox-group"; readonly accountId: AccountId })
   | (SettingsEntryBase & {
       readonly kind: "mailbox"
-      readonly mailboxId: number
-      readonly accountId: string
+      readonly mailboxId: MailboxId
+      readonly accountId: AccountId
       readonly parentKey: string
       readonly path: string
       readonly name: string
@@ -40,7 +41,7 @@ interface SettingsEntriesInput {
 
 const sectionOrder: readonly SettingsSection[] = ["Accounts", "Mailboxes", "Sync"]
 
-const mailboxGroupKey = (accountId: string) => `mailboxes:${accountId}`
+const mailboxGroupKey = (accountId: AccountId) => `mailboxes:${accountId}`
 
 const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEntry[] => {
   const entries: SettingsEntry[] = [
@@ -141,7 +142,7 @@ const filterSettingsEntries = (
 
 const visibleSettingsEntries = (
   entries: readonly SettingsEntry[],
-  collapsedAccounts: ReadonlySet<string>,
+  collapsedAccounts: ReadonlySet<AccountId>,
   query: string,
 ): readonly SettingsEntry[] => {
   if (queryTerms(query).length > 0) {

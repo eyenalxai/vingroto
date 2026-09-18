@@ -1,6 +1,10 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { ListScope, Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
+import { AccountId, MailboxId } from "@vingroto/core/ids"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+
 type MailboxTreeRowKind = "global" | "account" | "unread" | "mailbox"
 type CountTone = "attention" | "quiet"
 
@@ -13,9 +17,9 @@ interface MailboxTreeRow {
   readonly count: number | undefined
   readonly countTone: CountTone
   readonly muted: boolean
-  readonly accountId: string | undefined
+  readonly accountId: AccountId | undefined
   readonly mailboxPath: string | undefined
-  readonly mailboxId: number | undefined
+  readonly mailboxId: MailboxId | undefined
 }
 
 type ListTarget = ListScope
@@ -23,12 +27,14 @@ type ListTarget = ListScope
 interface MailboxTreeInput {
   readonly accounts: readonly AccountConfig[]
   readonly mailboxes: readonly Mailbox[]
-  readonly counts: ReadonlyMap<number, MailboxCounts>
+  readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly unread: number
-  readonly collapsed: ReadonlySet<string>
+  readonly collapsed: ReadonlySet<AccountId>
 }
 
 const accountUnreadPrefix = "virtual:unread:"
+
+const parseMailboxId = Schema.decodeUnknownOption(MailboxId)
 
 const parseListKey = (key: string | undefined): ListTarget | undefined => {
   if (key === undefined) {
@@ -42,11 +48,13 @@ const parseListKey = (key: string | undefined): ListTarget | undefined => {
   }
   if (key.startsWith(accountUnreadPrefix)) {
     const accountId = key.slice(accountUnreadPrefix.length)
-    return accountId.length === 0 ? undefined : { kind: "unread", accountId }
+    return accountId.length === 0
+      ? undefined
+      : { kind: "unread", accountId: AccountId.make(accountId) }
   }
   if (key.startsWith("mailbox:")) {
-    const id = Number(key.slice("mailbox:".length))
-    return Number.isNaN(id) ? undefined : { kind: "mailbox", mailboxId: id }
+    const mailboxId = parseMailboxId(Number(key.slice("mailbox:".length)))
+    return Option.isSome(mailboxId) ? { kind: "mailbox", mailboxId: mailboxId.value } : undefined
   }
   return undefined
 }

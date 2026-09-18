@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
 import { Show } from "solid-js"
@@ -18,10 +19,10 @@ interface SettingsDetailProps {
   readonly account: AccountConfig | undefined
   readonly mailbox: Mailbox | undefined
   readonly accountLabel: string
-  readonly counts: ReadonlyMap<number, MailboxCounts>
+  readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly accountProfile: ReturnType<typeof useAccountProfile>
   readonly syncProfile: ReturnType<typeof useSyncProfile>
-  readonly mutingIds: ReadonlySet<number>
+  readonly mutingIds: ReadonlySet<MailboxId>
 }
 
 const SettingsDetail = (props: SettingsDetailProps) => {

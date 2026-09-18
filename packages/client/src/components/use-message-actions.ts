@@ -1,3 +1,4 @@
+import type { MessageId } from "@vingroto/core/ids"
 import type { Mailbox, MessageListItem } from "@vingroto/core/protocol/mail"
 
 import { Effect } from "effect"
@@ -19,7 +20,7 @@ interface MessageActionsOptions {
 }
 
 const useMessageActions = (options: MessageActionsOptions) => {
-  const [pendingMessageIds, setPendingMessageIds] = createSignal<ReadonlySet<number>>(new Set())
+  const [pendingMessageIds, setPendingMessageIds] = createSignal<ReadonlySet<MessageId>>(new Set())
 
   const targets = () => {
     const marked = options.markedMessages()
@@ -39,7 +40,7 @@ const useMessageActions = (options: MessageActionsOptions) => {
     options.onStatus(`${label} · ${failure.message}`)
   }
 
-  const addPending = (ids: readonly number[]) => {
+  const addPending = (ids: readonly MessageId[]) => {
     setPendingMessageIds((current) => {
       const next = new Set(current)
       for (const id of ids) {
@@ -49,7 +50,7 @@ const useMessageActions = (options: MessageActionsOptions) => {
     })
   }
 
-  const removePending = (ids: readonly number[]) => {
+  const removePending = (ids: readonly MessageId[]) => {
     setPendingMessageIds((current) => {
       const next = new Set(current)
       for (const id of ids) {

@@ -1,4 +1,5 @@
 import type { CliRenderer, KeyEvent, ScrollBoxRenderable } from "@opentui/core"
+import type { AccountId } from "@vingroto/core/ids"
 
 import { useKeyboard } from "@opentui/solid"
 
@@ -15,7 +16,7 @@ interface AppKeysOptions {
   readonly pane: () => Pane
   readonly setPane: (pane: Pane) => void
   readonly readerScroll: () => ScrollBoxRenderable | undefined
-  readonly syncWindow: (paths: readonly string[] | undefined, accountId?: string) => void
+  readonly syncWindow: (paths: readonly string[] | undefined, accountId?: AccountId) => void
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
   readonly onOpenSettings: () => void

@@ -1,11 +1,12 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountId } from "@vingroto/core/ids"
 import type { Mailbox, MessageListItem } from "@vingroto/core/protocol/mail"
 
 import * as Data from "effect/Data"
 
 type MoveTargetsResult = Data.TaggedEnum<{
   ok: {
-    readonly accountId: string
+    readonly accountId: AccountId
     readonly accountLabel: string
     readonly mailboxes: readonly Mailbox[]
   }

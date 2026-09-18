@@ -1,4 +1,5 @@
 import type { MouseEvent, ScrollBoxRenderable } from "@opentui/core"
+import type { AccountId } from "@vingroto/core/ids"
 import type { MessageDetail } from "@vingroto/core/protocol/mail"
 
 import { MouseButton } from "@opentui/core"
@@ -23,7 +24,7 @@ interface MessageViewProps {
   readonly body: BodyState | undefined
   readonly loadingDetail: boolean
   readonly focused: boolean
-  readonly accountLabels: ReadonlyMap<string, string>
+  readonly accountLabels: ReadonlyMap<AccountId, string>
   readonly onScrollRef: (box: ScrollBoxRenderable) => void
   readonly onOpenLink: (url: string) => void
 }

@@ -1,4 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
+import type { MailboxId } from "@vingroto/core/ids"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
@@ -14,7 +15,7 @@ interface MovePickerProps {
   readonly onSelect: (mailbox: Mailbox) => void
 }
 
-const rowId = (mailboxId: number) => `move-row-${mailboxId}`
+const rowId = (mailboxId: MailboxId) => `move-row-${mailboxId}`
 
 const MovePicker = (props: MovePickerProps) => {
   const theme = useTheme()

@@ -1,4 +1,5 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
 import type {
   AccountSave,
   DiscoveryResult,
@@ -31,7 +32,7 @@ type MailClientError = ServerError | RpcClientError.RpcClientError | ClientDefec
 
 interface SyncRequest {
   readonly paths?: readonly string[]
-  readonly accountId?: string
+  readonly accountId?: AccountId
 }
 
 interface MailClientShape {
@@ -41,28 +42,28 @@ interface MailClientShape {
     scope: ListScope,
     limit: number,
   ) => Effect.Effect<readonly MessageListItem[], MailClientError>
-  readonly getMessage: (id: number) => Effect.Effect<MessageDetail | null, MailClientError>
-  readonly loadBody: (id: number) => Effect.Effect<MessageBody, MailClientError>
+  readonly getMessage: (id: MessageId) => Effect.Effect<MessageDetail | null, MailClientError>
+  readonly loadBody: (id: MessageId) => Effect.Effect<MessageBody, MailClientError>
   readonly setSeen: (
-    ids: readonly number[],
+    ids: readonly MessageId[],
     seen: boolean,
   ) => Effect.Effect<SeenOutcome, MailClientError>
   readonly moveMessages: (
-    ids: readonly number[],
-    targetMailboxId: number,
+    ids: readonly MessageId[],
+    targetMailboxId: MailboxId,
   ) => Effect.Effect<MoveOutcome, MailClientError>
   readonly setMailboxMuted: (
-    mailboxId: number,
+    mailboxId: MailboxId,
     muted: boolean,
   ) => Effect.Effect<void, MailClientError>
   readonly sync: (request: SyncRequest) => Effect.Effect<readonly SyncReport[], MailClientError>
   readonly discover: (email: string) => Effect.Effect<DiscoveryResult, MailClientError>
   readonly createAccount: (input: NewAccount) => Effect.Effect<AccountConfig, MailClientError>
   readonly updateAccount: (
-    id: string,
+    id: AccountId,
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, MailClientError>
-  readonly accountUsername: (id: string) => Effect.Effect<string | null, MailClientError>
+  readonly accountUsername: (id: AccountId) => Effect.Effect<string | null, MailClientError>
   readonly saveSyncSettings: (settings: SyncConfig) => Effect.Effect<void, MailClientError>
   readonly events: Stream.Stream<ServerEvent, MailClientError>
 }

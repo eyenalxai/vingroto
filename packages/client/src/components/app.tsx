@@ -1,4 +1,5 @@
 import type { AccountConfig, AppConfig } from "@vingroto/core/config/schema"
+import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { useRenderer } from "@opentui/solid"
@@ -86,7 +87,7 @@ const App = () => {
     runtime,
   })
 
-  const syncWindow = (paths?: readonly string[], accountId?: string) => {
+  const syncWindow = (paths?: readonly string[], accountId?: AccountId) => {
     untrack(() => {
       const config = appConfig()
       if (config === undefined || syncing()) {
@@ -195,7 +196,7 @@ const App = () => {
     setMoving({ accountLabel: result.accountLabel, mailboxes: result.mailboxes })
   }
 
-  const autoSyncedMailboxes = new Set<number>()
+  const autoSyncedMailboxes = new Set<MailboxId>()
 
   createEffect(() => {
     const mailbox = store.selectedMailbox()

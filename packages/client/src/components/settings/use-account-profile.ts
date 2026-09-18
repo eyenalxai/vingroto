@@ -1,5 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountId } from "@vingroto/core/ids"
 
 import { Effect, Fiber } from "effect"
 import { createEffect, createMemo, createSignal } from "solid-js"
@@ -51,7 +52,7 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
   const [loading, setLoading] = createSignal(false)
   const fields: readonly FieldDescriptor[] = editFields
   let usernameEdited = false
-  let loadedUsernameId: string | null = null
+  let loadedUsernameId: AccountId | null = null
   let loadToken = 0
   let usernameFiber: Fiber.Fiber<unknown, unknown> | null = null
 

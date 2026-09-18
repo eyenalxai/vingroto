@@ -1,3 +1,5 @@
+import type { MailboxId } from "@vingroto/core/ids"
+
 import { Effect } from "effect"
 import { createSignal } from "solid-js"
 
@@ -14,9 +16,9 @@ interface UseMailboxMuteOptions {
 }
 
 const useMailboxMute = (options: UseMailboxMuteOptions) => {
-  const [mutingIds, setMutingIds] = createSignal<ReadonlySet<number>>(new Set())
+  const [mutingIds, setMutingIds] = createSignal<ReadonlySet<MailboxId>>(new Set())
 
-  const setMuting = (mailboxId: number, muting: boolean) => {
+  const setMuting = (mailboxId: MailboxId, muting: boolean) => {
     setMutingIds((current) => {
       const next = new Set(current)
       if (muting) {
@@ -28,7 +30,7 @@ const useMailboxMute = (options: UseMailboxMuteOptions) => {
     })
   }
 
-  const toggleMute = (mailboxId: number, name: string, muted: boolean) => {
+  const toggleMute = (mailboxId: MailboxId, name: string, muted: boolean) => {
     if (mutingIds().has(mailboxId)) {
       return
     }

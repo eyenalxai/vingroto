@@ -1,5 +1,6 @@
 import type { KeyEvent } from "@opentui/core"
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
@@ -23,7 +24,7 @@ import { useTheme } from "@/components/theme-provider"
 interface SettingsScreenProps {
   readonly accounts: readonly AccountConfig[]
   readonly mailboxes: readonly Mailbox[]
-  readonly counts: ReadonlyMap<number, MailboxCounts>
+  readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly sync: SyncConfig
   readonly onAddAccount: () => void
   readonly onClose: () => void
@@ -40,7 +41,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const [query, setQuery] = createSignal("")
   const [zone, setZone] = createSignal<"nav" | "detail">("nav")
   const [status, setStatus] = createSignal("")
-  const [collapsedMailboxes, setCollapsedMailboxes] = createSignal<ReadonlySet<string>>(new Set())
+  const [collapsedMailboxes, setCollapsedMailboxes] = createSignal(new Set<AccountId>())
   const [selectedKey, setSelectedKey] = createSignal<string | undefined>(
     props.accounts[0] === undefined ? "add-account" : `account:${props.accounts[0].id}`,
   )
@@ -66,13 +67,8 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     onDisconnected: props.onDisconnected,
   })
   const mutingAccounts = createMemo(() => {
-    const accounts = new Set<string>()
-    for (const mailbox of props.mailboxes) {
-      if (mailboxMute.mutingIds().has(mailbox.id)) {
-        accounts.add(mailbox.account_id)
-      }
-    }
-    return accounts
+    const muted = props.mailboxes.filter((mailbox) => mailboxMute.mutingIds().has(mailbox.id))
+    return new Set(muted.map((mailbox) => mailbox.account_id))
   })
   const selectedEntry = createMemo(() => visible().find((entry) => entry.key === selectedKey()))
 
@@ -132,7 +128,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     onDisconnected: props.onDisconnected,
   })
 
-  const toggleGroup = (accountId: string) => {
+  const toggleGroup = (accountId: AccountId) => {
     setCollapsedMailboxes((current) => {
       const next = new Set(current)
       if (next.has(accountId)) {

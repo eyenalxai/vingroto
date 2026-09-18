@@ -1,4 +1,5 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
+import type { MessageId } from "@vingroto/core/ids"
 import type { MessageListItem } from "@vingroto/core/protocol/mail"
 
 import { For, Show, createEffect, createSignal } from "solid-js"
@@ -10,9 +11,9 @@ import { formatMessageDate, senderLabel } from "@/lib/format"
 interface MessageListProps {
   readonly title: string
   readonly messages: readonly MessageListItem[]
-  readonly selectedId: number | undefined
-  readonly marked: ReadonlySet<number>
-  readonly pending: ReadonlySet<number>
+  readonly selectedId: MessageId | undefined
+  readonly marked: ReadonlySet<MessageId>
+  readonly pending: ReadonlySet<MessageId>
   readonly loading: boolean
   readonly focused: boolean
 }

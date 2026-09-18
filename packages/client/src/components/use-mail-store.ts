@@ -1,7 +1,9 @@
 import type { AppConfig } from "@vingroto/core/config/schema"
+import type { MailboxId } from "@vingroto/core/ids"
 import type { ServerEvent, SyncEvent } from "@vingroto/core/protocol/events"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
+import { AccountId } from "@vingroto/core/ids"
 import { describeSyncEvent } from "@vingroto/core/protocol/events"
 import { Effect } from "effect"
 import { createEffect, createMemo, createSignal, untrack } from "solid-js"
@@ -26,18 +28,18 @@ interface MailStoreOptions {
   readonly onConfigChanged: () => void
 }
 
-const withoutId = (current: ReadonlySet<number>, id: number) =>
+const withoutId = (current: ReadonlySet<MailboxId>, id: MailboxId) =>
   new Set([...current].filter((entry) => entry !== id))
 
 const useMailStore = (options: MailStoreOptions) => {
   const [mailboxes, setMailboxes] = createSignal<readonly Mailbox[]>([])
-  const [counts, setCounts] = createSignal<ReadonlyMap<number, MailboxCounts>>(new Map())
+  const [counts, setCounts] = createSignal<ReadonlyMap<MailboxId, MailboxCounts>>(new Map())
   const [unread, setUnread] = createSignal(0)
   const [selectedListKey, setSelectedListKey] = createSignal<string | undefined>()
-  const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<string>>(new Set())
+  const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<AccountId>>(new Set())
   const [loadingMailboxes, setLoadingMailboxes] = createSignal(false)
-  const [mutingMailboxIds, setMutingMailboxIds] = createSignal<ReadonlySet<number>>(new Set())
-  const [syncingMailboxIds, setSyncingMailboxIds] = createSignal<ReadonlySet<number>>(new Set())
+  const [mutingMailboxIds, setMutingMailboxIds] = createSignal<ReadonlySet<MailboxId>>(new Set())
+  const [syncingMailboxIds, setSyncingMailboxIds] = createSignal<ReadonlySet<MailboxId>>(new Set())
   let mailboxLoadToken = 0
 
   const visibleMailboxes = createMemo(() => mailboxes().filter((row) => row.selectable))
@@ -104,7 +106,7 @@ const useMailStore = (options: MailStoreOptions) => {
           const snapshot = yield* client.mailboxSnapshot()
           yield* Effect.sync(() => {
             setMailboxes(snapshot.mailboxes)
-            const next = new Map<number, MailboxCounts>()
+            const next = new Map<MailboxId, MailboxCounts>()
             for (const entry of snapshot.counts) {
               next.set(entry.mailboxId, entry.counts)
             }
@@ -191,7 +193,7 @@ const useMailStore = (options: MailStoreOptions) => {
   }
 
   const toggleAccountRow = (key: string) => {
-    const accountId = key.slice("account:".length)
+    const accountId = AccountId.make(key.slice("account:".length))
     setCollapsedAccounts((current) => {
       const next = new Set(current)
       if (next.has(accountId)) {
@@ -204,7 +206,7 @@ const useMailStore = (options: MailStoreOptions) => {
     setSelectedListKey(key)
   }
 
-  const mailboxIdFor = (accountId: string, path: string) =>
+  const mailboxIdFor = (accountId: AccountId, path: string) =>
     mailboxes().find((row) => row.account_id === accountId && row.path === path)?.id
 
   const applySyncEvent = (event: SyncEvent) => {
@@ -218,12 +220,10 @@ const useMailStore = (options: MailStoreOptions) => {
         return
       }
       if (event._tag === "sync-error") {
-        setSyncingMailboxIds(new Set<number>())
+        setSyncingMailboxIds(new Set<MailboxId>())
       } else {
         const id = mailboxIdFor(event.accountId, event.path)
-        if (id !== undefined) {
-          setSyncingMailboxIds((current) => withoutId(current, id))
-        }
+        setSyncingMailboxIds((current) => (id === undefined ? current : withoutId(current, id)))
       }
       loadMailboxData()
       const target = parseListKey(selectedListKey())
