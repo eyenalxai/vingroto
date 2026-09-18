@@ -75,7 +75,7 @@ const SettingsRow = (props: SettingsRowProps) => {
       flexDirection="row"
       gap={1}
       paddingLeft={props.entry.kind === "mailbox" ? 2 : 0}
-      {...(props.selected ? { backgroundColor: theme.selectionBackground } : {})}
+      backgroundColor={props.selected ? theme.selectionBackground : "transparent"}
       onMouseDown={() => {
         props.onSelect(props.entry.key)
         props.onActivate(props.entry.key)
