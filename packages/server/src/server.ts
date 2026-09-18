@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer"
 import { probeSocket } from "@/lib/lifecycle"
 import { ServerRuntime } from "@/lib/runtime"
 
-const Bootstrap = LoggingLayer.pipe(
+const Bootstrap = LoggingLayer.server.pipe(
   Layer.provideMerge(AppPaths.layer),
   Layer.provideMerge(BunServices.layer),
 )

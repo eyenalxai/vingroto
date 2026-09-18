@@ -25,11 +25,11 @@ const ServicesLayer = Layer.mergeAll(AppPaths.layer, Credential.layer).pipe(
 
 const LifecycleLayer = ServerLifecycle.layer.pipe(Layer.provide(ServicesLayer))
 
-// The logger is built alongside the services so anything below it logs to the file instead of stdout.
+// The logger is built alongside the services so anything below it logs to the file and stderr.
 const InfraLayer = Layer.mergeAll(
   ServicesLayer,
   LifecycleLayer,
-  LoggingLayer.pipe(Layer.provide(ServicesLayer)),
+  LoggingLayer.server.pipe(Layer.provide(ServicesLayer)),
 )
 
 const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideMerge(InfraLayer))

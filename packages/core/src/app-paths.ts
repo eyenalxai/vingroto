@@ -10,6 +10,7 @@ interface AppPathsShape {
   readonly dataDir: string
   readonly configDir: string
   readonly runtimeDir: string
+  readonly logsDir: string
   readonly database: string
   readonly config: string
   readonly socket: string
@@ -28,8 +29,12 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
       const configHome = yield* Config.String("XDG_CONFIG_HOME").pipe(
         Config.withDefault(path.join(homedir(), ".config")),
       )
+      const stateHome = yield* Config.String("XDG_STATE_HOME").pipe(
+        Config.withDefault(path.join(homedir(), ".local", "state")),
+      )
       const dataDir = path.join(dataHome, "vingroto")
       const configDir = path.join(configHome, "vingroto")
+      const logsDir = path.join(stateHome, "vingroto")
       const runtimeDir = yield* Config.String("XDG_RUNTIME_DIR").pipe(
         Config.map((runtimeHome) => path.join(runtimeHome, "vingroto")),
         Config.withDefault(path.join(dataDir, "run")),
@@ -38,12 +43,14 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
         dataDir,
         configDir,
         runtimeDir,
+        logsDir,
         database: path.join(dataDir, "vingroto.db"),
         config: path.join(configDir, "config.json"),
         socket: path.join(runtimeDir, "server.sock"),
       })
       yield* fs.makeDirectory(dataDir, { recursive: true })
       yield* fs.makeDirectory(configDir, { recursive: true })
+      yield* fs.makeDirectory(logsDir, { recursive: true })
       yield* fs.makeDirectory(runtimeDir, { recursive: true })
       return paths
     }),

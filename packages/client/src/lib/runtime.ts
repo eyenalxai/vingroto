@@ -15,7 +15,10 @@ import { ClientConnection, describeOpenError } from "@/lib/connection"
 const ServicesLayer = Layer.mergeAll(AppPaths.layer).pipe(Layer.provideMerge(BunServices.layer))
 
 // The logger is built alongside the services so anything below it logs to the file instead of stdout.
-const InfraLayer = Layer.mergeAll(ServicesLayer, LoggingLayer.pipe(Layer.provide(ServicesLayer)))
+const InfraLayer = Layer.mergeAll(
+  ServicesLayer,
+  LoggingLayer.client.pipe(Layer.provide(ServicesLayer)),
+)
 
 const SocketLayer = Layer.unwrap(
   AppPaths.pipe(Effect.map((paths) => BunSocket.layerNet({ path: paths.socket }))),
