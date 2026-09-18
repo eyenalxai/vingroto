@@ -227,7 +227,7 @@ const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes()
     .select({ mailboxId: MessageTable.mailbox_id, unread: count() })
     .from(MessageTable)
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
-    .where(and(eq(MessageTable.seen, false), eq(MailboxTable.muted, false)))
+    .where(eq(MessageTable.seen, false))
     .groupBy(MessageTable.mailbox_id)
   const result = new Map<MailboxId, MailboxCounts>()
   for (const row of totals) {
