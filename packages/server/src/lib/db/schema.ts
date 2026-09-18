@@ -1,3 +1,4 @@
+import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
 import type { MailAddress } from "@vingroto/core/mail/address"
 
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core"
@@ -15,8 +16,8 @@ const timestamps = {
 const MailboxTable = sqliteTable(
   "mailbox",
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    account_id: text().notNull(),
+    id: integer().primaryKey({ autoIncrement: true }).$type<MailboxId>(),
+    account_id: text().notNull().$type<AccountId>(),
     path: text().notNull(),
     name: text().notNull(),
     delimiter: text().notNull(),
@@ -26,7 +27,8 @@ const MailboxTable = sqliteTable(
     uid_validity: integer(),
     last_seen_uid: integer()
       .notNull()
-      .$default(() => 0),
+      .$default(() => 0)
+      .$type<Uid>(),
     synced_at: integer(),
     ...timestamps,
   },
@@ -36,12 +38,13 @@ const MailboxTable = sqliteTable(
 const MessageTable = sqliteTable(
   "message",
   {
-    id: integer().primaryKey({ autoIncrement: true }),
-    account_id: text().notNull(),
+    id: integer().primaryKey({ autoIncrement: true }).$type<MessageId>(),
+    account_id: text().notNull().$type<AccountId>(),
     mailbox_id: integer()
       .notNull()
-      .references(() => MailboxTable.id, { onDelete: "cascade" }),
-    uid: integer().notNull(),
+      .references(() => MailboxTable.id, { onDelete: "cascade" })
+      .$type<MailboxId>(),
+    uid: integer().notNull().$type<Uid>(),
     message_id: text(),
     in_reply_to: text(),
     references: text({ mode: "json" }).$type<readonly string[]>(),
@@ -81,7 +84,8 @@ const MessageTable = sqliteTable(
 const MessageBodyTable = sqliteTable("message_body", {
   message_id: integer()
     .primaryKey()
-    .references(() => MessageTable.id, { onDelete: "cascade" }),
+    .references(() => MessageTable.id, { onDelete: "cascade" })
+    .$type<MessageId>(),
   text: text(),
   html: text(),
   fetched_at: integer().notNull(),
@@ -93,7 +97,8 @@ const AttachmentTable = sqliteTable(
     id: integer().primaryKey({ autoIncrement: true }),
     message_id: integer()
       .notNull()
-      .references(() => MessageTable.id, { onDelete: "cascade" }),
+      .references(() => MessageTable.id, { onDelete: "cascade" })
+      .$type<MessageId>(),
     part: text(),
     filename: text(),
     mime_type: text(),

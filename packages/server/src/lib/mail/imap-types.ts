@@ -1,6 +1,8 @@
+import type { Uid } from "@vingroto/core/ids"
 import type { MailAddress } from "@vingroto/core/mail/address"
 import type * as DateTime from "effect/DateTime"
 
+import { AccountId } from "@vingroto/core/ids"
 import * as Data from "effect/Data"
 import * as Schema from "effect/Schema"
 
@@ -19,11 +21,11 @@ interface MailboxInfo {
 interface MailboxWindowRequest {
   readonly path: string
   readonly since: DateTime.Utc | undefined
-  readonly fromUid: number | undefined
+  readonly fromUid: Uid | undefined
 }
 
 interface MessageEnvelope {
-  readonly uid: number
+  readonly uid: Uid
   readonly messageId: string | undefined
   readonly inReplyTo: string | undefined
   readonly subject: string | undefined
@@ -47,7 +49,7 @@ interface MailboxSnapshot {
 }
 
 class ImapError extends Schema.TaggedError<ImapError>()("ImapError", {
-  accountId: Schema.String,
+  accountId: AccountId,
   operation: Schema.String,
   message: Schema.String,
 }) {}
@@ -64,12 +66,12 @@ const mailboxWindowResult = Data.taggedEnum<MailboxWindowResult>()
 type MessageSourceResult = Data.TaggedEnum<{
   ok: {
     readonly mailboxPath: string
-    readonly uid: number
+    readonly uid: Uid
     readonly source: Buffer
   }
   error: {
     readonly mailboxPath: string
-    readonly uid: number
+    readonly uid: Uid
     readonly message: string
   }
 }>
@@ -78,7 +80,7 @@ const messageSourceResult = Data.taggedEnum<MessageSourceResult>()
 
 interface MessageSourceRequest {
   readonly mailboxPath: string
-  readonly uid: number
+  readonly uid: Uid
 }
 
 export {

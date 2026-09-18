@@ -1,5 +1,7 @@
-const usernameReference = (accountId: string) => `account:${accountId}:username`
+import type { AccountId } from "@vingroto/core/ids"
 
-const passwordReference = (accountId: string) => `account:${accountId}:password`
+const usernameReference = (accountId: AccountId) => `account:${accountId}:username`
+
+const passwordReference = (accountId: AccountId) => `account:${accountId}:password`
 
 export { passwordReference, usernameReference }

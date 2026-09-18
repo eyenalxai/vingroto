@@ -1,18 +1,19 @@
 import type { AccountConfig, AppConfig } from "@vingroto/core/config/schema"
 import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
+import type * as FileSystem from "effect/FileSystem"
 
-import { AppPaths } from "@vingroto/core/app-paths"
+import { AccountId } from "@vingroto/core/ids"
 import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
+
+import type { Credential } from "@/lib/credential/service"
 
 import { loadConfigFile } from "@/lib/config/load"
 import { saveConfigFile } from "@/lib/config/save"
 import { passwordReference, usernameReference } from "@/lib/credential/refs"
-import { Credential } from "@/lib/credential/service"
 
 class AccountNotFound extends Schema.TaggedError<AccountNotFound>()("AccountNotFound", {
-  id: Schema.String,
+  id: AccountId,
   message: Schema.String,
 }) {}
 
@@ -22,10 +23,10 @@ interface AccountWriteDeps {
   readonly fs: FileSystem.FileSystem
 }
 
-const resolveAccountId = (accounts: readonly AccountConfig[], email: string) => {
+const resolveAccountId = (accounts: readonly AccountConfig[], email: string): AccountId => {
   const normalized = email.trim().toLowerCase()
   const existing = accounts.find((account) => account.email.trim().toLowerCase() === normalized)
-  return existing?.id ?? normalized
+  return existing?.id ?? AccountId.make(normalized)
 }
 
 const upsertAccount = (config: AppConfig, account: AccountConfig): AppConfig => {
@@ -38,7 +39,7 @@ const upsertAccount = (config: AppConfig, account: AccountConfig): AppConfig => 
 
 const storeCredentials = Effect.fnUntraced(function* storeAccountCredentials(
   credential: Credential["Service"],
-  id: string,
+  id: AccountId,
   input: AccountSave,
 ) {
   yield* credential.set(usernameReference(id), input.username)
@@ -68,7 +69,7 @@ const makeSubmitAccount = (deps: AccountWriteDeps) =>
   })
 
 const makeUpdateAccount = (deps: AccountWriteDeps) =>
-  Effect.fn("Account.update")(function* updateConfiguredAccount(id: string, input: AccountSave) {
+  Effect.fn("Account.update")(function* updateConfiguredAccount(id: AccountId, input: AccountSave) {
     const config = yield* loadConfigFile(deps.configPath, deps.fs)
     const existing = config.accounts.find((account) => account.id === id)
     if (existing === undefined) {
@@ -90,20 +91,4 @@ const makeUpdateAccount = (deps: AccountWriteDeps) =>
     return account
   })
 
-const accountWriteDeps = Effect.all({
-  credential: Credential,
-  paths: AppPaths,
-  fs: FileSystem.FileSystem,
-}).pipe(
-  Effect.map(({ credential, paths, fs }): AccountWriteDeps => {
-    return { configPath: paths.config, credential, fs }
-  }),
-)
-
-const submitAccount = (input: NewAccount) =>
-  accountWriteDeps.pipe(Effect.flatMap((deps) => makeSubmitAccount(deps)(input)))
-
-const updateAccount = (id: string, input: AccountSave) =>
-  accountWriteDeps.pipe(Effect.flatMap((deps) => makeUpdateAccount(deps)(id, input)))
-
-export { AccountNotFound, makeSubmitAccount, makeUpdateAccount, submitAccount, updateAccount }
+export { AccountNotFound, makeSubmitAccount, makeUpdateAccount }

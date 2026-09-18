@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { Uid } from "@vingroto/core/ids"
 
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -38,7 +39,7 @@ interface ImapShape {
   readonly fetchMessageSource: (
     account: AccountConfig,
     mailboxPath: string,
-    uid: number,
+    uid: Uid,
   ) => Effect.Effect<Buffer, ImapServiceError>
   readonly fetchMessageSources: (
     account: AccountConfig,
@@ -47,14 +48,14 @@ interface ImapShape {
   readonly setFlags: (
     account: AccountConfig,
     mailboxPath: string,
-    uids: readonly number[],
+    uids: readonly Uid[],
     flags: readonly string[],
     mode: FlagMode,
   ) => Effect.Effect<void, ImapServiceError>
   readonly moveMessages: (
     account: AccountConfig,
     sourcePath: string,
-    uids: readonly number[],
+    uids: readonly Uid[],
     targetPath: string,
   ) => Effect.Effect<void, ImapServiceError>
 }
@@ -121,7 +122,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
         fetchMessageSource: Effect.fn("Imap.fetchMessageSource")(function* fetchMessageSource(
           account: AccountConfig,
           mailboxPath: string,
-          uid: number,
+          uid: Uid,
         ) {
           return yield* withClient(account, (client) =>
             readMessageSource(client, account, mailboxPath, uid),
@@ -147,7 +148,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
         setFlags: Effect.fn("Imap.setFlags")(function* setFlags(
           account: AccountConfig,
           mailboxPath: string,
-          uids: readonly number[],
+          uids: readonly Uid[],
           flags: readonly string[],
           mode: FlagMode,
         ) {
@@ -158,7 +159,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
         moveMessages: Effect.fn("Imap.moveMessages")(function* moveMessagesForAccount(
           account: AccountConfig,
           sourcePath: string,
-          uids: readonly number[],
+          uids: readonly Uid[],
           targetPath: string,
         ) {
           return yield* withClient(account, (client) =>

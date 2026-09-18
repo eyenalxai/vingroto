@@ -1,6 +1,7 @@
 import type { MailAddress } from "@vingroto/core/mail/address"
 import type { FetchMessageObject, ListResponse, MessageAddressObject } from "imapflow"
 
+import { Uid } from "@vingroto/core/ids"
 import * as DateTime from "effect/DateTime"
 import * as Option from "effect/Option"
 
@@ -64,7 +65,7 @@ const toMessageEnvelope = (message: FetchMessageObject): MessageEnvelope => {
   const envelope = message.envelope
   const flags = message.flags ?? new Set<string>()
   return {
-    uid: message.uid,
+    uid: Uid.make(message.uid),
     messageId: envelope?.messageId,
     inReplyTo: envelope?.inReplyTo,
     subject: envelope?.subject,

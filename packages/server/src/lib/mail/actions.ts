@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
 import type { MoveOutcome, SeenOutcome } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
@@ -26,12 +27,12 @@ class MessageActionError extends Schema.TaggedError<MessageActionError>()("Messa
 
 interface MailActionsShape {
   readonly setSeenByIds: (
-    ids: readonly number[],
+    ids: readonly MessageId[],
     seen: boolean,
   ) => Effect.Effect<SeenOutcome, ConfigInvalid | ConfigUnreadable | EffectDrizzleQueryError>
   readonly moveByIds: (
-    ids: readonly number[],
-    targetMailboxId: number,
+    ids: readonly MessageId[],
+    targetMailboxId: MailboxId,
   ) => Effect.Effect<
     MoveOutcome,
     MessageActionError | ConfigInvalid | ConfigUnreadable | EffectDrizzleQueryError
@@ -61,7 +62,7 @@ const groupByMailbox = (requests: readonly MessageActionTarget[]): readonly Mail
 }
 
 const groupByAccount = (requests: readonly MessageActionTarget[]) => {
-  const groups = new Map<string, MessageActionTarget[]>()
+  const groups = new Map<AccountId, MessageActionTarget[]>()
   for (const request of requests) {
     const bucket = groups.get(request.accountId)
     if (bucket === undefined) {
@@ -90,7 +91,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
         requests: readonly MessageActionTarget[],
         seen: boolean,
       ) {
-        const applied: number[] = []
+        const applied: MessageId[] = []
         const errors: string[] = []
         for (const group of groupByMailbox(requests)) {
           yield* imap
@@ -126,7 +127,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
         targetPath: string,
       ) {
         const eligible = requests.filter((request) => request.mailboxPath !== targetPath)
-        const moved: number[] = []
+        const moved: MessageId[] = []
         const errors: string[] = []
         for (const group of groupByMailbox(eligible)) {
           yield* imap
@@ -156,7 +157,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
       })
 
       const setSeenByIds = Effect.fn("MailActions.setSeenByIds")(
-        function* applySeenByIds(ids: readonly number[], seen: boolean) {
+        function* applySeenByIds(ids: readonly MessageId[], seen: boolean) {
           const config = yield* loadConfig()
           const targets = yield* listMessageActionTargets(ids)
           const accounts = new Map(config.accounts.map((account) => [account.id, account]))
@@ -192,7 +193,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
       )
 
       const moveByIds = Effect.fn("MailActions.moveByIds")(
-        function* moveByIds(ids: readonly number[], targetMailboxId: number) {
+        function* moveByIds(ids: readonly MessageId[], targetMailboxId: MailboxId) {
           const targets = yield* listMessageActionTargets(ids)
           const mailboxes = yield* listMailboxes()
           const target = mailboxes.find((row) => row.id === targetMailboxId)

@@ -1,4 +1,5 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountId } from "@vingroto/core/ids"
 import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
 
 import { AppPaths } from "@vingroto/core/app-paths"
@@ -26,7 +27,7 @@ type AccountWriteError = ConfigInvalid | ConfigUnreadable | ConfigWriteError | C
 interface AccountsShape {
   readonly create: (input: NewAccount) => Effect.Effect<AccountConfig, AccountWriteError>
   readonly update: (
-    id: string,
+    id: AccountId,
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, AccountWriteError | AccountNotFound>
   readonly saveSyncSettings: (
@@ -35,7 +36,7 @@ interface AccountsShape {
     void,
     ConfigInvalid | ConfigUnreadable | ConfigWriteError | SyncSettingsInvalid
   >
-  readonly username: (id: string) => Effect.Effect<string | null>
+  readonly username: (id: AccountId) => Effect.Effect<string | null>
 }
 
 class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/server/Accounts") {
@@ -67,7 +68,7 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
       })
 
       const update = Effect.fn("Accounts.update")(function* updateConfiguredAccount(
-        id: string,
+        id: AccountId,
         input: AccountSave,
       ) {
         const account = yield* persistUpdate(id, input)
@@ -82,7 +83,7 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
         yield* events.publish({ _tag: "config-changed" })
       })
 
-      const username = Effect.fn("Accounts.username")(function* accountUsername(id: string) {
+      const username = Effect.fn("Accounts.username")(function* accountUsername(id: AccountId) {
         return yield* credential
           .get(usernameReference(id))
           .pipe(Effect.orElseSucceed((): string | null => null))

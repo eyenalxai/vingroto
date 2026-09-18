@@ -1,3 +1,4 @@
+import type { AccountId, MessageId, Uid } from "@vingroto/core/ids"
 import type { MessageBody } from "@vingroto/core/protocol/mail"
 
 import { and, desc, eq, isNull } from "drizzle-orm"
@@ -21,13 +22,13 @@ const toSnippet = (text: string | null): string | null => {
 }
 
 interface PendingBody {
-  readonly messageId: number
-  readonly accountId: string
+  readonly messageId: MessageId
+  readonly accountId: AccountId
   readonly mailboxPath: string
-  readonly uid: number
+  readonly uid: Uid
 }
 
-const getMessageBody = Effect.fn("Message.getBody")(function* getBody(messageId: number) {
+const getMessageBody = Effect.fn("Message.getBody")(function* getBody(messageId: MessageId) {
   const database = yield* Database
   const rows = yield* database.client
     .select({ text: MessageBodyTable.text, html: MessageBodyTable.html })
@@ -38,7 +39,7 @@ const getMessageBody = Effect.fn("Message.getBody")(function* getBody(messageId:
 })
 
 const storeMessageBody = Effect.fn("Message.storeBody")(function* storeBody(
-  messageId: number,
+  messageId: MessageId,
   body: MessageBody,
   hasAttachments: boolean,
 ) {

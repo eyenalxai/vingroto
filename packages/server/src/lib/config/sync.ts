@@ -1,8 +1,7 @@
 import type { SyncConfig } from "@vingroto/core/config/schema"
+import type * as FileSystem from "effect/FileSystem"
 
-import { AppPaths } from "@vingroto/core/app-paths"
 import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 
 import { loadConfigFile } from "@/lib/config/load"
@@ -45,9 +44,4 @@ const makeUpdateSyncSettings = (configPath: string, fs: FileSystem.FileSystem) =
     yield* Effect.logInfo("sync settings saved").pipe(Effect.annotateLogs({ ...input }))
   })
 
-const updateSyncSettings = (input: SyncConfig) =>
-  Effect.all({ paths: AppPaths, fs: FileSystem.FileSystem }).pipe(
-    Effect.flatMap(({ paths, fs }) => makeUpdateSyncSettings(paths.config, fs)(input)),
-  )
-
-export { SyncSettingsInvalid, makeUpdateSyncSettings, updateSyncSettings }
+export { SyncSettingsInvalid, makeUpdateSyncSettings }

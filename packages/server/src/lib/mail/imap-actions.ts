@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { Uid } from "@vingroto/core/ids"
 import type { ImapFlow } from "imapflow"
 
 import * as Effect from "effect/Effect"
@@ -25,7 +26,7 @@ const updateFlags = (
   client: ImapFlow,
   account: AccountConfig,
   mailboxPath: string,
-  uids: readonly number[],
+  uids: readonly Uid[],
   flags: readonly string[],
   mode: FlagMode,
 ) =>
@@ -52,7 +53,7 @@ const moveMessages = (
   client: ImapFlow,
   account: AccountConfig,
   sourcePath: string,
-  uids: readonly number[],
+  uids: readonly Uid[],
   targetPath: string,
 ) =>
   withMailboxLock(

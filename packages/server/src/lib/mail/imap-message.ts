@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { Uid } from "@vingroto/core/ids"
 import type { ImapFlow } from "imapflow"
 
 import * as Effect from "effect/Effect"
@@ -12,14 +13,14 @@ const maxSourceBytes = 32 * 1024 * 1024
 
 interface MailboxSourceRequests {
   readonly mailboxPath: string
-  readonly uids: readonly number[]
+  readonly uids: readonly Uid[]
 }
 
 const readSource = Effect.fn("Imap.readSource")(function* fetchSource(
   client: ImapFlow,
   account: AccountConfig,
   mailboxPath: string,
-  uid: number,
+  uid: Uid,
 ) {
   const message = yield* guard(account, `fetch message ${uid}`, commandTimeout, async () =>
     client.fetchOne(uid, { source: true }, { uid: true }),
@@ -46,7 +47,7 @@ const readMailboxSources = (
   client: ImapFlow,
   account: AccountConfig,
   mailboxPath: string,
-  uids: readonly number[],
+  uids: readonly Uid[],
 ) =>
   withMailboxLock(
     client,
@@ -76,14 +77,14 @@ const readMessageSource = (
   client: ImapFlow,
   account: AccountConfig,
   mailboxPath: string,
-  uid: number,
+  uid: Uid,
 ) =>
   withMailboxLock(client, account, mailboxPath, true, readSource(client, account, mailboxPath, uid))
 
 const groupRequestsByMailbox = (
   requests: readonly MessageSourceRequest[],
 ): readonly MailboxSourceRequests[] => {
-  const groups = new Map<string, number[]>()
+  const groups = new Map<string, Uid[]>()
   for (const request of requests) {
     const uids = groups.get(request.mailboxPath)
     if (uids === undefined) {

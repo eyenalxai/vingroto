@@ -1,6 +1,8 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountId } from "@vingroto/core/ids"
 
 import { describeError } from "@vingroto/core/errors"
+import { Uid } from "@vingroto/core/ids"
 import * as Context from "effect/Context"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
@@ -21,7 +23,7 @@ import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/li
 import { deleteMailboxMessages, storeMessages } from "@/lib/store/messages"
 
 interface SyncReport {
-  readonly accountId: string
+  readonly accountId: AccountId
   readonly mailboxes: number
   readonly fetched: number
   readonly stored: number
@@ -57,7 +59,7 @@ const toWindowRequest = (
     return initialWindow(row, config, now)
   }
   if (row.last_seen_uid > 0) {
-    return { path: row.path, fromUid: row.last_seen_uid + 1, since: undefined }
+    return { path: row.path, fromUid: Uid.make(row.last_seen_uid + 1), since: undefined }
   }
   // Synced before without a UID watermark: rewind a day to cover day-granular date searches.
   return {
@@ -94,7 +96,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         row: MailboxRow,
         snapshot: MailboxSnapshot,
       ) {
-        let lastSeenUid = row.last_seen_uid
+        let lastSeenUid: number = row.last_seen_uid
         for (const message of snapshot.messages) {
           lastSeenUid = Math.max(lastSeenUid, message.uid)
         }
@@ -106,7 +108,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         const syncedAt = yield* DateTime.now
         yield* setMailboxSyncState(row.id, {
           uidValidity: snapshot.uidValidity,
-          lastSeenUid,
+          lastSeenUid: Uid.make(lastSeenUid),
           syncedAt: DateTime.toEpochMillis(syncedAt),
         })
         yield* Effect.logInfo("mailbox synced").pipe(
@@ -173,7 +175,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
             yield* deleteMailboxMessages(row.id)
             yield* setMailboxSyncState(row.id, {
               uidValidity: result.snapshot.uidValidity,
-              lastSeenUid: 0,
+              lastSeenUid: Uid.make(0),
               syncedAt: null,
             })
             recreated.add(row.id)

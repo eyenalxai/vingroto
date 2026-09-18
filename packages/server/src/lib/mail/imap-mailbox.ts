@@ -1,6 +1,7 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { FetchMessageObject, FetchQueryObject, ImapFlow } from "imapflow"
 
+import { Uid } from "@vingroto/core/ids"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 
@@ -40,7 +41,7 @@ const collectUids = Effect.fn("Imap.collectUids")(function* collectMailboxUids(
       client.search({ uid: `${fromUid}:*` }, { uid: true }),
     )
     const uids = found === false || found === undefined ? [] : found
-    return uids.filter((uid) => uid >= fromUid)
+    return uids.filter((uid) => uid >= fromUid).map((uid) => Uid.make(uid))
   }
   const since = request.since
   if (since === undefined) {
@@ -49,13 +50,13 @@ const collectUids = Effect.fn("Imap.collectUids")(function* collectMailboxUids(
   const found = yield* guard(account, `search ${request.path}`, commandTimeout, async () =>
     client.search({ since: DateTime.toDateUtc(since) }, { uid: true }),
   )
-  return found === false || found === undefined ? [] : found
+  return found === false || found === undefined ? [] : found.map((uid) => Uid.make(uid))
 })
 
 const fetchEnvelopes = Effect.fn("Imap.fetchEnvelopes")(function* fetchMessageEnvelopes(
   client: ImapFlow,
   account: AccountConfig,
-  uids: readonly number[],
+  uids: readonly Uid[],
 ) {
   const messages: MessageEnvelope[] = []
   for (let index = 0; index < uids.length; index += fetchBatchSize) {

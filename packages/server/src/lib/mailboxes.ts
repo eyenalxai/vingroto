@@ -1,3 +1,5 @@
+import type { MailboxId } from "@vingroto/core/ids"
+
 import * as Effect from "effect/Effect"
 
 import { ServerEvents } from "@/lib/events"
@@ -18,7 +20,7 @@ const readMailboxSnapshot = Effect.fn("Mailbox.snapshot")(function* readMailboxS
 })
 
 const updateMailboxMute = Effect.fn("Mailbox.updateMute")(function* updateMailboxMute(
-  mailboxId: number,
+  mailboxId: MailboxId,
   muted: boolean,
 ) {
   const events = yield* ServerEvents

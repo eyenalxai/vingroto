@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountId, MessageId, Uid } from "@vingroto/core/ids"
 
 import { describeError } from "@vingroto/core/errors"
 import * as Context from "effect/Context"
@@ -22,7 +23,7 @@ interface AccountOutcome {
   readonly failed: number
 }
 
-const prefetchKey = (value: { readonly mailboxPath: string; readonly uid: number }) =>
+const prefetchKey = (value: { readonly mailboxPath: string; readonly uid: Uid }) =>
   `${value.mailboxPath}\u0000${value.uid}`
 
 const storeSource = Effect.fn("MessagePrefetch.storeSource")(function* storePrefetchedBody(
@@ -38,7 +39,7 @@ const storeSource = Effect.fn("MessagePrefetch.storeSource")(function* storePref
 })
 
 const groupByAccount = (targets: readonly PendingBody[]) => {
-  const groups = new Map<string, PendingBody[]>()
+  const groups = new Map<AccountId, PendingBody[]>()
   for (const target of targets) {
     const bucket = groups.get(target.accountId)
     if (bucket === undefined) {
@@ -59,12 +60,12 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
       const database = yield* Database
       const imap = yield* Imap
       const state = yield* Ref.make({ running: false, queued: false })
-      const failed = yield* Ref.make<ReadonlySet<number>>(new Set())
+      const failed = yield* Ref.make<ReadonlySet<MessageId>>(new Set())
 
       // Bodies that fail once stay skipped for this session so that every sync does not retry them.
       const recordFailure = Effect.fn("MessagePrefetch.recordFailure")(function* recordFailure(
         target: PendingBody,
-        accountId: string,
+        accountId: AccountId,
         reason: string,
       ) {
         yield* Ref.update(failed, (current) => new Set(current).add(target.messageId))

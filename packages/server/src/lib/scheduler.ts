@@ -1,3 +1,4 @@
+import type { AccountId } from "@vingroto/core/ids"
 import type { SyncReport } from "@vingroto/core/protocol/mail"
 
 import { AppPaths } from "@vingroto/core/app-paths"
@@ -18,7 +19,7 @@ import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine } from "@/lib/mail/sync"
 
 interface SyncRequest {
-  readonly accountId?: string
+  readonly accountId?: AccountId
   readonly paths?: readonly string[]
 }
 

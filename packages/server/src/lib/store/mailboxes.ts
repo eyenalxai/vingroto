@@ -1,3 +1,5 @@
+import type { AccountId, MailboxId, Uid } from "@vingroto/core/ids"
+
 import { asc, eq } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -11,7 +13,7 @@ type MailboxRow = typeof MailboxTable.$inferSelect
 
 interface MailboxSyncState {
   readonly uidValidity: number
-  readonly lastSeenUid: number
+  readonly lastSeenUid: Uid
   readonly syncedAt: number | null
 }
 
@@ -24,7 +26,7 @@ const listMailboxes = Effect.fn("Mailbox.listAll")(function* listAll() {
 })
 
 const listAccountMailboxes = Effect.fn("Mailbox.listForAccount")(function* listForAccount(
-  accountId: string,
+  accountId: AccountId,
 ) {
   const database = yield* Database
   return yield* database.client
@@ -35,7 +37,7 @@ const listAccountMailboxes = Effect.fn("Mailbox.listForAccount")(function* listF
 })
 
 const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
-  accountId: string,
+  accountId: AccountId,
   infos: readonly MailboxInfo[],
 ) {
   const database = yield* Database
@@ -69,7 +71,7 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
 })
 
 const setMailboxMuted = Effect.fn("Mailbox.setMuted")(function* setMuted(
-  mailboxId: number,
+  mailboxId: MailboxId,
   muted: boolean,
 ) {
   const database = yield* Database
@@ -81,7 +83,7 @@ const setMailboxMuted = Effect.fn("Mailbox.setMuted")(function* setMuted(
 })
 
 const setMailboxSyncState = Effect.fn("Mailbox.setSyncState")(function* setSyncState(
-  mailboxId: number,
+  mailboxId: MailboxId,
   state: MailboxSyncState,
 ) {
   const database = yield* Database

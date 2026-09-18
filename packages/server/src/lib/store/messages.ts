@@ -1,3 +1,4 @@
+import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
 import type { ListScope, MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
@@ -16,16 +17,16 @@ interface MailboxCounts {
 }
 
 interface MessageStoreInput {
-  readonly accountId: string
-  readonly mailboxId: number
+  readonly accountId: AccountId
+  readonly mailboxId: MailboxId
   readonly envelopes: readonly MessageEnvelope[]
 }
 
 interface MessageActionTarget {
-  readonly messageId: number
-  readonly accountId: string
+  readonly messageId: MessageId
+  readonly accountId: AccountId
   readonly mailboxPath: string
-  readonly uid: number
+  readonly uid: Uid
 }
 interface MessageStoreOutcome {
   readonly inserted: number
@@ -34,7 +35,7 @@ interface MessageStoreOutcome {
 
 type VirtualListScope =
   | { readonly kind: "all" }
-  | { readonly kind: "unread"; readonly accountId: string | undefined }
+  | { readonly kind: "unread"; readonly accountId: AccountId | undefined }
 
 const listColumns = {
   id: MessageTable.id,
@@ -118,14 +119,14 @@ const storeMessages = Effect.fn("Message.store")(function* store(input: MessageS
 })
 
 const deleteMailboxMessages = Effect.fn("Message.deleteForMailbox")(function* deleteForMailbox(
-  mailboxId: number,
+  mailboxId: MailboxId,
 ) {
   const database = yield* Database
   yield* database.client.delete(MessageTable).where(eq(MessageTable.mailbox_id, mailboxId))
 })
 
 const listMessages = Effect.fn("Message.list")(function* list(
-  mailboxId: number,
+  mailboxId: MailboxId,
   limit: number,
 ): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
   const database = yield* Database
@@ -176,7 +177,7 @@ const listMessagesForScope = Effect.fn("Message.listForScope")(function* listFor
 })
 
 const getMessage = Effect.fn("Message.get")(function* get(
-  messageId: number,
+  messageId: MessageId,
 ): Effect.fn.Return<MessageDetail | undefined, EffectDrizzleQueryError, Database> {
   const database = yield* Database
   const rows = yield* database.client
@@ -198,7 +199,7 @@ const getMessage = Effect.fn("Message.get")(function* get(
 })
 
 const listMessageActionTargets = Effect.fn("Message.actionTargets")(function* actionTargets(
-  messageIds: readonly number[],
+  messageIds: readonly MessageId[],
 ) {
   if (messageIds.length === 0) {
     return []
@@ -228,7 +229,7 @@ const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes()
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
     .where(and(eq(MessageTable.seen, false), eq(MailboxTable.muted, false)))
     .groupBy(MessageTable.mailbox_id)
-  const result = new Map<number, MailboxCounts>()
+  const result = new Map<MailboxId, MailboxCounts>()
   for (const row of totals) {
     result.set(row.mailboxId, { total: row.total, unread: 0 })
   }
@@ -250,7 +251,7 @@ const unreadMessageCount = Effect.fn("Message.unreadCount")(function* countUnrea
 })
 
 const setMessagesSeen = Effect.fn("Message.setSeen")(function* setSeen(
-  messageIds: readonly number[],
+  messageIds: readonly MessageId[],
   seen: boolean,
 ) {
   if (messageIds.length === 0) {
@@ -265,7 +266,7 @@ const setMessagesSeen = Effect.fn("Message.setSeen")(function* setSeen(
 })
 
 const deleteMessages = Effect.fn("Message.delete")(function* removeMessages(
-  messageIds: readonly number[],
+  messageIds: readonly MessageId[],
 ) {
   if (messageIds.length === 0) {
     return

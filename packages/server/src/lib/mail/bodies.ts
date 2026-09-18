@@ -1,7 +1,9 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { Uid } from "@vingroto/core/ids"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
 import { AppPaths } from "@vingroto/core/app-paths"
+import { AccountId, MessageId } from "@vingroto/core/ids"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -21,14 +23,14 @@ import { getMessageBody, storeMessageBody } from "@/lib/store/bodies"
 import { getMessage } from "@/lib/store/messages"
 
 class MessageNotFound extends Schema.TaggedError<MessageNotFound>()("MessageNotFound", {
-  messageId: Schema.Int,
+  messageId: MessageId,
   message: Schema.String,
 }) {}
 
 class AccountNotConfigured extends Schema.TaggedError<AccountNotConfigured>()(
   "AccountNotConfigured",
   {
-    accountId: Schema.String,
+    accountId: AccountId,
     message: Schema.String,
   },
 ) {}
@@ -36,8 +38,8 @@ class AccountNotConfigured extends Schema.TaggedError<AccountNotConfigured>()(
 interface BodyRequest {
   readonly account: AccountConfig
   readonly mailboxPath: string
-  readonly messageId: number
-  readonly uid: number
+  readonly messageId: MessageId
+  readonly uid: Uid
 }
 
 type MessageBodyError = ImapServiceError | BodyParseError | EffectDrizzleQueryError
@@ -45,7 +47,7 @@ type MessageBodyError = ImapServiceError | BodyParseError | EffectDrizzleQueryEr
 interface MessageBodiesShape {
   readonly load: (request: BodyRequest) => Effect.Effect<MessageBody, MessageBodyError>
   readonly loadById: (
-    messageId: number,
+    messageId: MessageId,
   ) => Effect.Effect<
     MessageBody,
     MessageBodyError | MessageNotFound | AccountNotConfigured | ConfigInvalid | ConfigUnreadable
@@ -101,7 +103,7 @@ class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()
       )
 
       const loadById = Effect.fn("MessageBodies.loadById")(
-        function* loadById(messageId: number) {
+        function* loadById(messageId: MessageId) {
           const message = yield* getMessage(messageId)
           if (message === undefined) {
             return yield* new MessageNotFound({
