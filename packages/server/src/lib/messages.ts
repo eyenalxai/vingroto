@@ -36,9 +36,7 @@ interface MessagesShape {
   >
 }
 
-class Messages extends Context.Service<Messages, MessagesShape>()(
-  "vingroto/lib/messages/Messages",
-) {
+class Messages extends Context.Service<Messages, MessagesShape>()("@vingroto/server/lib/messages") {
   static readonly layer = Layer.effect(
     Messages,
     Effect.gen(function* makeMessages() {

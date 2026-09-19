@@ -28,7 +28,7 @@ interface NewMailNotifierShape {
 }
 
 class NewMailNotifier extends Context.Service<NewMailNotifier, NewMailNotifierShape>()(
-  "vingroto/lib/notify/NewMailNotifier",
+  "@vingroto/server/lib/notify/new-mail/NewMailNotifier",
 ) {
   static readonly layer = Layer.effect(
     NewMailNotifier,

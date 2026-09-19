@@ -114,7 +114,7 @@ const connectOnce = (account: AccountConfig, username: string, password: string)
     )
   })
 
-class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") {
+class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail/imap") {
   static readonly layer = Layer.effect(
     Imap,
     Effect.gen(function* makeImap() {

@@ -85,10 +85,9 @@ const describeCommand = Command.make(
     Effect.gen(function* describeOperation() {
       const entry = operationById.get(operation)
       if (entry === undefined) {
-        yield* Effect.fail(unknownOperation(operation))
-        return
+        return yield* unknownOperation(operation)
       }
-      yield* writeJson(describeEntry(entry))
+      return yield* writeJson(describeEntry(entry))
     }).pipe(Effect.catchTag("UsageError", (error) => errorLine(1, error.message))),
 ).pipe(Command.withDescription(apiSubcommandDescriptions.describe))
 
@@ -130,8 +129,7 @@ const apiCommand = Command.make(
     Effect.gen(function* run() {
       const operation = Option.getOrUndefined(config.operation)
       if (operation === undefined) {
-        yield* writeJson(listEntries())
-        return
+        return yield* writeJson(listEntries())
       }
       const path = Option.getOrUndefined(config.path)
       const params = Option.getOrElse(config.param, () => {
@@ -153,10 +151,9 @@ const apiCommand = Command.make(
       for (const header of config.header) {
         const separator = header.indexOf(":")
         if (separator < 1) {
-          yield* Effect.fail(
-            new UsageError({ message: `invalid header, expected name:value: ${header}` }),
-          )
-          return
+          return yield* new UsageError({
+            message: `invalid header, expected name:value: ${header}`,
+          })
         }
         headers.set(header.slice(0, separator).trim(), header.slice(separator + 1).trim())
       }
@@ -164,15 +161,17 @@ const apiCommand = Command.make(
         headers.set("content-type", "application/json")
       }
       const response = yield* sendRequest(daemon.url, request, headers, body)
-      yield* HttpClientResponse.filterStatusOk(response).pipe(
+      return yield* HttpClientResponse.filterStatusOk(response).pipe(
         Effect.matchEffect({
           onFailure: () => reportFailure(request, response),
           onSuccess: (ready) => streamResponse(ready),
         }),
       )
     }).pipe(
-      Effect.catchTag("UsageError", (error) => errorLine(1, error.message)),
-      Effect.catchTag("DaemonUnreachable", (error) => errorLine(2, error.message)),
+      Effect.catchTags({
+        UsageError: (error) => errorLine(1, error.message),
+        DaemonUnreachable: (error) => errorLine(2, error.message),
+      }),
     ),
 ).pipe(
   Command.withDescription("Make a request to the running vingroto daemon"),

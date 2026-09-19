@@ -39,7 +39,7 @@ interface SettingsShape {
   ) => Effect.Effect<void, ConfigInvalid | ConfigUnreadable | ConfigWriteError>
 }
 
-class Settings extends Context.Service<Settings, SettingsShape>()("vingroto/lib/server/Settings") {
+class Settings extends Context.Service<Settings, SettingsShape>()("@vingroto/server/lib/settings") {
   static readonly layer = Layer.effect(
     Settings,
     Effect.gen(function* makeSettings() {

@@ -94,20 +94,32 @@ const baseRules: RuleConfig = {
 }
 
 // The Effect recommended preset and this repository's all-error categories
-// raise these diagnostics to errors in packages/*/src, which this tooling
-// change does not own. Keep them visible as warnings until the package sources
-// adopt the suggestions.
+// raise these diagnostics to errors in packages/*/src. Keep the ones below
+// visible as warnings because they are either outside this change's ownership
+// or conflict with another configured rule. Each remaining rule's `off` entry
+// states why it does not fit this application.
 const effectRuleSeverities: RuleConfig = {
+  // packages/server/src/lib/api/runtime.ts still exposes unknown error channels
+  // in the api server bootstrap; that path is owned by another change.
   "effecttsgo/any-unknown-in-error-context": "warn",
-  "effecttsgo/deterministic-keys": "warn",
-  "effecttsgo/missing-pipeable-signature": "warn",
-  "effecttsgo/missing-return-yield-star": "warn",
-  "effecttsgo/missed-pipeable-opportunity": "warn",
-  "effecttsgo/nested-effect-gen-yield": "warn",
-  "effecttsgo/new-schema-class": "warn",
-  "effecttsgo/prefer-schema-type-property": "warn",
+  // The reported Effect.provide calls are the client entry point and test
+  // harnesses that own their layers, which the rule itself calls out as safe.
   "effecttsgo/strict-effect-provide": "warn",
+  // Every remaining occurrence returns an object literal, which the base
+  // arrow-body-style rule requires in block form (requireReturnForObjectLiteral).
   "effecttsgo/unnecessary-arrow-block": "warn",
+}
+
+const disabledEffectRules: RuleConfig = {
+  // This repo models records with Schema.Struct plus a same-name type alias and
+  // constructs Schema.TaggedError classes with `new`, not `.make`.
+  "effecttsgo/new-schema-class": "off",
+  // Pipeable overloads are library API design; vingroto is an application.
+  "effecttsgo/missing-pipeable-signature": "off",
+  "effecttsgo/missed-pipeable-opportunity": "off",
+  // Bun is the runtime; node builtins are the platform API, as for
+  // import/no-nodejs-modules below.
+  "effecttsgo/node-builtin-import": "off",
 }
 
 const ignorePatterns = [
@@ -123,7 +135,7 @@ export default defineConfig({
   extends: [recommended],
   plugins: basePlugins,
   categories,
-  rules: { ...baseRules, ...effectRuleSeverities },
+  rules: { ...baseRules, ...effectRuleSeverities, ...disabledEffectRules },
   overrides: [
     {
       files: ["packages/core/**/*.{ts,tsx}"],

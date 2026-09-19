@@ -109,7 +109,7 @@ const toOutgoingMessage = (entry: OutboxEntry): OutgoingMessage => {
   }
 }
 
-class Outbox extends Context.Service<Outbox, OutboxShape>()("vingroto/lib/server/Outbox") {
+class Outbox extends Context.Service<Outbox, OutboxShape>()("@vingroto/server/lib/outbox") {
   static readonly layer = Layer.effect(
     Outbox,
     Effect.gen(function* makeOutbox() {
@@ -251,13 +251,12 @@ class Outbox extends Context.Service<Outbox, OutboxShape>()("vingroto/lib/server
         function* cancelEntry(outboxId: OutboxId) {
           const moved = yield* cancelOutboxEntry(outboxId)
           if (!moved) {
-            yield* new OutboxNotFound({
+            return yield* new OutboxNotFound({
               outboxId,
               message: `outbox entry ${outboxId} was not found`,
             })
-            return
           }
-          yield* publishChanged
+          return yield* publishChanged
         },
         Effect.provideService(Database, database),
       )

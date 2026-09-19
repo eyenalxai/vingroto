@@ -39,15 +39,16 @@ const srvQuery = Effect.fn("Discovery.querySrv")(function* querySrv(
     try: async () => resolveSrv(name),
     catch: (cause: unknown) => new SrvLookupError({ name, message: describeError(cause), cause }),
   }).pipe(
-    Effect.timeout(srvLookupTimeout),
-    Effect.catchTag("TimeoutError", () =>
-      Effect.fail(
-        new SrvLookupError({
-          name,
-          message: `DNS SRV lookup for ${name} timed out after ${Duration.toSeconds(srvLookupTimeout)}s`,
-        }),
-      ),
-    ),
+    Effect.timeoutOrElse({
+      duration: srvLookupTimeout,
+      orElse: () =>
+        Effect.fail(
+          new SrvLookupError({
+            name,
+            message: `DNS SRV lookup for ${name} timed out after ${Duration.toSeconds(srvLookupTimeout)}s`,
+          }),
+        ),
+    }),
   )
 })
 

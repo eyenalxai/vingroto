@@ -155,7 +155,7 @@ const interpolate = Effect.fnUntraced(function* interpolate(
   if (open !== -1) {
     const close = pathname.indexOf("}", open)
     const name = close === -1 ? pathname.slice(open + 1) : pathname.slice(open + 1, close)
-    return yield* Effect.fail(new UsageError({ message: `missing path parameter: ${name}` }))
+    return yield* new UsageError({ message: `missing path parameter: ${name}` })
   }
   for (const [name, value] of Object.entries(params)) {
     if (!used.has(name)) {
@@ -175,31 +175,27 @@ const resolveTarget = Effect.fnUntraced(function* resolveTarget(
   const method = operation.toLowerCase()
   if (isHttpMethod(method)) {
     if (path === undefined) {
-      return yield* Effect.fail(
-        new UsageError({
-          message: `${operation} requires a request path — e.g. vingroto api ${method} /api/status`,
-        }),
-      )
+      return yield* new UsageError({
+        message: `${operation} requires a request path — e.g. vingroto api ${method} /api/status`,
+      })
     }
     if (!path.startsWith("/")) {
-      return yield* Effect.fail(
-        new UsageError({ message: `request paths must start with "/" — got "${path}"` }),
-      )
+      return yield* new UsageError({ message: `request paths must start with "/" — got "${path}"` })
     }
     return { method: requestMethod(method), path: yield* interpolate(path, params) }
   }
   const entry = operationById.get(operation)
   if (entry === undefined) {
-    return yield* Effect.fail(unknownOperation(operation, path))
+    return yield* unknownOperation(operation, path)
   }
   if (path !== undefined) {
-    return yield* Effect.fail(
-      new UsageError({ message: `operation ${entry.operationId} does not take a request path` }),
-    )
+    return yield* new UsageError({
+      message: `operation ${entry.operationId} does not take a request path`,
+    })
   }
   const invalid = invocationError(entry, params, hasBody)
   if (invalid !== undefined) {
-    return yield* Effect.fail(invalid)
+    return yield* invalid
   }
   return { method: entry.method, path: yield* interpolate(entry.path, params) }
 })

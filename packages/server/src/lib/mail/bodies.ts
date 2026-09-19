@@ -80,7 +80,7 @@ class BodyLoadKey implements Equal.Equal {
 }
 
 class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()(
-  "vingroto/lib/mail/MessageBodies",
+  "@vingroto/server/lib/mail/bodies/MessageBodies",
 ) {
   static readonly layer = Layer.effect(
     MessageBodies,

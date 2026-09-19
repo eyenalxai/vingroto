@@ -32,7 +32,7 @@ interface SchedulerShape {
 const defaultIntervalMinutes = 5
 
 class Scheduler extends Context.Service<Scheduler, SchedulerShape>()(
-  "vingroto/lib/server/Scheduler",
+  "@vingroto/server/lib/scheduler",
 ) {
   static readonly layer = Layer.effect(
     Scheduler,

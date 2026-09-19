@@ -35,7 +35,7 @@ interface AccountsShape {
   readonly username: (id: AccountId) => Effect.Effect<string | null, KeyringError>
 }
 
-class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/server/Accounts") {
+class Accounts extends Context.Service<Accounts, AccountsShape>()("@vingroto/server/lib/accounts") {
   static readonly layer = Layer.effect(
     Accounts,
     Effect.gen(function* makeAccounts() {

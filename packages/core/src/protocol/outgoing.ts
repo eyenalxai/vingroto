@@ -22,7 +22,7 @@ const OutgoingMessage = Schema.Struct({
   ),
 })
 
-type OutgoingMessage = Schema.Schema.Type<typeof OutgoingMessage>
+type OutgoingMessage = typeof OutgoingMessage.Type
 
 const OutboxEntry = Schema.Struct({
   id: OutboxId,
@@ -41,7 +41,7 @@ const OutboxEntry = Schema.Struct({
   lastError: Schema.NullOr(Schema.String),
 })
 
-type OutboxEntry = Schema.Schema.Type<typeof OutboxEntry>
+type OutboxEntry = typeof OutboxEntry.Type
 
 const Draft = Schema.Struct({
   id: DraftId,
@@ -57,13 +57,13 @@ const Draft = Schema.Struct({
   updatedAt: Schema.Int,
 })
 
-type Draft = Schema.Schema.Type<typeof Draft>
+type Draft = typeof Draft.Type
 
 const DraftSave = Schema.Struct({
   ...OutgoingMessage.fields,
   draftId: Schema.optionalKey(DraftId),
 })
 
-type DraftSave = Schema.Schema.Type<typeof DraftSave>
+type DraftSave = typeof DraftSave.Type
 
 export { Draft, DraftSave, OutgoingMessage, OutboxEntry }

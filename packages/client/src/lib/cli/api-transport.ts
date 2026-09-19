@@ -30,13 +30,19 @@ const errorLine = (code: number, message: string) =>
     process.exitCode = code
   })
 
+const jsonOutput = Schema.fromJsonString(Schema.Unknown, { space: 2 })
+
 const writeJson = (value: unknown) =>
   Effect.sync(() => {
-    process.stdout.write(`${JSON.stringify(value, null, 2)}${EOL}`)
+    const encoded = Schema.encodeResult(jsonOutput)(value)
+    if (Result.isFailure(encoded)) {
+      throw new Error("could not serialize the response as JSON", { cause: encoded.failure })
+    }
+    process.stdout.write(`${encoded.success}${EOL}`)
   })
 
 const responseMessage = (body: string) => {
-  const result = Schema.decodeUnknownResult(Schema.fromJsonString(ResponseMessage))(body)
+  const result = Schema.decodeResult(Schema.fromJsonString(ResponseMessage))(body)
   return Result.isSuccess(result) ? result.success.message : undefined
 }
 

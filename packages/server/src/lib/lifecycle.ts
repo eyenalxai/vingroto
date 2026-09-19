@@ -35,7 +35,10 @@ const isProcessAlive = (pid: number) => {
 const readLockPid = (fs: FileSystem.FileSystem, lock: string) =>
   fs.readFileString(path.join(lock, "pid")).pipe(
     Effect.map((raw) => Math.trunc(Number(raw.trim()))),
-    Effect.orElseSucceed(() => Number.NaN),
+    // A lock directory without a pid file is stale; any other read failure must stay visible.
+    Effect.catchTag("PlatformError", (error) =>
+      error.reason._tag === "NotFound" ? Effect.succeed(Number.NaN) : Effect.fail(error),
+    ),
   )
 
 const removeLock = (fs: FileSystem.FileSystem, lock: string) =>
@@ -50,7 +53,7 @@ const removeLock = (fs: FileSystem.FileSystem, lock: string) =>
     )
 
 class ServerLifecycle extends Context.Service<ServerLifecycle, ServerLifecycleShape>()(
-  "vingroto/lib/server/ServerLifecycle",
+  "@vingroto/server/lib/lifecycle/ServerLifecycle",
 ) {
   static readonly layer = Layer.effect(
     ServerLifecycle,
@@ -66,15 +69,14 @@ class ServerLifecycle extends Context.Service<ServerLifecycle, ServerLifecycleSh
             ),
           )
           if (created) {
-            return
+            return yield* Effect.void
           }
           const pid = yield* readLockPid(fs, paths.lock)
           if (Number.isSafeInteger(pid) && pid > 0 && isProcessAlive(pid)) {
-            yield* new ServerAlreadyRunning({
+            return yield* new ServerAlreadyRunning({
               lock: paths.lock,
               message: `another vingroto server is already running with pid ${pid}`,
             })
-            return
           }
           yield* Effect.logInfo("removing a stale server lock").pipe(
             Effect.annotateLogs({ lock: paths.lock }),

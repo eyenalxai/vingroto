@@ -9,7 +9,7 @@ const ServerConfig = Schema.Struct({
   security: Schema.Literals(["tls", "starttls", "none"]),
 })
 
-type ServerConfig = Schema.Schema.Type<typeof ServerConfig>
+type ServerConfig = typeof ServerConfig.Type
 
 const AccountConfig = Schema.Struct({
   id: AccountId,
@@ -21,14 +21,14 @@ const AccountConfig = Schema.Struct({
   smtp: ServerConfig,
 })
 
-type AccountConfig = Schema.Schema.Type<typeof AccountConfig>
+type AccountConfig = typeof AccountConfig.Type
 
 const SyncConfig = Schema.Struct({
   initialDays: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 3650 })),
   intervalMinutes: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 1440 })),
 })
 
-type SyncConfig = Schema.Schema.Type<typeof SyncConfig>
+type SyncConfig = typeof SyncConfig.Type
 
 const syncDefaults = (): SyncConfig => {
   return { initialDays: 30, intervalMinutes: 5 }
@@ -38,7 +38,7 @@ const NotificationsConfig = Schema.Struct({
   enabled: Schema.Boolean,
 })
 
-type NotificationsConfig = Schema.Schema.Type<typeof NotificationsConfig>
+type NotificationsConfig = typeof NotificationsConfig.Type
 
 const defaultNotifications = (): NotificationsConfig => {
   return { enabled: true }
@@ -48,7 +48,7 @@ const SendConfig = Schema.Struct({
   delaySeconds: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 })
 
-type SendConfig = Schema.Schema.Type<typeof SendConfig>
+type SendConfig = typeof SendConfig.Type
 
 const defaultSend = (): SendConfig => {
   return { delaySeconds: 60 }
@@ -56,7 +56,7 @@ const defaultSend = (): SendConfig => {
 
 const EditorConfig = Schema.Literals(["builtin", "system"])
 
-type EditorConfig = Schema.Schema.Type<typeof EditorConfig>
+type EditorConfig = typeof EditorConfig.Type
 
 const defaultEditor = (): EditorConfig => "builtin"
 
@@ -70,12 +70,12 @@ const AppConfig = Schema.Struct({
   editor: EditorConfig.pipe(Schema.withDecodingDefaultTypeKey(Effect.sync(defaultEditor))),
 })
 
-type AppConfig = Schema.Schema.Type<typeof AppConfig>
+type AppConfig = typeof AppConfig.Type
 
 // Why: every default is decoded into AppConfig, so the on-disk file contract is the app config contract.
 const AppConfigFile = AppConfig
 
-type AppConfigFile = Schema.Schema.Type<typeof AppConfigFile>
+type AppConfigFile = typeof AppConfigFile.Type
 
 export {
   AccountConfig,

@@ -108,7 +108,7 @@ const cacheFailure = (account: AccountConfig, error: unknown, errors: string[]) 
   })
 
 class MailActions extends Context.Service<MailActions, MailActionsShape>()(
-  "vingroto/lib/mail/MailActions",
+  "@vingroto/server/lib/mail/actions/MailActions",
 ) {
   static readonly layer = Layer.effect(
     MailActions,

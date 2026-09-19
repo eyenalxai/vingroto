@@ -102,30 +102,28 @@ const makeReorderAccounts = (configPath: string, fs: FileSystem.FileSystem) =>
     accountIds: readonly AccountId[],
   ) {
     const config = yield* loadConfigFile(configPath, fs)
-    const accounts = yield* Effect.gen(function* resolveOrder() {
-      const requested = new Set(accountIds)
-      if (requested.size !== accountIds.length) {
-        return yield* new AccountOrderInvalid({
-          message: "accountIds lists an account more than once",
-        })
-      }
-      if (accountIds.length !== config.accounts.length) {
-        return yield* new AccountOrderInvalid({
-          message: `accountIds must list all ${String(config.accounts.length)} configured accounts`,
-        })
-      }
-      const byId = new Map(config.accounts.map((account) => [account.id, account]))
-      const unknown = accountIds.find((id) => !byId.has(id))
-      if (unknown !== undefined) {
-        return yield* new AccountOrderInvalid({ message: `account ${unknown} is not configured` })
-      }
-      return accountIds.flatMap((id) => {
-        const account = byId.get(id)
-        return account === undefined ? [] : [account]
+    const requested = new Set(accountIds)
+    if (requested.size !== accountIds.length) {
+      return yield* new AccountOrderInvalid({
+        message: "accountIds lists an account more than once",
       })
+    }
+    if (accountIds.length !== config.accounts.length) {
+      return yield* new AccountOrderInvalid({
+        message: `accountIds must list all ${String(config.accounts.length)} configured accounts`,
+      })
+    }
+    const byId = new Map(config.accounts.map((account) => [account.id, account]))
+    const unknown = accountIds.find((id) => !byId.has(id))
+    if (unknown !== undefined) {
+      return yield* new AccountOrderInvalid({ message: `account ${unknown} is not configured` })
+    }
+    const accounts = accountIds.flatMap((id) => {
+      const account = byId.get(id)
+      return account === undefined ? [] : [account]
     })
     yield* saveConfigFile(configPath, fs, { ...config, accounts })
-    yield* Effect.logInfo("account order saved").pipe(
+    return yield* Effect.logInfo("account order saved").pipe(
       Effect.annotateLogs({ accounts: accounts.length }),
     )
   })

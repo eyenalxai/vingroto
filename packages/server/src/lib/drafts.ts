@@ -35,7 +35,7 @@ interface DraftsShape {
   ) => Effect.Effect<void, DraftNotFound | EffectDrizzleQueryError>
 }
 
-class Drafts extends Context.Service<Drafts, DraftsShape>()("vingroto/lib/server/Drafts") {
+class Drafts extends Context.Service<Drafts, DraftsShape>()("@vingroto/server/lib/drafts") {
   static readonly layer = Layer.effect(
     Drafts,
     Effect.gen(function* makeDrafts() {
@@ -73,13 +73,12 @@ class Drafts extends Context.Service<Drafts, DraftsShape>()("vingroto/lib/server
         function* deleteStoredDraft(draftId: DraftId) {
           const removed = yield* deleteDraft(draftId)
           if (!removed) {
-            yield* new DraftNotFound({
+            return yield* new DraftNotFound({
               draftId,
               message: `draft ${draftId} was not found`,
             })
-            return
           }
-          yield* events.publish({ _tag: "data-changed" })
+          return yield* events.publish({ _tag: "data-changed" })
         },
         Effect.provideService(Database, database),
       )

@@ -87,11 +87,13 @@ const withTransport = <T>(
     },
     catch: (cause: unknown) => toSmtpError(account, cause),
   }).pipe(
-    Effect.timeout(deadline),
-    Effect.catchTag("TimeoutError", () => Effect.fail(deadlineError(account, operation, deadline))),
+    Effect.timeoutOrElse({
+      duration: deadline,
+      orElse: () => Effect.fail(deadlineError(account, operation, deadline)),
+    }),
   )
 
-class Mailer extends Context.Service<Mailer, MailerShape>()("vingroto/lib/mail/Mailer") {
+class Mailer extends Context.Service<Mailer, MailerShape>()("@vingroto/server/lib/mail/mailer") {
   static readonly layer = Layer.effect(
     Mailer,
     Effect.gen(function* makeMailer() {
