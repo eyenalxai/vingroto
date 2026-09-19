@@ -7,6 +7,8 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
+import * as Scope from "effect/Scope"
+import * as Semaphore from "effect/Semaphore"
 
 const notificationsName = "org.freedesktop.Notifications"
 const notificationsPath = "/org/freedesktop/Notifications"
@@ -39,6 +41,11 @@ interface NotificationConnection {
   readonly proxy: NotificationsInterface
 }
 
+const disconnect = (bus: dbus.MessageBus) =>
+  Effect.sync(() => {
+    bus.disconnect()
+  })
+
 // Why: dbus-next would otherwise fall back to X11 window-selection discovery, while a wayland session always exposes the bus in the environment or at $XDG_RUNTIME_DIR/bus.
 const sessionBusAddress = Effect.gen(function* resolveSessionBusAddress() {
   const configured = yield* Config.String("DBUS_SESSION_BUS_ADDRESS").pipe(Config.option)
@@ -59,53 +66,63 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
     DesktopNotifications,
     Effect.gen(function* makeDesktopNotifications() {
       const paths = yield* AppPaths
+      const layerScope = yield* Effect.scope
       const connection = yield* Ref.make<NotificationConnection | null>(null)
-      yield* Effect.addFinalizer(() =>
-        Effect.gen(function* closeNotificationBus() {
+      const connectLock = yield* Semaphore.make(1)
+
+      // The finalizer lands in the layer scope, so the cached connection is closed exactly once when the layer is torn down.
+      const connect = Effect.acquireRelease(
+        Effect.gen(function* acquireConnection() {
+          const busAddress = yield* sessionBusAddress
+          if (busAddress === null) {
+            return yield* Effect.fail(new Error("no wayland session bus address"))
+          }
+          const bus = dbus.sessionBus({ busAddress })
+          bus.on("error", () => {
+            // An unreachable session bus must not crash the daemon through an unhandled emitter error; the calls below fail and the layer stays silent.
+          })
+          const proxy = yield* Effect.tryPromise({
+            try: async () => {
+              const proxyObject = await bus.getProxyObject(notificationsName, notificationsPath)
+              return proxyObject
+            },
+            catch: (cause) => cause,
+          }).pipe(
+            Effect.map((object) =>
+              object.getInterface<NotificationsInterface>(notificationsInterface),
+            ),
+            // A failed acquisition never registers the finalizer, so this attempt must close the bus itself.
+            Effect.onError(() => disconnect(bus)),
+          )
+          return { bus, proxy }
+        }),
+        (connected) => disconnect(connected.bus),
+        { interruptible: true },
+      )
+
+      const openConnection = connectLock.withPermits(1)(
+        Effect.gen(function* reuseOrOpenConnection() {
           const current = yield* Ref.get(connection)
           if (current !== null) {
-            yield* Effect.sync(() => {
-              current.bus.disconnect()
-            })
+            return current
           }
+          const opened = yield* connect.pipe(Scope.provide(layerScope))
+          yield* Ref.set(connection, opened)
+          return opened
         }),
       )
-      const connect = Effect.gen(function* connectToNotifications() {
-        const busAddress = yield* sessionBusAddress
-        if (busAddress === null) {
-          return yield* Effect.fail(new Error("no wayland session bus address"))
-        }
-        const bus = dbus.sessionBus({ busAddress })
-        bus.on("error", () => {
-          // An unreachable session bus must not crash the daemon through an unhandled emitter error; the calls below fail and the layer stays silent.
-        })
-        const object = yield* Effect.tryPromise({
-          try: async () => {
-            const proxyObject = await bus.getProxyObject(notificationsName, notificationsPath)
-            return proxyObject
-          },
-          catch: (cause) => cause,
-        })
-        const proxy = object.getInterface<NotificationsInterface>(notificationsInterface)
-        return { bus, proxy }
-      })
+
       const notify = Effect.fn("DesktopNotifications.notify")(function* sendNotification(
         notification: DesktopNotification,
       ) {
-        const current = yield* Ref.get(connection)
-        let connected: NotificationConnection | null = current
-        if (connected === null) {
-          const attempt = yield* Effect.option(connect)
-          if (Option.isNone(attempt)) {
-            yield* Effect.logDebug("no desktop notification service on the session bus")
-            return
-          }
-          connected = attempt.value
-          yield* Ref.set(connection, connected)
+        const opened = yield* openConnection.pipe(Effect.option)
+        if (Option.isNone(opened)) {
+          yield* Effect.logDebug("no desktop notification service on the session bus")
+          return
         }
         yield* Effect.tryPromise({
           try: async () => {
-            await connected.proxy.Notify(
+            await opened.value.proxy.Notify(
               paths.appName,
               0,
               "",

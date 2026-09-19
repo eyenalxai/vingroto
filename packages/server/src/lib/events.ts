@@ -7,6 +7,9 @@ import * as PubSub from "effect/PubSub"
 import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
 
+// Refresh signals: a subscriber that falls behind only needs the newest event, and producers must never block.
+const eventCapacity = 256
+
 interface ServerEventsShape {
   readonly publish: (event: ServerEvent) => Effect.Effect<void>
   readonly stream: Stream.Stream<ServerEvent>
@@ -20,7 +23,7 @@ class ServerEvents extends Context.Service<ServerEvents, ServerEventsShape>()(
   static readonly layer = Layer.effect(
     ServerEvents,
     Effect.gen(function* makeServerEvents() {
-      const pubsub = yield* PubSub.unbounded<ServerEvent>()
+      const pubsub = yield* PubSub.sliding<ServerEvent>(eventCapacity)
       const subscribers = yield* Ref.make(0)
       const publish = Effect.fn("ServerEvents.publish")(function* publishEvent(event: ServerEvent) {
         yield* PubSub.publish(pubsub, event)

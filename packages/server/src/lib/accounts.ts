@@ -12,6 +12,7 @@ import * as Layer from "effect/Layer"
 import type { AccountNotFound, AccountOrderInvalid } from "@/lib/config/accounts"
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
 import type { ConfigWriteError } from "@/lib/config/save"
+import type { KeyringError } from "@/lib/credential/keyring"
 import type { CredentialError } from "@/lib/credential/service"
 
 import { makeReorderAccounts, makeSubmitAccount, makeUpdateAccount } from "@/lib/config/accounts"
@@ -31,7 +32,7 @@ interface AccountsShape {
   readonly reorder: (
     accountIds: readonly AccountId[],
   ) => Effect.Effect<void, AccountWriteError | AccountOrderInvalid>
-  readonly username: (id: AccountId) => Effect.Effect<string | null>
+  readonly username: (id: AccountId) => Effect.Effect<string | null, KeyringError>
 }
 
 class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/server/Accounts") {
@@ -43,6 +44,7 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
       const credential = yield* Credential
       const paths = yield* AppPaths
       const fs = yield* FileSystem.FileSystem
+      const layerScope = yield* Effect.scope
 
       const submit = makeSubmitAccount({ configPath: paths.config, credential, fs })
       const persistUpdate = makeUpdateAccount({ configPath: paths.config, credential, fs })
@@ -57,7 +59,7 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
               Effect.annotateLogs({ reason: describeError(error) }),
             ),
           ),
-          Effect.forkDetach,
+          Effect.forkIn(layerScope),
         )
         return account
       })
@@ -81,7 +83,7 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
       const username = Effect.fn("Accounts.username")(function* accountUsername(id: AccountId) {
         return yield* credential
           .get(usernameReference(id))
-          .pipe(Effect.orElseSucceed((): string | null => null))
+          .pipe(Effect.catchTag("CredentialNotFound", () => Effect.succeed(null)))
       })
 
       return Accounts.of({ create, reorder, update, username })
