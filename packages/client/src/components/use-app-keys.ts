@@ -7,9 +7,9 @@ import { useKeyboard } from "@opentui/solid"
 import type { Pane } from "@/components/pane-layout"
 import type { MailStore } from "@/components/use-mail-store"
 
+import { handleSearchKey, handleSelectionKey } from "@/components/editing-keys"
 import { useLeaderKey } from "@/components/leader-key"
 import { paneOrder } from "@/components/pane-layout"
-import { clearSelection, copySelection, hasSelection } from "@/lib/selection"
 
 interface AppKeysOptions {
   readonly renderer: CliRenderer
@@ -21,7 +21,10 @@ interface AppKeysOptions {
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
   readonly onOpenSettings: () => void
+  readonly onOpenOutbox: () => void
   readonly onMoveMessages: () => void
+  readonly onCompose: () => void
+  readonly onReply: (all: boolean) => void
   readonly searchActive: () => boolean
   readonly searchEditing: () => boolean
   readonly onSearchBegin: () => void
@@ -91,6 +94,10 @@ const useAppKeys = (options: AppKeysOptions) => {
         options.onOpenSettings()
         return
       }
+      if (action === "open-outbox") {
+        options.onOpenOutbox()
+        return
+      }
       syncCurrent()
     },
   })
@@ -118,55 +125,20 @@ const useAppKeys = (options: AppKeysOptions) => {
     }
   }
 
-  const handleSelectionKey = (key: KeyEvent): boolean => {
-    if (hasSelection(options.renderer)) {
-      if (key.ctrl && key.name === "c") {
-        const outcome = copySelection(options.renderer)
-        if (outcome === "copied") {
-          options.onStatus("selection copied to the clipboard")
-        } else if (outcome === "unsupported") {
-          options.onStatus("this terminal cannot write to the clipboard")
-        }
-        return true
-      }
-      if (key.name === "escape") {
-        clearSelection(options.renderer)
-        return true
-      }
-      clearSelection(options.renderer)
-    }
-    return false
-  }
+  const handleSelection = (key: KeyEvent): boolean =>
+    handleSelectionKey({ onStatus: options.onStatus, renderer: options.renderer }, key)
 
-  const handleSearchKey = (key: KeyEvent): boolean => {
-    if (!options.searchEditing()) {
-      return false
-    }
-    if (key.name === "escape") {
-      options.onSearchClear()
-      return true
-    }
-    if (key.name === "return") {
-      options.onSearchCommit()
-      return true
-    }
-    if (key.name === "backspace" || key.name === "delete") {
-      options.onSearchBackspace()
-      return true
-    }
-    if (key.name === "tab" || key.name === "left" || key.name === "right") {
-      return true
-    }
-    if (key.name === "space") {
-      options.onSearchType(" ")
-      return true
-    }
-    if (!key.ctrl && !key.meta && !key.option && key.super !== true && key.name.length === 1) {
-      options.onSearchType(key.name)
-      return true
-    }
-    return false
-  }
+  const handleSearch = (key: KeyEvent): boolean =>
+    handleSearchKey(
+      {
+        onSearchBackspace: options.onSearchBackspace,
+        onSearchClear: options.onSearchClear,
+        onSearchCommit: options.onSearchCommit,
+        onSearchType: options.onSearchType,
+        searchEditing: options.searchEditing,
+      },
+      key,
+    )
 
   const handleListActionKey = (key: KeyEvent): boolean => {
     if (key.name === "/" && !key.ctrl && !key.meta && !key.option && isSearchPane(options.pane())) {
@@ -177,20 +149,42 @@ const useAppKeys = (options: AppKeysOptions) => {
     if (options.pane() !== "list") {
       return false
     }
-    if (key.name === "r" && !key.ctrl) {
-      options.store.markRead()
-      return true
-    }
-    if (key.name === "u" && !key.ctrl) {
-      options.store.markUnread()
-      return true
-    }
     if (key.name === "m" && !key.ctrl) {
       options.onMoveMessages()
       return true
     }
     if (key.ctrl && key.name === "a") {
       options.store.toggleMarkAll()
+      return true
+    }
+    return false
+  }
+
+  const handleMailKey = (key: KeyEvent): boolean => {
+    if (key.ctrl || key.meta || key.option || key.super === true) {
+      return false
+    }
+    if (key.name === "c") {
+      options.onCompose()
+      return true
+    }
+    if (options.pane() !== "list" && options.pane() !== "reader") {
+      return false
+    }
+    if (key.name === "r") {
+      options.onReply(key.shift)
+      return true
+    }
+    if (key.name === "s") {
+      if (key.shift) {
+        options.store.markUnread()
+      } else {
+        options.store.markRead()
+      }
+      return true
+    }
+    if (key.name === "u") {
+      options.store.markUnread()
       return true
     }
     return false
@@ -211,6 +205,9 @@ const useAppKeys = (options: AppKeysOptions) => {
         return true
       }
       toggleFocusedAccount()
+      return true
+    }
+    if (handleMailKey(key)) {
       return true
     }
     if (handleListActionKey(key)) {
@@ -283,8 +280,8 @@ const useAppKeys = (options: AppKeysOptions) => {
     }
     const handled =
       leader.handle(key) ||
-      handleSelectionKey(key) ||
-      handleSearchKey(key) ||
+      handleSelection(key) ||
+      handleSearch(key) ||
       handleActionKey(key) ||
       handleMovementKey(key) ||
       handlePaneKey(key)

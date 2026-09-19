@@ -42,4 +42,17 @@ const describeClientFailure = (error: MailClientError): ClientFailure => {
   return clientFailure.server({ message: error.message })
 }
 
-export { describeClientFailure, type ClientFailure }
+interface FailureHandlers {
+  readonly onStatus: (message: string) => void
+  readonly onDisconnected: (message: string) => void
+}
+
+const reportClientFailure = (label: string, error: MailClientError, handlers: FailureHandlers) => {
+  const failure = describeClientFailure(error)
+  handlers.onStatus(`${label} · ${failure.message}`)
+  if (failure._tag === "connection") {
+    handlers.onDisconnected(failure.message)
+  }
+}
+
+export { describeClientFailure, reportClientFailure, type ClientFailure }

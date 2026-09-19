@@ -39,7 +39,10 @@ interface MailWorkspaceProps {
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
   readonly onOpenSettings: () => void
+  readonly onOpenOutbox: () => void
   readonly onMoveMessages: () => void
+  readonly onCompose: () => void
+  readonly onReply: (all: boolean) => void
 }
 
 const MailWorkspace = (props: MailWorkspaceProps) => {
@@ -66,7 +69,10 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     onStatus: props.onStatus,
     onAddAccount: props.onAddAccount,
     onOpenSettings: props.onOpenSettings,
+    onOpenOutbox: props.onOpenOutbox,
     onMoveMessages: props.onMoveMessages,
+    onCompose: props.onCompose,
+    onReply: props.onReply,
     onSearchBackspace: props.store.searchBackspace,
     onSearchBegin: props.store.beginSearch,
     onSearchClear: props.store.clearSearch,

@@ -9,12 +9,13 @@ const wideMailboxPaneWidth = 30
 const mediumMailboxPaneWidth = 26
 
 const hints = {
-  mailbox: "↑↓ move · ⏎ open · space fold · i mute · / search · tab next pane · ctrl+x · q quit",
-  list: "↑↓ move · / search · space mark · r read · u unread · m move · esc back · ctrl+x · q quit",
-  reader: "↑↓ scroll · pgup/pgdn · esc back · ctrl+x · q quit",
+  mailbox:
+    "↑↓ move · ⏎ open · space fold · i mute · / search · c compose · tab next pane · ctrl+x · q quit",
+  list: "↑↓ move · / search · space mark · s read · S/u unread · r reply · m move · esc back · ctrl+x · q quit",
+  reader: "↑↓ scroll · pgup/pgdn · r reply · c compose · esc back · ctrl+x · q quit",
 } as const
 
-const markedHint = "r read · u unread · m move · ctrl+a mark all · esc clear"
+const markedHint = "s read · S/u unread · m move · ctrl+a mark all · esc clear"
 
 const searchHint = "enter apply · esc clear · ctrl+a mark every match"
 

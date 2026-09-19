@@ -208,26 +208,38 @@ Headers are synced, bodies are not. The reader shows a message straight from the
 
 Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: `style` and `script` blocks, hidden preheaders (`display:none`, `visibility:hidden`, zero-height or zero-opacity blocks) and tracking pixels are dropped, links keep their text with the target in brackets and images render only a meaningful `alt`. What remains is normalized: HTML entities and `&nbsp;` are decoded, zero-width and other invisible spacer characters are removed, runs of spaces collapse and blank-line ladders shrink to a single empty line. A `text/plain` part that is really raw HTML or CSS is converted the same way, so a broken sender cannot leak `td, p { font-family: … }` into the reader. Links and URLs are clickable; long tracking URLs are shown truncated but open in full.
 
-`r` marks the selected (or selected set of) messages read and `u` marks them unread; `\Seen` is written back to the server. `m` moves them to another mailbox of the same account. Both actions ask the daemon to talk to the mail server first and update the local cache afterwards; if some mailboxes fail, the rest still applies and the failures are reported in the status bar.
+`s` marks the selected (or selected set of) messages read, and `S` or `u` marks them unread; `\Seen` is written back to the server. `m` moves them to another mailbox of the same account. Both actions ask the daemon to talk to the mail server first and update the local cache afterwards; if some mailboxes fail, the rest still applies and the failures are reported in the status bar.
+
+## Writing
+
+`c` opens a full-screen composer from any mail pane. The first field is **From**, defaulting to the first account in the config file; `left`/`right` (or `up`/`down`) cycle between accounts. `To`, `Cc` and `Bcc` take addresses separated by commas or semicolons, each optionally as `Name <address>`; an address that does not parse is refused with an inline error instead of being sent. `tab` and `shift+tab` move between fields, `enter` moves on from a header field, and the body is a textarea that wraps, scrolls and accepts pasted text. `ctrl+s` queues the message and the footer reports `queued · sends in 60s` from the daemon's answer; `escape` closes the composer once the draft is saved, unless the message is already queued. `ctrl+e` opens the body in `$VISUAL`, then `$EDITOR`, then `vi`, with the TUI suspended, and `ctrl+c` quits.
+
+`r` replies to the selected message and `R` replies to all of them, from the list or the reader. The composer prefills the sender, reply-all adds the original recipients minus your own address and duplicates, the subject gains `Re:` when it does not have one, the `In-Reply-To` and `References` headers are carried over, and the body quotes the original after an attribution line with the cursor at the top.
+
+The composer autosaves a draft a second after the last change; an empty message is not saved, a draft that becomes empty is deleted, and a draft can be saved without recipients. `ctrl+x o` opens the outbox and drafts: `tab` switches between **Pending** and **Drafts**, `up`/`down` move, `c` cancels the selected pending message into drafts, `s` twice releases it to send now, `enter` on a draft reopens it in the composer and `d` twice deletes it. The screen reloads on every daemon change, so a message the worker has sent disappears on its own.
 
 ## Keys
 
 | Key                                           | Action                                                     |
 | --------------------------------------------- | ---------------------------------------------------------- |
 | `q`, `ctrl+c`                                 | quit                                                       |
+| `c`                                           | compose a message                                          |
 | `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                               |
 | `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                      |
 | `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                          |
 | `enter`                                       | open a mailbox / read a message / download the body        |
 | `space`                                       | mailboxes: collapse the account · list: select the message |
-| `r`                                           | list: mark read                                            |
-| `u`                                           | list: mark unread                                          |
+| `r`                                           | list, reader: reply                                        |
+| `R`                                           | list, reader: reply all                                    |
+| `s`                                           | list, reader: mark read                                    |
+| `S`, `u`                                      | list, reader: mark unread                                  |
 | `m`                                           | list: move to another mailbox                              |
 | `ctrl+a`                                      | list: select every loaded message / clear                  |
 | `i`                                           | mailboxes: mute or unmute the mailbox                      |
 | `shift+up`, `shift+down`                      | settings: move the selected account up or down             |
 | `escape`                                      | list: clear the selection · otherwise step back            |
 | `ctrl+x` `a`                                  | add an account                                             |
+| `ctrl+x` `o`                                  | outbox and drafts                                          |
 | `ctrl+x` `s`                                  | settings                                                   |
 | `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                  |
 

@@ -8,12 +8,16 @@ import { Show, createEffect, createMemo, createSignal } from "solid-js"
 import type { Pane } from "@/components/pane-layout"
 import type { MoveTargetsResult } from "@/lib/mail/move"
 
+import { ComposerScreen } from "@/components/composer/composer-screen"
 import { MailWorkspace } from "@/components/mail-workspace"
 import { MovePicker } from "@/components/move-picker"
+import { OutboxScreen } from "@/components/outbox/outbox-screen"
 import { useRuntime } from "@/components/runtime-provider"
+import { createSettingsActions } from "@/components/settings/settings-actions"
 import { SettingsScreen } from "@/components/settings/settings-screen"
 import { AccountSetup } from "@/components/setup/account-setup"
 import { StartupScreen } from "@/components/startup-screen"
+import { useComposeFlow } from "@/components/use-compose-flow"
 import { useDaemonStatus } from "@/components/use-daemon-status"
 import { useMailStore } from "@/components/use-mail-store"
 import { useMailSyncWindow } from "@/components/use-mail-sync"
@@ -53,6 +57,38 @@ const App = () => {
 
   const needsSetup = createMemo(() => daemon.status()?.config._tag === "empty")
   const connected = createMemo((prior: boolean) => prior || daemon.status() !== undefined, false)
+
+  const [dataVersion, setDataVersion] = createSignal(0)
+
+  const store = useMailStore({
+    config: appConfig,
+    connected: () => connected(),
+    onConfigChanged: () => {
+      runtime.runFork(Effect.promise(async () => daemon.refresh()))
+    },
+    onDataChanged: () => {
+      setDataVersion((current) => current + 1)
+    },
+    onDisconnected: (message: string) => {
+      daemon.retry(message)
+    },
+    onNewMail: notifications.notify,
+    onStatus: (value: string) => {
+      setStatus(value)
+    },
+    runtime,
+  })
+
+  const flow = useComposeFlow({
+    accounts,
+    bodyState: store.body,
+    detail: store.detail,
+    onStatus: (message: string) => {
+      setStatus(message)
+    },
+    selectedMessageId: store.selectedMessageId,
+  })
+
   const mainVisible = createMemo(
     () =>
       connected() &&
@@ -60,7 +96,8 @@ const App = () => {
       !needsSetup() &&
       !addingAccount() &&
       !settingsOpen() &&
-      moving() === undefined,
+      moving() === undefined &&
+      !flow.active(),
   )
   const setupVisible = createMemo(
     () =>
@@ -72,22 +109,10 @@ const App = () => {
   const settingsVisible = createMemo(
     () => settingsOpen() && appConfig() !== undefined && !addingAccount(),
   )
-
-  const store = useMailStore({
-    config: appConfig,
-    connected: () => connected(),
-    onConfigChanged: () => {
-      runtime.runFork(Effect.promise(async () => daemon.refresh()))
-    },
-    onDisconnected: (message: string) => {
-      daemon.retry(message)
-    },
-    onNewMail: notifications.notify,
-    onStatus: (value: string) => {
-      setStatus(value)
-    },
-    runtime,
-  })
+  const composerVisible = createMemo(
+    () => flow.composing() !== undefined && appConfig() !== undefined,
+  )
+  const outboxVisible = createMemo(() => flow.outboxOpen() && appConfig() !== undefined)
 
   const sync = useMailSyncWindow({
     runtime,
@@ -101,40 +126,18 @@ const App = () => {
     onFinished: store.loadMailboxData,
   })
 
-  const refreshConfig = async () => {
-    await daemon.refresh()
-    store.loadMailboxData()
-  }
-
-  const handleAccountSaved = (account: AccountConfig) => {
-    setAddingAccount(false)
-    setStatus(`account ${account.label} saved · syncing`)
-    runtime.runFork(
-      Effect.promise(async () => daemon.refresh()).pipe(
-        Effect.andThen(Effect.sync(sync.syncWindow)),
-      ),
-    )
-  }
-
-  const handleAccountUpdated = (account: AccountConfig) => {
-    setStatus(`account ${account.label} updated`)
-    runtime.runFork(Effect.promise(refreshConfig))
-  }
-
-  const handleSyncSaved = () => {
-    setStatus("sync settings saved")
-    runtime.runFork(Effect.promise(refreshConfig))
-  }
-
-  const handleSendSaved = () => {
-    setStatus("sending settings saved")
-    runtime.runFork(Effect.promise(refreshConfig))
-  }
-
-  const handleNotificationsSaved = () => {
-    setStatus("notification settings saved")
-    runtime.runFork(Effect.promise(refreshConfig))
-  }
+  const settings = createSettingsActions({
+    runtime,
+    refresh: daemon.refresh,
+    onRefreshed: store.loadMailboxData,
+    onStatus: (value: string) => {
+      setStatus(value)
+    },
+    onAccountAdded: () => {
+      setAddingAccount(false)
+    },
+    syncWindow: sync.syncWindow,
+  })
 
   const beginAddAccount = () => {
     setSettingsOpen(false)
@@ -199,14 +202,17 @@ const App = () => {
           onOpenSettings={() => {
             setSettingsOpen(true)
           }}
+          onOpenOutbox={flow.openOutbox}
           onMoveMessages={beginMove}
+          onCompose={flow.beginCompose}
+          onReply={flow.beginReply}
         />
       </Show>
       <Show when={setupVisible()}>
         <AccountSetup
           accounts={accounts()}
           mode={needsSetup() ? "initial" : "add"}
-          onSaved={handleAccountSaved}
+          onSaved={settings.handleAccountSaved}
           onCancel={
             needsSetup()
               ? undefined
@@ -230,15 +236,39 @@ const App = () => {
               onClose={() => {
                 setSettingsOpen(false)
               }}
-              onAccountSaved={handleAccountUpdated}
+              onAccountSaved={settings.handleAccountUpdated}
               onMailboxChanged={store.loadMailboxData}
-              onSyncSaved={handleSyncSaved}
-              onSendSaved={handleSendSaved}
-              onNotificationsSaved={handleNotificationsSaved}
+              onSyncSaved={settings.handleSyncSaved}
+              onSendSaved={settings.handleSendSaved}
+              onNotificationsSaved={settings.handleNotificationsSaved}
               onDisconnected={daemon.retry}
             />
           )}
         </Show>
+      </Show>
+      <Show when={composerVisible()}>
+        <Show when={flow.composing()}>
+          {(seed) => (
+            <ComposerScreen
+              runtime={runtime}
+              accounts={accounts()}
+              seed={seed()}
+              sendDelaySeconds={appConfig()?.send.delaySeconds ?? 0}
+              onClose={flow.closeComposer}
+              onDisconnected={daemon.retry}
+            />
+          )}
+        </Show>
+      </Show>
+      <Show when={outboxVisible()}>
+        <OutboxScreen
+          runtime={runtime}
+          accounts={accounts()}
+          dataVersion={dataVersion}
+          onClose={flow.closeOutbox}
+          onOpenDraft={flow.openDraft}
+          onDisconnected={daemon.retry}
+        />
       </Show>
       <Show when={moving()}>
         {(targets) => (

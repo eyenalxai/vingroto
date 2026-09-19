@@ -169,6 +169,13 @@ const rowKeyAfterMove = (
   return rows[clamped]?.key
 }
 
+const findMailboxId = (
+  mailboxes: readonly Mailbox[],
+  accountId: AccountId,
+  path: string,
+): MailboxId | undefined =>
+  mailboxes.find((row) => row.account_id === accountId && row.path === path)?.id
+
 const createInitialRowKeySelector = () => {
   let previousRows: readonly MailboxTreeRow[] = []
 
@@ -192,6 +199,7 @@ const createInitialRowKeySelector = () => {
 export {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
+  findMailboxId,
   listHasMailbox,
   parseListKey,
   rowKeyAfterMove,

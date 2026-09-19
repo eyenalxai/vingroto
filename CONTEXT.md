@@ -27,6 +27,10 @@ _Avoid_: Queued message, job
 A message stored by the daemon rather than on a mail server, so it survives client restarts and can be reopened in the composer.
 _Avoid_: Drafts folder
 
+**Composer**:
+The full-screen editor for a new, replied or reopened message: the From, To/Cc/Bcc, subject and body fields, draft autosave and the hand-off to an external editor. It talks to the daemon over the API and never sends directly.
+_Avoid_: Editor (that is the external program), compose window
+
 **Mailbox**:
 An IMAP mailbox on a server, cached locally with its path, delimiter, special-use flags, UID validity and read state.
 _Avoid_: Folder

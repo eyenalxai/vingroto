@@ -21,6 +21,7 @@ import { describeClientFailure } from "@/lib/failure"
 import {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
+  findMailboxId,
   listHasMailbox,
   parseListKey,
   rowKeyAfterMove,
@@ -34,11 +35,9 @@ interface MailStoreOptions {
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
   readonly onConfigChanged: () => void
+  readonly onDataChanged: () => void
   readonly onNewMail: (mailbox: Mailbox, visible: boolean) => void
 }
-
-const withoutId = (current: ReadonlySet<MailboxId>, id: MailboxId) =>
-  new Set([...current].filter((entry) => entry !== id))
 
 const useMailStore = (options: MailStoreOptions) => {
   const [mailboxes, setMailboxes] = createSignal<readonly Mailbox[]>([])
@@ -198,14 +197,11 @@ const useMailStore = (options: MailStoreOptions) => {
     setSelectedListKey(key)
   }
 
-  const mailboxIdFor = (accountId: AccountId, path: string) =>
-    mailboxes().find((row) => row.account_id === accountId && row.path === path)?.id
-
   const applySyncEvent = (event: SyncEvent) => {
     untrack(() => {
       options.onStatus(describeSyncEvent(event))
       if (event._tag === "mailbox-start") {
-        const id = mailboxIdFor(event.accountId, event.path)
+        const id = findMailboxId(mailboxes(), event.accountId, event.path)
         if (id !== undefined) {
           setSyncingMailboxIds((current) => new Set(current).add(id))
         }
@@ -214,8 +210,10 @@ const useMailStore = (options: MailStoreOptions) => {
       if (event._tag === "sync-error") {
         setSyncingMailboxIds(new Set<MailboxId>())
       } else {
-        const id = mailboxIdFor(event.accountId, event.path)
-        setSyncingMailboxIds((current) => (id === undefined ? current : withoutId(current, id)))
+        const id = findMailboxId(mailboxes(), event.accountId, event.path)
+        setSyncingMailboxIds((current) =>
+          id === undefined ? current : new Set([...current].filter((entry) => entry !== id)),
+        )
       }
       const target = parseListKey(selectedListKey())
       if (event._tag === "mailbox-done" && event.stored > 0 && !event.reset) {
@@ -250,6 +248,7 @@ const useMailStore = (options: MailStoreOptions) => {
 
   const applyEvent = (event: ServerEvent) => {
     if (event._tag === "data-changed") {
+      options.onDataChanged()
       loadMailboxData()
       messagePane.reloadCurrent()
       return

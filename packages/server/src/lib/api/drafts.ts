@@ -15,16 +15,8 @@ const toInternal = (error: unknown) => new InternalError({ message: describeErro
 
 const DraftHandlers = HttpApiBuilder.group(ServerApi, "drafts", (handlers) =>
   handlers
-    .handle("draft.save", ({ payload }) => {
-      if (payload.to.length === 0) {
-        return Effect.fail(
-          new InvalidRequestError({
-            field: "body.to",
-            message: "a message needs at least one recipient",
-          }),
-        )
-      }
-      return Drafts.pipe(
+    .handle("draft.save", ({ payload }) =>
+      Drafts.pipe(
         Effect.flatMap((drafts) => drafts.save(payload)),
         Effect.mapError((error): AccountNotFoundError | InvalidRequestError | InternalError => {
           if (error._tag === "AccountNotConfigured") {
@@ -40,8 +32,8 @@ const DraftHandlers = HttpApiBuilder.group(ServerApi, "drafts", (handlers) =>
           }
           return toInternal(error)
         }),
-      )
-    })
+      ),
+    )
     .handle("draft.list", () =>
       Drafts.pipe(
         Effect.flatMap((drafts) => drafts.list()),
