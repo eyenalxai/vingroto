@@ -54,7 +54,7 @@ The daemon's background fetching of bodies for unread messages in unmuted mailbo
 A mailbox marked to be excluded from the Unread views, from account and global unread totals, from prefetching and from notifications, while still showing its own unread count and staying listed and readable.
 
 **Notification**:
-A desktop alert about new mail. The TUI raises one when a sync stores messages in an unmuted mailbox while the terminal is unfocused; sound is never part of a notification.
+A desktop alert about new mail, raised by the daemon when no client is attached and by the TUI when one is. It never fires for a muted mailbox, a mailbox's first sync, or a UID-validity reset; the TUI stays silent while the terminal is focused and the mail is already in the shown list, announces while blurred or when the mail is elsewhere, and never carries sound.
 _Avoid_: Alert, attention
 
 **Count tone**:

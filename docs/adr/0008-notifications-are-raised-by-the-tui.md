@@ -1,6 +1,6 @@
 # New-mail notifications are raised by the TUI
 
-Status: accepted
+Status: superseded by [ADR-0011](0011-notifications-are-raised-by-the-daemon-and-the-tui.md).
 
 New mail is announced by the TUI, not the daemon: after a sync stores messages in an unmuted mailbox the TUI raises a desktop notification through the terminal's OSC 99 protocol, carrying the newest sender and subject and never any sound. It does so only while the terminal reports itself unfocused, and never for a mailbox whose first sync is still running nor for a mailbox-done the daemon marks as a reset — a mailbox dropped and re-imported after a UID validity change — so neither the initial import of a newly added mailbox nor the re-import of a reassigned one announces its whole window. The enabled flag lives in the daemon's config file because clients are stateless; the daemon itself never notifies.
 

@@ -60,6 +60,24 @@ const parseListKey = (key: string | undefined): ListTarget | undefined => {
   return undefined
 }
 
+// Why: a search result list cannot be matched locally, so an active query counts as mail the user cannot see yet.
+const listHasMailbox = (
+  target: ListTarget | undefined,
+  searching: boolean,
+  mailbox: Mailbox,
+): boolean => {
+  if (searching || target === undefined) {
+    return false
+  }
+  if (target.kind === "mailbox") {
+    return target.mailboxId === mailbox.id
+  }
+  if (target.kind === "unread") {
+    return target.accountId === undefined || target.accountId === mailbox.account_id
+  }
+  return true
+}
+
 const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[] => {
   const rows: MailboxTreeRow[] = [
     {
@@ -174,6 +192,7 @@ const createInitialRowKeySelector = () => {
 export {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
+  listHasMailbox,
   parseListKey,
   rowKeyAfterMove,
   type CountTone,

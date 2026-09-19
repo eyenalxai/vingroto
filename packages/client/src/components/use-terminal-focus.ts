@@ -25,4 +25,4 @@ const useTerminalFocus = (): (() => TerminalFocus) => {
   return focus
 }
 
-export { useTerminalFocus }
+export { useTerminalFocus, type TerminalFocus }

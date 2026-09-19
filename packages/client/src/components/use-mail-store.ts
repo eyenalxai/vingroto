@@ -21,6 +21,7 @@ import { describeClientFailure } from "@/lib/failure"
 import {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
+  listHasMailbox,
   parseListKey,
   rowKeyAfterMove,
 } from "@/lib/mail/mailbox-tree"
@@ -33,7 +34,7 @@ interface MailStoreOptions {
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
   readonly onConfigChanged: () => void
-  readonly onNewMail: (mailbox: Mailbox) => void
+  readonly onNewMail: (mailbox: Mailbox, visible: boolean) => void
 }
 
 const withoutId = (current: ReadonlySet<MailboxId>, id: MailboxId) =>
@@ -216,16 +217,16 @@ const useMailStore = (options: MailStoreOptions) => {
         const id = mailboxIdFor(event.accountId, event.path)
         setSyncingMailboxIds((current) => (id === undefined ? current : withoutId(current, id)))
       }
+      const target = parseListKey(selectedListKey())
       if (event._tag === "mailbox-done" && event.stored > 0 && !event.reset) {
         const mailbox = mailboxes().find(
           (row) => row.account_id === event.accountId && row.path === event.path,
         )
         if (mailbox !== undefined) {
-          options.onNewMail(mailbox)
+          options.onNewMail(mailbox, listHasMailbox(target, messagePane.searchActive(), mailbox))
         }
       }
       loadMailboxData()
-      const target = parseListKey(selectedListKey())
       if (target === undefined) {
         return
       }

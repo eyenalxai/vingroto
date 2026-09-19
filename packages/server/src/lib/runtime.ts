@@ -16,6 +16,8 @@ import { Imap } from "@/lib/mail/imap"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { Search } from "@/lib/mail/search"
 import { SyncEngine } from "@/lib/mail/sync"
+import { DesktopNotifications } from "@/lib/notify/desktop"
+import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { Scheduler } from "@/lib/scheduler"
 import { Settings } from "@/lib/settings"
 
@@ -31,13 +33,17 @@ const InfraLayer = Layer.mergeAll(
   LifecycleLayer,
   LoggingLayer.server.pipe(Layer.provide(ServicesLayer)),
   ServerEvents.layer,
+  DesktopNotifications.layer,
 )
 
 const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideMerge(InfraLayer))
 
-const SyncLayer = Layer.mergeAll(SyncEngine.layer, MessagePrefetch.layer).pipe(
-  Layer.provide(CoreLayer),
-)
+const NotifyLayer = NewMailNotifier.layer.pipe(Layer.provide(CoreLayer))
+
+const SyncLayer = Layer.mergeAll(
+  SyncEngine.layer.pipe(Layer.provide(NotifyLayer)),
+  MessagePrefetch.layer,
+).pipe(Layer.provide(CoreLayer))
 
 const SchedulerLayer = Scheduler.layer.pipe(Layer.provide(SyncLayer), Layer.provide(CoreLayer))
 

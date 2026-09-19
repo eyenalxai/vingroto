@@ -19,6 +19,7 @@ import type { MailboxRow } from "@/lib/store/mailboxes"
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
 import { Imap } from "@/lib/mail/imap"
+import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/lib/store/mailboxes"
 import { deleteMailboxMessages, storeMessages } from "@/lib/store/messages"
 
@@ -80,6 +81,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
       const imap = yield* Imap
       const database = yield* Database
       const events = yield* ServerEvents
+      const notifier = yield* NewMailNotifier
       const busy = yield* Ref.make(false)
 
       const reportMailboxError = Effect.fn("Sync.reportMailboxError")(
@@ -125,6 +127,12 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           accountId: account.id,
           path: row.path,
           fetched: snapshot.messages.length,
+          stored: outcome.inserted,
+          reset,
+        })
+        yield* notifier.mailboxStored({
+          account,
+          mailbox: row,
           stored: outcome.inserted,
           reset,
         })

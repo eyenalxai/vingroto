@@ -3,13 +3,14 @@ import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { useRenderer } from "@opentui/solid"
 import { describeError } from "@vingroto/core/errors"
+import { formatNewMailNotification } from "@vingroto/core/mail/notification"
 import { Cause, Effect, Exit } from "effect"
 
 import type { AppRuntime } from "@/lib/runtime"
 
 import { useTerminalFocus } from "@/components/use-terminal-focus"
 import { MailClient } from "@/lib/api"
-import { formatNewMailNotification } from "@/lib/notifications"
+import { shouldAnnounceNewMail } from "@/lib/notifications"
 
 interface NewMailNotificationsOptions {
   readonly runtime: AppRuntime
@@ -21,13 +22,8 @@ const useNewMailNotifications = (options: NewMailNotificationsOptions) => {
   const renderer = useRenderer()
   const focus = useTerminalFocus()
 
-  const notify = (mailbox: Mailbox) => {
-    if (
-      !options.enabled() ||
-      focus() !== "blurred" ||
-      mailbox.muted ||
-      mailbox.synced_at === null
-    ) {
+  const notify = (mailbox: Mailbox, visible: boolean) => {
+    if (!shouldAnnounceNewMail(focus(), visible, mailbox, options.enabled())) {
       return
     }
     const program = Effect.gen(function* raiseNewMailNotification() {

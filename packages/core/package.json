@@ -10,6 +10,7 @@
     "./ids": "./src/ids.ts",
     "./logging": "./src/logging.ts",
     "./mail/address": "./src/mail/address.ts",
+    "./mail/notification": "./src/mail/notification.ts",
     "./protocol/accounts": "./src/protocol/accounts.ts",
     "./protocol/api": "./src/protocol/api/api.ts",
     "./protocol/api/authorization": "./src/protocol/api/authorization.ts",
