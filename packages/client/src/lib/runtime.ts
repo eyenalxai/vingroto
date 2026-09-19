@@ -171,7 +171,6 @@ const MailClientLayer = Layer.unwrap(
           "accountUsername",
           api.accounts["account.username"]({ params: { accountId: id } }).pipe(
             Effect.map((username) => Option.fromNullOr(username)),
-            Effect.catchTag("AccountNotFoundError", () => Effect.succeed(Option.none())),
           ),
         ),
       cancelOutbox: (outboxId) =>

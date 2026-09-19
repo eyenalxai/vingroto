@@ -63,7 +63,7 @@ const reorder = HttpApiEndpoint.post("account.reorder", "/api/accounts/order", {
 const username = HttpApiEndpoint.get("account.username", "/api/accounts/:accountId/username", {
   params: { accountId: AccountId },
   success: Schema.NullOr(Schema.String),
-  error: [AccountNotFoundError, InvalidRequestError, InternalError],
+  error: [InvalidRequestError, InternalError],
 }).annotateMerge(
   OpenApi.annotations({
     identifier: "account.username",
