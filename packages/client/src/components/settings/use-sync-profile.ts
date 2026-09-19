@@ -35,19 +35,37 @@ const parseWholeNumber = (value: string) => {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
+const draftFromConfig = (sync: SyncConfig): SyncDraft => {
+  return {
+    initialDays: String(sync.initialDays),
+    intervalMinutes: String(sync.intervalMinutes),
+  }
+}
+
+const draftMatchesConfig = (draft: SyncDraft, sync: SyncConfig): boolean =>
+  draft.initialDays === String(sync.initialDays) &&
+  draft.intervalMinutes === String(sync.intervalMinutes)
+
 const useSyncProfile = (options: UseSyncProfileOptions) => {
-  const [draft, setDraft] = createStore<SyncDraft>({ initialDays: "", intervalMinutes: "" })
+  const [draft, setDraft] = createStore<SyncDraft>(draftFromConfig(options.sync()))
+  const [source, setSource] = createSignal(options.sync())
   const [busy, setBusy] = createSignal(false)
 
   createEffect(() => {
-    const sync = options.sync()
-    setDraft({
-      initialDays: String(sync.initialDays),
-      intervalMinutes: String(sync.intervalMinutes),
-    })
+    const next = options.sync()
+    const previous = source()
+    if (next === previous) {
+      return
+    }
+    if (draftMatchesConfig(draft, previous)) {
+      setDraft(draftFromConfig(next))
+    }
+    setSource(next)
   })
 
   const value = (id: SyncFieldId): string => draft[id]
+
+  const dirty = () => !draftMatchesConfig(draft, source())
 
   const input = (id: SyncFieldId, next: string) => {
     setDraft(id, next)
@@ -71,6 +89,7 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
         Effect.tap(() =>
           Effect.sync(() => {
             setBusy(false)
+            setDraft({ initialDays: String(initialDays), intervalMinutes: String(intervalMinutes) })
             options.onStatus("sync settings saved")
             options.onSaved()
           }),
@@ -91,7 +110,7 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
     options.runtime.runFork(program)
   }
 
-  return { busy, input, save, value }
+  return { busy, dirty, input, save, value }
 }
 
 export { syncFields, useSyncProfile, type SyncFieldId, type UseSyncProfileOptions }

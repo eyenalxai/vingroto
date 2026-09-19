@@ -33,15 +33,30 @@ const parseDelay = (value: string) => {
   return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed
 }
 
+const draftFromConfig = (send: SendConfig): SendDraft => {
+  return { delaySeconds: String(send.delaySeconds) }
+}
+
 const useSendProfile = (options: UseSendProfileOptions) => {
-  const [draft, setDraft] = createStore<SendDraft>({ delaySeconds: "" })
+  const [draft, setDraft] = createStore<SendDraft>(draftFromConfig(options.send()))
+  const [source, setSource] = createSignal(options.send())
   const [busy, setBusy] = createSignal(false)
 
   createEffect(() => {
-    setDraft({ delaySeconds: String(options.send().delaySeconds) })
+    const next = options.send()
+    const previous = source()
+    if (next === previous) {
+      return
+    }
+    if (draft.delaySeconds === String(previous.delaySeconds)) {
+      setDraft(draftFromConfig(next))
+    }
+    setSource(next)
   })
 
   const value = (id: SendFieldId): string => draft[id]
+
+  const dirty = () => draft.delaySeconds !== String(source().delaySeconds)
 
   const input = (id: SendFieldId, next: string) => {
     setDraft(id, next)
@@ -64,6 +79,7 @@ const useSendProfile = (options: UseSendProfileOptions) => {
         Effect.tap(() =>
           Effect.sync(() => {
             setBusy(false)
+            setDraft({ delaySeconds: String(delaySeconds) })
             options.onStatus("sending settings saved")
             options.onSaved()
           }),
@@ -84,7 +100,7 @@ const useSendProfile = (options: UseSendProfileOptions) => {
     options.runtime.runFork(program)
   }
 
-  return { busy, input, save, value }
+  return { busy, dirty, input, save, value }
 }
 
 export { sendFields, useSendProfile, type SendFieldId, type UseSendProfileOptions }

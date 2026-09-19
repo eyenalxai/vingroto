@@ -20,10 +20,19 @@ const editorOrder: readonly EditorConfig[] = ["builtin", "system"]
 
 const useEditorSetting = (options: UseEditorSettingOptions) => {
   const [draft, setDraft] = createSignal<EditorConfig>(options.editor())
+  const [source, setSource] = createSignal<EditorConfig>(options.editor())
   const [busy, setBusy] = createSignal(false)
 
   createEffect(() => {
-    setDraft(options.editor())
+    const next = options.editor()
+    const previous = source()
+    if (next === previous) {
+      return
+    }
+    if (draft() === previous) {
+      setDraft(next)
+    }
+    setSource(next)
   })
 
   const cycle = (delta: number) => {
@@ -33,6 +42,8 @@ const useEditorSetting = (options: UseEditorSettingOptions) => {
       return editorOrder[next] ?? "builtin"
     })
   }
+
+  const dirty = () => draft() !== source()
 
   const save = () => {
     if (busy()) {
@@ -67,7 +78,7 @@ const useEditorSetting = (options: UseEditorSettingOptions) => {
     options.runtime.runFork(program)
   }
 
-  return { busy, cycle, save, value: draft }
+  return { busy, cycle, dirty, save, value: draft }
 }
 
 export { useEditorSetting, type UseEditorSettingOptions }

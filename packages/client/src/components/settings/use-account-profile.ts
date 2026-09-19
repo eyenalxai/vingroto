@@ -44,6 +44,28 @@ const draftFromAccount = (account: AccountConfig, username: string | undefined):
   }
 }
 
+const draftMatchesAccount = (
+  draft: AccountDraft,
+  account: AccountConfig,
+  username: string | undefined,
+): boolean => {
+  const source = draftFromAccount(account, username)
+  return (
+    draft.email === source.email &&
+    draft.label === source.label &&
+    draft.name === source.name &&
+    draft.username === source.username &&
+    draft.imapHost === source.imapHost &&
+    draft.imapPort === source.imapPort &&
+    draft.imapSecurity === source.imapSecurity &&
+    draft.smtpHost === source.smtpHost &&
+    draft.smtpPort === source.smtpPort &&
+    draft.smtpSecurity === source.smtpSecurity &&
+    draft.saveSent === source.saveSent &&
+    draft.password === ""
+  )
+}
+
 const setMembership = (
   set: Setter<ReadonlySet<AccountId>>,
   accountId: AccountId,
@@ -81,7 +103,17 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
 
   createEffect(() => {
     for (const account of options.accounts()) {
-      if (sources.get(account.id) === account) {
+      const source = sources.get(account.id)
+      if (source === account) {
+        continue
+      }
+      const draft = drafts[account.id]
+      if (
+        source !== undefined &&
+        draft !== undefined &&
+        !draftMatchesAccount(draft, source, storedUsernames.get(account.id))
+      ) {
+        sources.set(account.id, account)
         continue
       }
       editedUsernames.delete(account.id)
@@ -144,6 +176,17 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
     }
     return draft[field]
   }
+
+  const dirty = (accountId: AccountId): boolean => {
+    const draft = drafts[accountId]
+    const account = options.accounts().find((candidate) => candidate.id === accountId)
+    if (draft === undefined || account === undefined) {
+      return false
+    }
+    return !draftMatchesAccount(draft, account, storedUsernames.get(accountId))
+  }
+
+  const dirtyAny = (): boolean => options.accounts().some((account) => dirty(account.id))
 
   const input = (accountId: AccountId, field: FieldId, next: string) => {
     if (
@@ -209,6 +252,8 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
         Effect.tap((updated) =>
           Effect.sync(() => {
             setMembership(setBusyIds, accountId, false)
+            storedUsernames.set(accountId, result.value.username)
+            initialize(updated, result.value.username)
             options.onStatus(`saved ${updated.label}`)
             options.onSaved(updated)
           }),
@@ -241,6 +286,8 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
     busy: (accountId: AccountId) => busyIds().has(accountId),
     busyAny: () => busyIds().size > 0,
     cycle,
+    dirty,
+    dirtyAny,
     dispose,
     input,
     loading: (accountId: AccountId) => loadingIds().has(accountId),

@@ -3,6 +3,7 @@ import type { AccountConfig } from "@vingroto/core/config/schema"
 
 import type { useAccountOrder } from "@/components/settings/use-account-order"
 import type { useAccountProfile } from "@/components/settings/use-account-profile"
+import type { SettingsExpansion } from "@/components/settings/use-settings-expansion"
 
 import { editFields, securityLabel } from "@/components/setup/form-model"
 
@@ -12,14 +13,6 @@ interface SettingsRowBase {
 }
 
 type SettingsRow =
-  | (SettingsRowBase & {
-      readonly kind: "heading"
-      readonly title: () => string
-      readonly email: string
-      readonly editKey: string
-      readonly pending: () => boolean
-      readonly reorder: (delta: number) => void
-    })
   | (SettingsRowBase & {
       readonly kind: "text"
       readonly label: string
@@ -68,49 +61,67 @@ type SettingsRow =
       readonly toggle: () => void
     })
 
-interface SettingsBlock {
+interface SettingsGroup {
+  readonly kind: "account" | "mailboxes"
   readonly key: string
-  readonly title?: string
+  readonly title: () => string
+  readonly summary: () => string
   readonly note?: string
+  readonly dirty?: () => boolean
+  readonly pending?: () => boolean
+  readonly expanded: () => boolean
+  readonly toggle: () => void
+  readonly reorder?: (delta: number) => void
+  readonly save?: () => void
   readonly rows: readonly SettingsRow[]
 }
 
 interface SettingsSection {
   readonly key: string
   readonly title: string
-  readonly blocks: readonly SettingsBlock[]
+  readonly groups: readonly SettingsGroup[]
+  readonly rows: readonly SettingsRow[]
+  readonly dirty?: () => boolean
 }
+
+type SettingsItem =
+  | { readonly kind: "group"; readonly key: string; readonly group: SettingsGroup }
+  | { readonly kind: "row"; readonly key: string; readonly row: SettingsRow }
 
 interface AccountSectionInput {
   readonly accounts: () => readonly AccountConfig[]
   readonly accountOrder: ReturnType<typeof useAccountOrder>
   readonly accountProfile: ReturnType<typeof useAccountProfile>
+  readonly expansion: SettingsExpansion
   readonly onAddAccount: () => void
 }
 
 const settingsRowId = (key: string) => `settings-row-${key.replaceAll(/[^a-zA-Z0-9_-]/gu, "-")}`
 
-const accountRows = (
-  account: AccountConfig,
-  input: AccountSectionInput,
-): readonly SettingsRow[] => {
+const settingsSectionId = (key: string) => `settings-section-${key}`
+
+const sectionItems = (section: SettingsSection): readonly SettingsItem[] => {
+  const items: SettingsItem[] = []
+  for (const group of section.groups) {
+    items.push({ kind: "group", key: group.key, group })
+    if (group.expanded()) {
+      for (const row of group.rows) {
+        items.push({ kind: "row", key: row.key, row })
+      }
+    }
+  }
+  for (const row of section.rows) {
+    items.push({ kind: "row", key: row.key, row })
+  }
+  return items
+}
+
+const accountGroup = (account: AccountConfig, input: AccountSectionInput): SettingsGroup => {
+  const groupKey = `account:${account.id}`
   const save = () => {
     input.accountProfile.save(account.id)
   }
-  const rows: SettingsRow[] = [
-    {
-      kind: "heading",
-      key: `account:${account.id}`,
-      title: () => input.accountProfile.value(account.id, "label"),
-      email: account.email,
-      editKey: `account:${account.id}:label`,
-      pending: () => input.accountProfile.busy(account.id),
-      reorder: (delta) => {
-        input.accountOrder.move(account.id, delta)
-      },
-      save,
-    },
-  ]
+  const rows: SettingsRow[] = []
   for (const field of editFields) {
     const key = `account:${account.id}:${field.id}`
     const value = () => input.accountProfile.value(account.id, field.id)
@@ -171,28 +182,40 @@ const accountRows = (
       save,
     })
   }
-  return rows
+  return {
+    kind: "account",
+    key: groupKey,
+    title: () => {
+      const label = input.accountProfile.value(account.id, "label").trim()
+      return label.length === 0 ? account.email : label
+    },
+    summary: () => account.email,
+    dirty: () => input.accountProfile.dirty(account.id),
+    pending: () => input.accountProfile.busy(account.id),
+    expanded: () => input.expansion.isExpanded(groupKey),
+    toggle: () => {
+      input.expansion.toggle(groupKey)
+    },
+    reorder: (delta) => {
+      input.accountOrder.move(account.id, delta)
+    },
+    save,
+    rows,
+  }
 }
 
 const buildAccountSection = (input: AccountSectionInput): SettingsSection => {
-  const blocks: readonly SettingsBlock[] = input.accounts().map((account) => {
-    return { key: `account:${account.id}`, rows: accountRows(account, input) }
-  })
   return {
     key: "accounts",
     title: "Accounts",
-    blocks: [
-      ...blocks,
+    dirty: () => input.accountProfile.dirtyAny(),
+    groups: input.accounts().map((account) => accountGroup(account, input)),
+    rows: [
       {
+        kind: "action",
         key: "add-account",
-        rows: [
-          {
-            kind: "action",
-            key: "add-account",
-            label: "+ Add account",
-            run: input.onAddAccount,
-          },
-        ],
+        label: "+ Add account",
+        run: input.onAddAccount,
       },
     ],
   }
@@ -200,8 +223,11 @@ const buildAccountSection = (input: AccountSectionInput): SettingsSection => {
 
 export {
   buildAccountSection,
+  sectionItems,
   settingsRowId,
-  type SettingsBlock,
+  settingsSectionId,
+  type SettingsGroup,
+  type SettingsItem,
   type SettingsRow,
   type SettingsSection,
 }

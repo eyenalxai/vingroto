@@ -1,193 +1,169 @@
 import type { KeyEvent } from "@opentui/core"
-import type { Setter } from "solid-js"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import { createMemo, createSignal } from "solid-js"
 
-import type { SettingsRow } from "@/components/settings/settings-rows"
+import type { SettingsLayout } from "@/components/settings/settings-layout"
+import type { SettingsItem, SettingsSection } from "@/components/settings/settings-rows"
+
+import {
+  arrowDelta,
+  contentHint,
+  cycleRow,
+  isActivatable,
+} from "@/components/settings/settings-input-model"
+import { useArmedDiscard } from "@/components/settings/use-armed-discard"
+import { useSettingsEditing } from "@/components/settings/use-settings-editing"
+import { useSettingsSelection } from "@/components/settings/use-settings-selection"
 
 interface SettingsInputOptions {
-  readonly rows: () => readonly SettingsRow[]
-  readonly selectedKey: () => string | undefined
-  readonly editingKey: () => string | undefined
-  readonly setSelectedKey: Setter<string | undefined>
-  readonly setEditingKey: Setter<string | undefined>
+  readonly sections: () => readonly SettingsSection[]
+  readonly layout: () => SettingsLayout
+  readonly dirty: () => boolean
   readonly onClose: () => void
-}
-
-const cycleRow = (row: SettingsRow, delta: number) => {
-  if (row.kind === "choice") {
-    row.cycle(delta)
-    return
-  }
-  if (row.kind === "toggle" || row.kind === "mailbox") {
-    row.toggle()
-  }
-}
-
-const isActivatable = (row: SettingsRow): boolean =>
-  row.kind === "choice" || row.kind === "toggle" || row.kind === "mailbox" || row.kind === "action"
-
-const hintFor = (row: SettingsRow | undefined, editing: boolean): string => {
-  if (editing) {
-    return "enter commit · esc cancel"
-  }
-  if (row === undefined) {
-    return "esc close"
-  }
-  if (row.kind === "heading") {
-    return "↑↓ move · shift+↑↓ reorder · ⏎ edit name · ctrl+s save · esc close"
-  }
-  if (row.kind === "action") {
-    return "⏎ add account · esc close"
-  }
-  if (row.kind === "mailbox") {
-    return "↑↓ move · ⏎ mute or unmute · esc close"
-  }
-  if (row.kind === "reading") {
-    return "↑↓ move · esc close"
-  }
-  return "↑↓ move · ⏎ edit or toggle · ctrl+s save · esc close"
 }
 
 const useSettingsInput = (options: SettingsInputOptions) => {
   const renderer = useRenderer()
-  const [editPrevious, setEditPrevious] = createSignal("")
+  const selection = useSettingsSelection({ sections: options.sections })
+  const discard = useArmedDiscard()
+  const saveItem = () => {
+    const item = selection.selectedItem()
+    if (item === undefined) {
+      return
+    }
+    if (item.kind === "group") {
+      item.group.save?.()
+      return
+    }
+    item.row.save?.()
+  }
+  const editing = useSettingsEditing({
+    selectedItem: selection.selectedItem,
+    onSave: saveItem,
+  })
 
-  const selectedRow = createMemo(() =>
-    options.rows().find((row) => row.key === options.selectedKey()),
-  )
-  const editingRow = createMemo(() =>
-    options.rows().find((row) => row.key === options.editingKey()),
-  )
+  const focusSections = () => {
+    editing.clear()
+    selection.focusSections()
+  }
 
-  const moveSelection = (delta: number) => {
-    const list = options.rows()
-    const index = list.findIndex((row) => row.key === options.selectedKey())
-    const next = Math.min(Math.max((index === -1 ? 0 : index) + delta, 0), list.length - 1)
-    const target = list[next]
-    if (target !== undefined) {
-      options.setSelectedKey(target.key)
+  const focusContent = () => {
+    editing.clear()
+    selection.focusContent()
+  }
+
+  const activateItem = (item: SettingsItem) => {
+    if (item.kind === "group") {
+      selection.toggleGroup(item.group)
+      return
+    }
+    if (item.row.kind === "text" || item.row.kind === "secret") {
+      editing.begin(item.row)
+      return
+    }
+    if (item.row.kind === "action") {
+      item.row.run()
+      return
+    }
+    cycleRow(item.row, 1)
+  }
+
+  const selectSection = (key: string) => {
+    selection.selectSection(key)
+    discard.disarm()
+    if (options.layout() === "single") {
+      focusContent()
     }
   }
 
-  const beginEdit = (row: SettingsRow) => {
-    if (row.kind !== "text" && row.kind !== "secret") {
+  const selectGroup = (key: string) => {
+    const current = selection.section()
+    if (current === undefined) {
       return
     }
-    setEditPrevious(row.value())
-    options.setEditingKey(row.key)
-  }
-
-  const cancelEdit = () => {
-    const row = editingRow()
-    if (row?.kind === "text") {
-      row.input(editPrevious())
-    } else if (row?.kind === "secret") {
-      row.restore(editPrevious())
+    selection.selectItem(current.key, key)
+    selection.focusContent()
+    const group = current.groups.find((candidate) => candidate.key === key)
+    if (group !== undefined) {
+      selection.toggleGroup(group)
     }
-    options.setEditingKey(undefined)
-  }
-
-  const activateRow = (row: SettingsRow) => {
-    if (row.kind === "text" || row.kind === "secret") {
-      beginEdit(row)
-      return
-    }
-    if (row.kind === "heading") {
-      const target = options.rows().find((candidate) => candidate.key === row.editKey)
-      if (target !== undefined) {
-        options.setSelectedKey(target.key)
-        beginEdit(target)
-      }
-      return
-    }
-    if (row.kind === "action") {
-      row.run()
-      return
-    }
-    cycleRow(row, 1)
   }
 
   const selectRow = (key: string) => {
-    options.setEditingKey(undefined)
-    options.setSelectedKey(key)
-    const row = options.rows().find((candidate) => candidate.key === key)
-    if (row !== undefined && isActivatable(row)) {
-      activateRow(row)
+    const current = selection.section()
+    if (current === undefined) {
+      return
+    }
+    selection.selectItem(current.key, key)
+    editing.clear()
+    selection.focusContent()
+    const item = selection.items().find((candidate) => candidate.key === key)
+    if (item?.kind === "row" && isActivatable(item.row)) {
+      activateItem(item)
     }
   }
 
-  const handleEditingKey = (event: KeyEvent) => {
-    if (event.name === "return") {
-      event.preventDefault()
-      options.setEditingKey(undefined)
-      return
-    }
-    if (event.name === "escape") {
-      event.preventDefault()
-      cancelEdit()
-      return
-    }
-    if (event.ctrl && event.name === "s") {
-      event.preventDefault()
-      options.setEditingKey(undefined)
-      selectedRow()?.save?.()
-      return
-    }
-    const row = editingRow()
-    if (row?.kind === "secret" && row.applyKey(event)) {
-      event.preventDefault()
-    }
-  }
-
-  const handleMoveKey = (event: KeyEvent, row: SettingsRow | undefined): boolean => {
-    if (event.name === "down" || event.name === "up") {
-      event.preventDefault()
-      const delta = event.name === "down" ? 1 : -1
-      if (event.shift && row?.kind === "heading") {
-        row.reorder(delta)
-      } else {
-        moveSelection(delta)
-      }
+  const handleSectionsKey = (event: KeyEvent): boolean => {
+    const delta = arrowDelta(event)
+    if (delta !== undefined) {
+      selection.moveSection(delta)
       return true
     }
-    if ((event.name === "j" || event.name === "k") && !event.ctrl) {
-      event.preventDefault()
-      moveSelection(event.name === "j" ? 1 : -1)
+    if (
+      event.name === "return" ||
+      event.name === "right" ||
+      event.name === "tab" ||
+      (event.name === "l" && !event.ctrl)
+    ) {
+      focusContent()
       return true
     }
     return false
   }
 
-  const handleActivateKey = (event: KeyEvent, row: SettingsRow | undefined) => {
-    if (event.name === "return") {
-      event.preventDefault()
-      if (row !== undefined) {
-        activateRow(row)
+  const handleContentKey = (event: KeyEvent, item: SettingsItem): boolean => {
+    const delta = arrowDelta(event)
+    if (delta !== undefined) {
+      if (event.shift && item.kind === "group" && item.group.reorder !== undefined) {
+        item.group.reorder(delta)
+        return true
       }
-      return
+      selection.moveItem(delta)
+      return true
+    }
+    if (event.name === "return") {
+      activateItem(item)
+      return true
     }
     if (event.name === "space") {
-      event.preventDefault()
-      if (row !== undefined) {
-        cycleRow(row, 1)
+      if (item.kind === "group") {
+        selection.toggleGroup(item.group)
+        return true
       }
-      return
+      cycleRow(item.row, 1)
+      return true
     }
     if (event.name === "left" || (event.name === "h" && !event.ctrl)) {
-      event.preventDefault()
-      if (row !== undefined) {
-        cycleRow(row, -1)
+      if (item.kind === "group") {
+        if (!item.group.expanded()) {
+          return false
+        }
+        selection.toggleGroup(item.group)
+        return true
       }
-      return
+      return cycleRow(item.row, -1)
     }
     if (event.name === "right" || (event.name === "l" && !event.ctrl)) {
-      event.preventDefault()
-      if (row !== undefined) {
-        cycleRow(row, 1)
+      if (item.kind === "group") {
+        if (!item.group.expanded()) {
+          selection.toggleGroup(item.group)
+        }
+        return true
       }
+      cycleRow(item.row, 1)
+      return true
     }
+    return false
   }
 
   useKeyboard((event) => {
@@ -196,30 +172,81 @@ const useSettingsInput = (options: SettingsInputOptions) => {
       renderer.destroy()
       return
     }
-    if (options.editingKey() !== undefined) {
-      handleEditingKey(event)
+    if (editing.editingKey() !== undefined) {
+      editing.handleKey(event)
       return
     }
-    const row = selectedRow()
     if (event.name === "escape") {
       event.preventDefault()
+      if (selection.focus() === "content") {
+        discard.disarm()
+        focusSections()
+        return
+      }
+      if (discard.armed()) {
+        discard.disarm()
+        options.onClose()
+        return
+      }
+      if (options.dirty()) {
+        discard.arm()
+        return
+      }
       options.onClose()
       return
     }
+    discard.disarm()
     if (event.ctrl && event.name === "s") {
       event.preventDefault()
-      row?.save?.()
+      saveItem()
       return
     }
-    if (handleMoveKey(event, row)) {
+    if (selection.focus() === "sections") {
+      if (handleSectionsKey(event)) {
+        event.preventDefault()
+      }
       return
     }
-    handleActivateKey(event, row)
+    if (event.name === "tab") {
+      event.preventDefault()
+      focusSections()
+      return
+    }
+    const item = selection.selectedItem()
+    if (item !== undefined && handleContentKey(event, item)) {
+      event.preventDefault()
+      return
+    }
+    if (event.name === "left" || (event.name === "h" && !event.ctrl)) {
+      event.preventDefault()
+      focusSections()
+    }
   })
 
+  const hint = (): string => {
+    if (editing.editingKey() !== undefined) {
+      return "⏎ commit · esc cancel"
+    }
+    if (selection.focus() === "sections") {
+      return options.layout() === "single"
+        ? "↑↓ sections · ⏎ open · esc close · ctrl+c quit app"
+        : "↑↓ sections · ⏎ content · esc close · ctrl+c quit app"
+    }
+    return contentHint(selection.selectedItem())
+  }
+
   return {
-    hint: () => hintFor(selectedRow(), options.editingKey() !== undefined),
+    armed: discard.armed,
+    discard: discard.discard,
+    editKey: editing.editingKey,
+    focus: selection.focus,
+    hint,
+    section: selection.section,
+    sectionKey: selection.sectionKey,
+    selectGroup,
     selectRow,
+    selectSection,
+    selectedKey: selection.selectedKey,
   }
 }
 

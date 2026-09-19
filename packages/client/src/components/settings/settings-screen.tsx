@@ -1,4 +1,3 @@
-import type { ScrollBoxRenderable } from "@opentui/core"
 import type {
   AccountConfig,
   EditorConfig,
@@ -9,11 +8,16 @@ import type {
 import type { MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
-import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { useTerminalDimensions } from "@opentui/solid"
+import { Show, createMemo, createSignal, onCleanup } from "solid-js"
 
 import { useRuntime } from "@/components/runtime-provider"
-import { buildAccountSection, settingsRowId } from "@/components/settings/settings-rows"
-import { SettingsSectionView } from "@/components/settings/settings-section"
+import {
+  resolveSettingsLayout,
+  settingsSectionsPaneWidth,
+} from "@/components/settings/settings-layout"
+import { SettingsContentPane, SettingsSectionsPane } from "@/components/settings/settings-panes"
+import { buildAccountSection } from "@/components/settings/settings-rows"
 import {
   buildComposerSection,
   buildMailboxSection,
@@ -26,10 +30,10 @@ import { useAccountProfile } from "@/components/settings/use-account-profile"
 import { useEditorSetting } from "@/components/settings/use-editor-setting"
 import { useNotificationsSetting } from "@/components/settings/use-notifications-setting"
 import { useSendProfile } from "@/components/settings/use-send-profile"
+import { useSettingsExpansion } from "@/components/settings/use-settings-expansion"
 import { useSettingsInput } from "@/components/settings/use-settings-input"
 import { useSyncProfile } from "@/components/settings/use-sync-profile"
-import { Spinner } from "@/components/spinner"
-import { useTheme } from "@/components/theme-provider"
+import { StatusBar } from "@/components/status-bar"
 import { useMailboxMute } from "@/components/use-mailbox-mute"
 
 interface SettingsScreenProps {
@@ -53,12 +57,10 @@ interface SettingsScreenProps {
 
 const SettingsScreen = (props: SettingsScreenProps) => {
   const runtime = useRuntime()
-  const theme = useTheme()
+  const dimensions = useTerminalDimensions()
+  const expansion = useSettingsExpansion()
   const [status, setStatus] = createSignal("")
   const [statusError, setStatusError] = createSignal(false)
-  const [selectedKey, setSelectedKey] = createSignal<string>()
-  const [editingKey, setEditingKey] = createSignal<string>()
-  const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
   const report = (message: string, error = false) => {
     setStatus(message)
@@ -114,6 +116,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   })
   const notificationsSetting = useNotificationsSetting({
     runtime,
+    notifications: () => props.notifications,
     onStatus: report,
     onSaved: props.onNotificationsSaved,
     onDisconnected: props.onDisconnected,
@@ -132,6 +135,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       accounts: () => accountOrder.accounts(),
       accountOrder,
       accountProfile,
+      expansion,
       onAddAccount: props.onAddAccount,
     }),
   )
@@ -141,97 +145,77 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       mailboxes: () => props.mailboxes,
       counts: () => props.counts,
       mailboxMute,
+      expansion,
     }),
   )
   const composerSection = createMemo(() => buildComposerSection({ editorSetting }))
   const sendingSection = createMemo(() => buildSendingSection({ sendProfile }))
   const syncSection = createMemo(() => buildSyncSection({ syncProfile }))
-  const notificationsSection = createMemo(() =>
-    buildNotificationsSection({
-      notifications: () => props.notifications,
-      notificationsSetting,
-    }),
-  )
+  const notificationsSection = createMemo(() => buildNotificationsSection({ notificationsSetting }))
+  const sections = createMemo(() => [
+    accountSection(),
+    mailboxSection(),
+    composerSection(),
+    sendingSection(),
+    syncSection(),
+    notificationsSection(),
+  ])
 
-  const sections = [
-    accountSection,
-    mailboxSection,
-    composerSection,
-    sendingSection,
-    syncSection,
-    notificationsSection,
-  ]
-
-  const rows = createMemo(() =>
-    sections.flatMap((section) => section().blocks.flatMap((block) => block.rows)),
-  )
-
-  const { hint, selectRow } = useSettingsInput({
-    rows,
-    selectedKey,
-    editingKey,
-    setSelectedKey,
-    setEditingKey,
-    onClose: props.onClose,
-  })
-
-  createEffect(() => {
-    const current = rows()
-    setSelectedKey((key) =>
-      key !== undefined && current.some((row) => row.key === key) ? key : current[0]?.key,
-    )
-    setEditingKey((key) =>
-      key !== undefined && current.some((row) => row.key === key) ? key : undefined,
-    )
-  })
-
-  createEffect(() => {
-    const box = scrollBox()
-    const key = selectedKey()
-    if (box !== undefined && key !== undefined && rows().some((row) => row.key === key)) {
-      box.scrollChildIntoView(settingsRowId(key))
-    }
-  })
-
+  const layout = createMemo(() => resolveSettingsLayout(dimensions().width))
   const pending = () =>
     accountProfile.busyAny() ||
     syncProfile.busy() ||
     sendProfile.busy() ||
     editorSetting.busy() ||
-    notificationsSetting.saving()
+    notificationsSetting.saving() ||
+    mailboxMute.mutingIds().size > 0
+  const dirty = () =>
+    accountProfile.dirtyAny() ||
+    editorSetting.dirty() ||
+    syncProfile.dirty() ||
+    sendProfile.dirty() ||
+    notificationsSetting.dirty()
+
+  const settingsInput = useSettingsInput({
+    sections,
+    layout,
+    dirty,
+    onClose: props.onClose,
+  })
+
+  const sectionsFocused = () => settingsInput.focus() === "sections"
+  const contentFocused = () => settingsInput.focus() === "content"
 
   return (
     <box flexGrow={1} flexDirection="column">
-      <scrollbox
-        ref={(box) => {
-          setScrollBox(box)
-        }}
-        flexGrow={1}
-        paddingLeft={2}
-        paddingRight={2}
-      >
-        <For each={sections}>
-          {(section) => (
-            <SettingsSectionView
-              section={section}
-              selectedKey={selectedKey}
-              editingKey={editingKey}
-              onSelect={selectRow}
-            />
-          )}
-        </For>
-      </scrollbox>
-      <box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={1}>
-        <Show
-          when={pending()}
-          fallback={<text fg={statusError() ? theme.error : theme.muted}>{status()}</text>}
-        >
-          <Spinner label={status()} />
+      <box flexGrow={1} flexDirection="row" gap={1}>
+        <Show when={layout() === "two" || sectionsFocused()}>
+          <SettingsSectionsPane
+            width={layout() === "two" ? settingsSectionsPaneWidth : "100%"}
+            sections={sections}
+            selectedKey={settingsInput.sectionKey}
+            focused={sectionsFocused}
+            onSelect={settingsInput.selectSection}
+          />
+        </Show>
+        <Show when={layout() === "two" || contentFocused()}>
+          <SettingsContentPane
+            title={`settings · ${settingsInput.section()?.title.toLowerCase() ?? "sections"}`}
+            section={settingsInput.section}
+            selectedKey={settingsInput.selectedKey}
+            editingKey={settingsInput.editKey}
+            focused={contentFocused}
+            onSelectGroup={settingsInput.selectGroup}
+            onSelectRow={settingsInput.selectRow}
+          />
         </Show>
       </box>
-      <box flexShrink={0} paddingLeft={2} paddingRight={2}>
-        <text fg={theme.muted}>{hint()}</text>
-      </box>
+      <StatusBar
+        message={settingsInput.armed() ? settingsInput.discard() : status()}
+        busy={pending()}
+        hint={settingsInput.hint()}
+        error={statusError()}
+      />
     </box>
   )
 }

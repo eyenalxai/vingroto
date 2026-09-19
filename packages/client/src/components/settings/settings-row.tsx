@@ -2,7 +2,7 @@ import type { JSX } from "solid-js"
 
 import { Show } from "solid-js"
 
-import type { SettingsRow } from "@/components/settings/settings-rows"
+import type { SettingsGroup, SettingsRow } from "@/components/settings/settings-rows"
 
 import { settingsRowId } from "@/components/settings/settings-rows"
 import { maskSecret, storedSecretMask } from "@/components/setup/form-model"
@@ -10,10 +10,17 @@ import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { truncate } from "@/lib/format"
 
+interface SettingsGroupHeaderViewProps {
+  readonly group: SettingsGroup
+  readonly selected: boolean
+  readonly onSelect: (key: string) => void
+}
+
 interface SettingsRowViewProps {
   readonly row: SettingsRow
   readonly selected: boolean
   readonly editing: boolean
+  readonly focused: boolean
   readonly onSelect: (key: string) => void
 }
 
@@ -59,20 +66,40 @@ const FieldLabel = (props: { readonly label: string; readonly selected: boolean 
   )
 }
 
-const HeadingRow = (props: RowProps<"heading">) => {
+const SettingsGroupHeaderView = (props: SettingsGroupHeaderViewProps) => {
   const theme = useTheme()
+  const titleColor = () => {
+    if (props.selected) {
+      return theme.selectionForeground
+    }
+    return props.group.kind === "account" ? theme.accent : theme.text
+  }
   return (
-    <RowFrame row={props.row} selected={props.selected} onSelect={props.onSelect}>
-      <text fg={props.selected ? theme.selectionForeground : theme.accent} wrapMode="none" truncate>
-        {props.row.title()}
+    <box
+      id={settingsRowId(props.group.key)}
+      flexDirection="row"
+      gap={1}
+      backgroundColor={props.selected ? theme.selectionBackground : "transparent"}
+      onMouseDown={() => {
+        props.onSelect(props.group.key)
+      }}
+    >
+      <text fg={props.selected ? theme.selectionForeground : theme.muted}>
+        {props.group.expanded() ? "▾" : "▸"}
+      </text>
+      <text fg={titleColor()} wrapMode="none" truncate>
+        {props.group.title()}
       </text>
       <text fg={props.selected ? theme.selectionForeground : theme.muted} wrapMode="none" truncate>
-        {props.row.email}
+        {props.group.summary()}
       </text>
-      <Show when={props.row.pending()}>
-        <Spinner />
+      <Show when={props.group.pending?.() === true}>
+        <Spinner color={props.selected ? theme.selectionForeground : theme.accent} />
       </Show>
-    </RowFrame>
+      <Show when={props.group.dirty?.() === true}>
+        <text fg={props.selected ? theme.selectionForeground : theme.unread}>●</text>
+      </Show>
+    </box>
   )
 }
 
@@ -88,7 +115,7 @@ const TextRow = (props: RowProps<"text">) => {
           <input
             value={props.row.value()}
             onInput={props.row.input}
-            focused={props.editing}
+            focused={props.editing && props.focused}
             placeholder={props.row.placeholder ?? ""}
             placeholderColor={theme.muted}
             textColor={textColor()}
@@ -188,7 +215,7 @@ const MailboxRow = (props: RowProps<"mailbox">) => {
   }
   return (
     <RowFrame row={props.row} selected={props.selected} onSelect={props.onSelect}>
-      <box flexShrink={0} paddingLeft={2}>
+      <box flexShrink={0}>
         <Show
           when={props.row.pending()}
           fallback={
@@ -223,9 +250,6 @@ const MailboxRow = (props: RowProps<"mailbox">) => {
 const SettingsRowView = (props: SettingsRowViewProps) => {
   const row = props.row
   switch (row.kind) {
-    case "heading": {
-      return <HeadingRow {...props} row={row} />
-    }
     case "text": {
       return <TextRow {...props} row={row} />
     }
@@ -253,4 +277,4 @@ const SettingsRowView = (props: SettingsRowViewProps) => {
   }
 }
 
-export { SettingsRowView, type SettingsRowViewProps }
+export { SettingsGroupHeaderView, SettingsRowView, type SettingsRowViewProps }

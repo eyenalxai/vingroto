@@ -182,17 +182,17 @@ Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox i
 
 ## Settings
 
-`ctrl+x s` opens a full-screen settings screen: one scrolling column of always-expanded blocks — **Accounts**, **Mailboxes**, **Composer**, **Sending**, **Sync** and **Notifications**. One cursor moves over the rows; `up`/`down` (or `j`/`k`) move it.
+`ctrl+x s` opens a full-screen settings screen: the sections **Accounts**, **Mailboxes**, **Composer**, **Sending**, **Sync** and **Notifications** in the left pane and the selected section in the right pane. `up`/`down` (or `j`/`k`) move the section cursor and preview its content immediately, `tab`, `right` or `enter` move into the content pane, and `left`, `tab` or `escape` step back. Below 64 columns the screen falls back to one pane at a time: the section list, then the section opened with `enter`, back with `escape`.
 
-- **Accounts** — one block per account with every field inline: the mailbox name (`label`), sender name, read-only email, username, password, IMAP and SMTP hosts, ports and security, and whether a copy of sent mail is saved (`saveSent`). The password is kept when the field is left empty. `enter` edits a text or number row and `escape` restores the previous value; `enter` cycles a security row or toggles **Save sent copy**; `ctrl+s` saves the account.
-- **Mailboxes** — one row per synced mailbox under its account, with its unread count and mute state. `enter` mutes or unmutes it right away.
+- **Accounts** — one collapsed group per account showing its name, email, a spinner while it saves and a `●` while it has unsaved edits. `space` (or `enter`) expands the group: the mailbox name (`label`), sender name, read-only email, username, password, IMAP and SMTP hosts, ports and security, and whether a copy of sent mail is saved (`saveSent`). Renaming an account happens on its **Mailbox name** row inside the group. The password is kept when the field is left empty. `enter` edits a text or number row and `escape` restores the previous value; `enter` cycles a security row or toggles **Save sent copy**; `ctrl+s` saves the account; `shift+up`/`shift+down` on the group header move the account and `left` collapses it.
+- **Mailboxes** — one collapsed group per account with its mailbox count and unread total, expanding into one row per synced mailbox with its unread count and mute state; an account with no synced mailboxes says `no mailboxes synced yet` inside the group. `enter` mutes or unmutes a mailbox right away.
 - **Composer** — the **Editor** setting: `builtin` edits the composer body in its text area, `system` edits it in the system editor. `enter` cycles the value and `ctrl+s` saves it.
 - **Sending** — how long a message waits before it is sent (`delaySeconds`); `0` sends immediately. `ctrl+s` saves it.
 - **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`). `ctrl+s` saves it.
 - **Notifications** — whether new mail raises an alert. `enter` toggles it right away.
 - **+ Add account** — closes settings and starts the account wizard.
 
-The account order is the order of the config file. `shift+up` and `shift+down` move the account whose heading is selected, so the first account is the compose default. Moving the cursor never edits a value: a row is edited with `enter`, and `escape` cancels that edit or closes the screen at the top. `ctrl+s` saves the selected block's changed values through the daemon and `ctrl+c` quits.
+A `●` beside a section in the left pane marks unsaved edits in it; group headers carry the same marker while their account is dirty. `escape` in the left pane closes settings: when something is edited the first `escape` reports `unsaved changes · esc again to discard` and only a second one within a few seconds closes and discards the drafts. `ctrl+s` saves the selected row or group through the daemon, account order moves go out immediately, and `ctrl+c` quits.
 
 ## Syncing
 
@@ -224,34 +224,34 @@ The composer autosaves a draft a second after the last change; an empty message 
 
 ## Keys
 
-| Key                                           | Action                                                                 |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| `q`, `ctrl+c`                                 | quit                                                                   |
-| `c`                                           | compose a message                                                      |
-| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                                           |
-| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                                  |
-| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                                      |
-| `enter`                                       | open a mailbox / read a message / download the body                    |
-| `enter` (settings)                            | edit or toggle the selected row                                        |
-| `enter` (composer body)                       | open the body in the system editor when the Editor setting is `system` |
-| `space`                                       | mailboxes: collapse the account · list: select the message             |
-| `r`                                           | list, reader: reply                                                    |
-| `R`                                           | list, reader: reply all                                                |
-| `s`                                           | list, reader: mark read · outbox: send now (press twice)               |
-| `u`                                           | list, reader: mark unread                                              |
-| `m`                                           | list: move to another mailbox                                          |
-| `x`                                           | outbox: cancel the pending message into drafts                         |
-| `d`                                           | drafts: delete the draft (press twice)                                 |
-| `ctrl+a`                                      | list: select every loaded message / clear                              |
-| `i`                                           | mailboxes: mute or unmute the mailbox                                  |
-| `ctrl+s`                                      | settings: save the selected block                                      |
-| `shift+up`, `shift+down`                      | settings: move the selected account up or down                         |
-| `escape`                                      | list: clear the selection · otherwise step back                        |
-| `ctrl+x` `a`                                  | add an account                                                         |
-| `ctrl+x` `o`                                  | the outbox view                                                        |
-| `ctrl+x` `d`                                  | the drafts view                                                        |
-| `ctrl+x` `s`                                  | settings                                                               |
-| `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                              |
+| Key                                           | Action                                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `q`, `ctrl+c`                                 | quit                                                                                                 |
+| `c`                                           | compose a message                                                                                    |
+| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                                                                         |
+| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                                                                |
+| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                                                                    |
+| `enter`                                       | open a mailbox / read a message / download the body                                                  |
+| `enter` (settings)                            | edit or toggle the selected row, fold a group                                                        |
+| `enter` (composer body)                       | open the body in the system editor when the Editor setting is `system`                               |
+| `space`                                       | mailboxes: collapse the account · settings: fold a group or cycle the row · list: select the message |
+| `r`                                           | list, reader: reply                                                                                  |
+| `R`                                           | list, reader: reply all                                                                              |
+| `s`                                           | list, reader: mark read · outbox: send now (press twice)                                             |
+| `u`                                           | list, reader: mark unread                                                                            |
+| `m`                                           | list: move to another mailbox                                                                        |
+| `x`                                           | outbox: cancel the pending message into drafts                                                       |
+| `d`                                           | drafts: delete the draft (press twice)                                                               |
+| `ctrl+a`                                      | list: select every loaded message / clear                                                            |
+| `i`                                           | mailboxes: mute or unmute the mailbox                                                                |
+| `ctrl+s`                                      | settings: save the selected row or group                                                             |
+| `shift+up`, `shift+down`                      | settings: move the selected account up or down                                                       |
+| `escape`                                      | list: clear the selection · otherwise step back                                                      |
+| `ctrl+x` `a`                                  | add an account                                                                                       |
+| `ctrl+x` `o`                                  | the outbox view                                                                                      |
+| `ctrl+x` `d`                                  | the drafts view                                                                                      |
+| `ctrl+x` `s`                                  | settings                                                                                             |
+| `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                                                            |
 
 `ctrl+x` is the leader: press it, then the action key. The secondary bindings are listed in the status bar while it waits.
 
