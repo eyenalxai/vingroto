@@ -12,6 +12,7 @@ const SyncEvent = Schema.Union([
     path: Schema.String,
     fetched: Schema.Int,
     stored: Schema.Int,
+    reset: Schema.Boolean,
   }),
   Schema.TaggedStruct("mailbox-error", {
     accountId: AccountId,

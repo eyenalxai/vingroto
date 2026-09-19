@@ -209,7 +209,7 @@ const useMailStore = (options: MailStoreOptions) => {
         const id = mailboxIdFor(event.accountId, event.path)
         setSyncingMailboxIds((current) => (id === undefined ? current : withoutId(current, id)))
       }
-      if (event._tag === "mailbox-done" && event.stored > 0) {
+      if (event._tag === "mailbox-done" && event.stored > 0 && !event.reset) {
         const mailbox = mailboxes().find(
           (row) => row.account_id === event.accountId && row.path === event.path,
         )

@@ -95,6 +95,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         account: AccountConfig,
         row: MailboxRow,
         snapshot: MailboxSnapshot,
+        reset: boolean,
       ) {
         let lastSeenUid: number = row.last_seen_uid
         for (const message of snapshot.messages) {
@@ -125,6 +126,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           path: row.path,
           fetched: snapshot.messages.length,
           stored: outcome.inserted,
+          reset,
         })
         return { fetched: snapshot.messages.length, stored: outcome.inserted }
       })
@@ -151,7 +153,11 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         )
         const errors: string[] = []
         const recreated = new Set<number>()
-        const processable: { readonly row: MailboxRow; readonly result: MailboxWindowResult }[] = []
+        const processable: {
+          readonly row: MailboxRow
+          readonly result: MailboxWindowResult
+          readonly reset: boolean
+        }[] = []
         for (const result of results) {
           const row = rowsByPath.get(result.path)
           if (row === undefined) {
@@ -181,7 +187,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
             recreated.add(row.id)
             continue
           }
-          processable.push({ row, result })
+          processable.push({ row, result, reset: false })
         }
         if (recreated.size > 0) {
           const refreshed = yield* listAccountMailboxes(account.id)
@@ -197,7 +203,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           for (const result of retry) {
             const row = refreshedByPath.get(result.path)
             if (row !== undefined) {
-              processable.push({ row, result })
+              processable.push({ row, result, reset: true })
             }
           }
         }
@@ -209,7 +215,12 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
             yield* reportMailboxError(account, entry.result.path, entry.result.message)
             continue
           }
-          const outcome = yield* storeSnapshot(account, entry.row, entry.result.snapshot)
+          const outcome = yield* storeSnapshot(
+            account,
+            entry.row,
+            entry.result.snapshot,
+            entry.reset,
+          )
           fetched += outcome.fetched
           storedCount += outcome.stored
         }
