@@ -10,6 +10,7 @@ interface CatalogParameter {
   readonly location: "query" | "header" | "path" | "cookie"
   readonly required: boolean
   readonly choices: readonly string[]
+  readonly default: string | undefined
 }
 
 interface CatalogOperation {
@@ -37,6 +38,16 @@ const schemaChoices = (schema: object): readonly string[] => {
   return choices
 }
 
+const schemaDefault = (schema: object): string | undefined => {
+  if (!("default" in schema)) {
+    return undefined
+  }
+  const value = schema.default
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+    ? String(value)
+    : undefined
+}
+
 // Why: the built-in catalog must agree with the API the daemon serves, and the projection is the same document the daemon publishes at /openapi.json.
 const buildCatalog = (): readonly CatalogOperation[] => {
   const document = OpenApi.fromApi(Api)
@@ -56,6 +67,7 @@ const buildCatalog = (): readonly CatalogOperation[] => {
         parameters: operation.parameters.map((parameter) => {
           return {
             choices: schemaChoices(parameter.schema),
+            default: schemaDefault(parameter.schema),
             location: parameter.in,
             name: parameter.name,
             required: parameter.required,
@@ -108,6 +120,12 @@ const usageOf = (operation: CatalogOperation): string => {
   const parts = [`vingroto api ${operation.operationId}`]
   for (const parameter of requiredParameters(operation)) {
     parts.push(`--param ${parameter.name}=${placeholderFor(parameter)}`)
+  }
+  for (const parameter of operation.parameters) {
+    if (parameter.required || parameter.default === undefined) {
+      continue
+    }
+    parts.push(`[--param ${parameter.name}=${parameter.default}]`)
   }
   if (operation.bodyRequired) {
     parts.push("--data '<json>'")

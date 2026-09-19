@@ -5,12 +5,24 @@ import { InvalidRequestError } from "@vingroto/core/protocol/api/errors"
 import * as Effect from "effect/Effect"
 
 interface ListScopeQuery {
-  readonly scope: "all" | "unread" | "mailbox"
+  readonly scope?: "all" | "unread" | "mailbox" | undefined
   readonly accountId?: AccountId | undefined
   readonly mailboxId?: MailboxId | undefined
 }
 
+interface ListLimitQuery {
+  readonly limit?: number | undefined
+}
+
+const limitFromQuery = (query: ListLimitQuery): Effect.Effect<number, InvalidRequestError> =>
+  query.limit === undefined
+    ? Effect.fail(new InvalidRequestError({ field: "limit", message: "limit is required" }))
+    : Effect.succeed(query.limit)
+
 const scopeFromQuery = (query: ListScopeQuery): Effect.Effect<ListScope, InvalidRequestError> => {
+  if (query.scope === undefined) {
+    return Effect.fail(new InvalidRequestError({ field: "scope", message: "scope is required" }))
+  }
   if (query.scope === "mailbox") {
     if (query.mailboxId === undefined) {
       return Effect.fail(
@@ -48,4 +60,4 @@ const scopeFromQuery = (query: ListScopeQuery): Effect.Effect<ListScope, Invalid
   return Effect.succeed({ kind: "all" })
 }
 
-export { scopeFromQuery, type ListScopeQuery }
+export { limitFromQuery, scopeFromQuery, type ListLimitQuery, type ListScopeQuery }

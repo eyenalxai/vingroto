@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 
 import { ServerApi } from "@/lib/api/api"
-import { scopeFromQuery } from "@/lib/api/list-scope"
+import { limitFromQuery, scopeFromQuery } from "@/lib/api/list-scope"
 import { MailActions } from "@/lib/mail/actions"
 import { MessageBodies } from "@/lib/mail/bodies"
 import { getMailbox } from "@/lib/store/mailboxes"
@@ -23,7 +23,8 @@ const MessageHandlers = HttpApiBuilder.group(ServerApi, "messages", (handlers) =
     .handle("message.list", ({ query }) =>
       Effect.gen(function* listMessages() {
         const scope = yield* scopeFromQuery(query)
-        return yield* listMessagesForScope(scope, query.limit).pipe(Effect.mapError(toInternal))
+        const limit = yield* limitFromQuery(query)
+        return yield* listMessagesForScope(scope, limit).pipe(Effect.mapError(toInternal))
       }),
     )
     .handle("message.get", ({ params }) =>

@@ -99,6 +99,8 @@ vingroto api GET /api/status
 
 The client builds its catalog by projecting the same `@vingroto/core` API definition the daemon serves, so `vingroto api` with no arguments and `vingroto api list` print every operation id, method, path and summary as JSON, and `vingroto api describe message.list` adds the parameters, request body, responses and a ready-to-run `usage` line. The first argument is an operation id, or an HTTP method followed by a path (`vingroto api GET /api/status` works too). `--param key=value` fills `{path}` parameters and appends the rest as query parameters, `-d`/`--data` sets the body (`@file` reads a file, `-` reads stdin; JSON unless a content type is given), `-H`/`--header name:value` adds a header, and `--server`/`VINGROTO_SERVER` plus `--token`/`VINGROTO_TOKEN` override discovery. From a checkout the same command is `bun client api server.status`.
 
+Inputs with a default are optional, and the daemon applies that default when the request omits them: `scope` is `all` and `limit` is `100` on `message.list` and `search.messages`, `scope` is `all` on `search.marks` and on the `search.start` body, and `seen` is `true` on the `message.setSeen` body. `api describe` marks them optional and its `usage` line brackets the default, e.g. `vingroto api message.list [--param scope=all] [--param limit=100]`.
+
 Before sending, the client checks the invocation against the catalog: the operation must exist, every `--param` name must be one the operation declares, every required path or query parameter must be present, and an operation that requires a body must be given one. A violation exits 1 with one actionable line and never reaches the daemon:
 
 ```
@@ -110,7 +112,7 @@ Values are the daemon's business; `--param scope=inbox` is sent and answered wit
 The response body is streamed to stdout as it arrives, so a long-lived response such as `vingroto api event.subscribe` prints events while it stays open. A non-2xx response writes the body to stdout once and one line to stderr:
 
 ```
-error: GET /api/messages failed with HTTP 400 Bad Request: missing required query parameter "scope" (one of: all, unread, mailbox)
+error: GET /api/messages?scope=inbox failed with HTTP 400 Bad Request: query parameter "scope" is invalid
 ```
 
 The exit code is 0 on success, 1 for a usage error, 2 when the daemon cannot be reached and 3 when the API answers with an error response. Failures are JSON error objects (`_tag`, `message`, and `field` for invalid requests); a method or path that matches no route answers `NotFoundError` with 404 instead of an empty body.

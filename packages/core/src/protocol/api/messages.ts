@@ -3,6 +3,7 @@ import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 
 import { AccountId, MailboxId, MessageId } from "../../ids"
 import { MessageBody, MessageDetail, MessageListItem, MoveOutcome, SeenOutcome } from "../mail"
+import { withDefault, withQueryDefault } from "./defaults"
 import {
   InternalError,
   InvalidRequestError,
@@ -10,12 +11,14 @@ import {
   MessageNotFoundError,
 } from "./errors"
 
+const ListScope = Schema.Literals(["all", "unread", "mailbox"])
+
 const list = HttpApiEndpoint.get("message.list", "/api/messages", {
   query: {
-    scope: Schema.Literals(["all", "unread", "mailbox"]),
+    scope: withQueryDefault(ListScope, "all"),
     accountId: Schema.optionalKey(AccountId),
     mailboxId: Schema.optionalKey(MailboxId),
-    limit: Schema.Int,
+    limit: withQueryDefault(Schema.Int, 100),
   },
   success: Schema.Array(MessageListItem),
   error: [InvalidRequestError, InternalError],
@@ -52,7 +55,7 @@ const body = HttpApiEndpoint.get("message.body", "/api/messages/:messageId/body"
 )
 
 const setSeen = HttpApiEndpoint.post("message.setSeen", "/api/messages/seen", {
-  payload: Schema.Struct({ ids: Schema.Array(MessageId), seen: Schema.Boolean }),
+  payload: Schema.Struct({ ids: Schema.Array(MessageId), seen: withDefault(Schema.Boolean, true) }),
   success: SeenOutcome,
   error: [InvalidRequestError, InternalError],
 }).annotateMerge(

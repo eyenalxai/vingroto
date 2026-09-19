@@ -3,19 +3,26 @@ import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 
 import { AccountId, MailboxId } from "../../ids"
 import { MessageTarget, SearchOutcome } from "../mail"
+import { withDefault, withQueryDefault } from "./defaults"
 import { InternalError, InvalidRequestError } from "./errors"
 
-const scopeQuery = {
-  scope: Schema.Literals(["all", "unread", "mailbox"]),
+const ListScope = Schema.Literals(["all", "unread", "mailbox"])
+
+const scopeFields = {
   accountId: Schema.optionalKey(AccountId),
   mailboxId: Schema.optionalKey(MailboxId),
   query: Schema.String,
 }
 
+const scopeQuery = {
+  scope: withQueryDefault(ListScope, "all"),
+  ...scopeFields,
+}
+
 const messages = HttpApiEndpoint.get("search.messages", "/api/search/messages", {
   query: {
     ...scopeQuery,
-    limit: Schema.Int,
+    limit: withQueryDefault(Schema.Int, 100),
   },
   success: SearchOutcome,
   error: [InvalidRequestError, InternalError],
@@ -41,7 +48,7 @@ const marks = HttpApiEndpoint.get("search.marks", "/api/search/marks", {
 )
 
 const start = HttpApiEndpoint.post("search.start", "/api/search/start", {
-  payload: Schema.Struct({ ...scopeQuery }),
+  payload: Schema.Struct({ scope: withDefault(ListScope, "all"), ...scopeFields }),
   success: Schema.Void,
   error: [InvalidRequestError, InternalError],
 }).annotateMerge(

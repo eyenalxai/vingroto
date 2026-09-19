@@ -8,7 +8,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import type { SearchError } from "@/lib/mail/search"
 
 import { ServerApi } from "@/lib/api/api"
-import { scopeFromQuery } from "@/lib/api/list-scope"
+import { limitFromQuery, scopeFromQuery } from "@/lib/api/list-scope"
 import { toInternal } from "@/lib/api/messages"
 import { Search } from "@/lib/mail/search"
 
@@ -29,8 +29,9 @@ const SearchHandlers = HttpApiBuilder.group(ServerApi, "search", (handlers) =>
     .handle("search.messages", ({ query }) =>
       Effect.gen(function* searchMessages() {
         const scope = yield* scopeFromQuery(query)
+        const limit = yield* limitFromQuery(query)
         return yield* Search.pipe(
-          Effect.flatMap((search) => search.messages({ query: query.query, scope }, query.limit)),
+          Effect.flatMap((search) => search.messages({ query: query.query, scope }, limit)),
           Effect.mapError(toSearchError),
         )
       }),
