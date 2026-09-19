@@ -6,26 +6,37 @@ import { desc, eq } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 
+import {
+  decodeStored,
+  persistedRequiredAddressList,
+  persistedRequiredReferenceList,
+} from "@/lib/db/codecs"
 import { Database } from "@/lib/db/database"
 import { DraftTable } from "@/lib/db/schema"
 
 type DraftRow = typeof DraftTable.$inferSelect
 
-const toDraft = (row: DraftRow): Draft => {
+const toDraft = Effect.fnUntraced(function* toDraftRow(row: DraftRow) {
+  const [to, cc, bcc, references] = yield* Effect.all([
+    decodeStored(persistedRequiredAddressList, row.to),
+    decodeStored(persistedRequiredAddressList, row.cc),
+    decodeStored(persistedRequiredAddressList, row.bcc),
+    decodeStored(persistedRequiredReferenceList, row.references),
+  ])
   return {
     id: row.id,
     accountId: row.account_id,
-    to: row.to,
-    cc: row.cc,
-    bcc: row.bcc,
+    to,
+    cc,
+    bcc,
     subject: row.subject,
     body: row.body,
     inReplyTo: row.in_reply_to,
-    references: row.references,
+    references,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
-}
+})
 
 const toDraftValues = (input: DraftSave) => {
   return {
@@ -65,7 +76,7 @@ const saveDraft = Effect.fn("Draft.save")(function* save(
             set: { ...toDraftValues(input), updated_at: now },
           })
           .returning()
-  return toDraft(yield* requireRow(rows))
+  return yield* toDraft(yield* requireRow(rows))
 })
 
 const listDrafts = Effect.fn("Draft.list")(function* list(): Effect.fn.Return<
@@ -78,7 +89,7 @@ const listDrafts = Effect.fn("Draft.list")(function* list(): Effect.fn.Return<
     .select()
     .from(DraftTable)
     .orderBy(desc(DraftTable.updated_at), desc(DraftTable.id))
-  return rows.map((row) => toDraft(row))
+  return yield* Effect.all(rows.map((row) => toDraft(row)))
 })
 
 const deleteDraft = Effect.fn("Draft.delete")(function* remove(

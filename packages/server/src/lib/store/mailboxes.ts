@@ -50,33 +50,38 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
   accountId: AccountId,
   infos: readonly MailboxInfo[],
 ) {
+  if (infos.length === 0) {
+    return
+  }
   const database = yield* Database
   const now = yield* Clock.currentTimeMillis
-  yield* Effect.all(
-    infos.map((info) =>
-      database.client
-        .insert(MailboxTable)
-        .values({
-          account_id: accountId,
-          path: info.path,
-          name: info.name,
-          delimiter: info.delimiter,
-          special_use: info.specialUse ?? null,
-          selectable: info.selectable,
-          updated_at: now,
-        })
-        .onConflictDoUpdate({
-          target: [MailboxTable.account_id, MailboxTable.path],
-          set: {
+  yield* database.client.transaction((tx) =>
+    Effect.all(
+      infos.map((info) =>
+        tx
+          .insert(MailboxTable)
+          .values({
+            account_id: accountId,
+            path: info.path,
             name: info.name,
             delimiter: info.delimiter,
             special_use: info.specialUse ?? null,
             selectable: info.selectable,
             updated_at: now,
-          },
-        }),
+          })
+          .onConflictDoUpdate({
+            target: [MailboxTable.account_id, MailboxTable.path],
+            set: {
+              name: info.name,
+              delimiter: info.delimiter,
+              special_use: info.specialUse ?? null,
+              selectable: info.selectable,
+              updated_at: now,
+            },
+          }),
+      ),
+      { discard: true },
     ),
-    { discard: true },
   )
 })
 

@@ -1,6 +1,7 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { Uid } from "@vingroto/core/ids"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
+import type { SqlError } from "effect/unstable/sql/SqlError"
 
 import { AppPaths } from "@vingroto/core/app-paths"
 import { AccountId, MessageId } from "@vingroto/core/ids"
@@ -42,7 +43,7 @@ interface BodyRequest {
   readonly uid: Uid
 }
 
-type MessageBodyError = ImapServiceError | BodyParseError | EffectDrizzleQueryError
+type MessageBodyError = ImapServiceError | BodyParseError | EffectDrizzleQueryError | SqlError
 
 interface MessageBodiesShape {
   readonly load: (request: BodyRequest) => Effect.Effect<MessageBody, MessageBodyError>

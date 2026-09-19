@@ -8,6 +8,12 @@ import { and, asc, eq, lte } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 
+import {
+  decodeStored,
+  persistedOutboxState,
+  persistedRequiredAddressList,
+  persistedRequiredReferenceList,
+} from "@/lib/db/codecs"
 import { Database } from "@/lib/db/database"
 import { DraftTable, OutboxTable } from "@/lib/db/schema"
 
@@ -35,24 +41,31 @@ interface OutboxAttempt {
   readonly lastError: string
 }
 
-const toOutboxEntry = (row: OutboxRow): OutboxEntry => {
+const toOutboxEntry = Effect.fnUntraced(function* toEntry(row: OutboxRow) {
+  const [to, cc, bcc, references, state] = yield* Effect.all([
+    decodeStored(persistedRequiredAddressList, row.to),
+    decodeStored(persistedRequiredAddressList, row.cc),
+    decodeStored(persistedRequiredAddressList, row.bcc),
+    decodeStored(persistedRequiredReferenceList, row.references),
+    decodeStored(persistedOutboxState, row.state),
+  ])
   return {
     id: row.id,
     accountId: row.account_id,
-    to: row.to,
-    cc: row.cc,
-    bcc: row.bcc,
+    to,
+    cc,
+    bcc,
     subject: row.subject,
     body: row.body,
     inReplyTo: row.in_reply_to,
-    references: row.references,
+    references,
     createdAt: row.created_at,
     sendAt: row.send_at,
     attempts: row.attempts,
-    state: row.state,
+    state,
     lastError: row.last_error,
   }
-}
+})
 
 const requireRow = <A>(rows: readonly A[]): Effect.Effect<A> =>
   rows[0] === undefined
@@ -85,7 +98,7 @@ const insertOutboxEntry = Effect.fn("Outbox.insert")(function* insert(
       if (draftId !== undefined) {
         yield* tx.delete(DraftTable).where(eq(DraftTable.id, draftId))
       }
-      return toOutboxEntry(yield* requireRow(rows))
+      return yield* toOutboxEntry(yield* requireRow(rows))
     }),
   )
 })
@@ -100,7 +113,7 @@ const listOutboxEntries = Effect.fn("Outbox.list")(function* list(): Effect.fn.R
     .select()
     .from(OutboxTable)
     .orderBy(asc(OutboxTable.send_at), asc(OutboxTable.id))
-  return rows.map((row) => toOutboxEntry(row))
+  return yield* Effect.all(rows.map((row) => toOutboxEntry(row)))
 })
 
 const listDueOutboxEntries = Effect.fn("Outbox.listDue")(function* listDue(
@@ -112,7 +125,7 @@ const listDueOutboxEntries = Effect.fn("Outbox.listDue")(function* listDue(
     .from(OutboxTable)
     .where(and(eq(OutboxTable.state, "pending"), lte(OutboxTable.send_at, now)))
     .orderBy(asc(OutboxTable.send_at), asc(OutboxTable.id))
-  return rows.map((row) => toOutboxEntry(row))
+  return yield* Effect.all(rows.map((row) => toOutboxEntry(row)))
 })
 
 const getOutboxEntry = Effect.fn("Outbox.get")(function* get(
@@ -125,7 +138,7 @@ const getOutboxEntry = Effect.fn("Outbox.get")(function* get(
     .where(eq(OutboxTable.id, outboxId))
     .limit(1)
   const row = rows[0]
-  return row === undefined ? undefined : toOutboxEntry(row)
+  return row === undefined ? undefined : yield* toOutboxEntry(row)
 })
 
 const deleteOutboxEntry = Effect.fn("Outbox.delete")(function* remove(outboxId: OutboxId) {
@@ -165,7 +178,7 @@ const releaseOutboxEntry = Effect.fn("Outbox.release")(function* release(
     .where(eq(OutboxTable.id, outboxId))
     .returning()
   const row = rows[0]
-  return row === undefined ? undefined : toOutboxEntry(row)
+  return row === undefined ? undefined : yield* toOutboxEntry(row)
 })
 
 const cancelOutboxEntry = Effect.fn("Outbox.cancel")(function* cancel(

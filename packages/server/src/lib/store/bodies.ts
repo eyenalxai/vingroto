@@ -45,22 +45,26 @@ const storeMessageBody = Effect.fn("Message.storeBody")(function* storeBody(
 ) {
   const database = yield* Database
   const now = yield* Clock.currentTimeMillis
-  yield* database.client
-    .insert(MessageBodyTable)
-    .values({ message_id: messageId, text: body.text, html: body.html, fetched_at: now })
-    .onConflictDoUpdate({
-      target: MessageBodyTable.message_id,
-      set: { text: body.text, html: body.html, fetched_at: now },
-    })
-  yield* database.client
-    .update(MessageTable)
-    .set({
-      body_fetched_at: now,
-      snippet: toSnippet(body.text),
-      has_attachments: hasAttachments,
-      updated_at: now,
-    })
-    .where(eq(MessageTable.id, messageId))
+  yield* database.client.transaction((tx) =>
+    Effect.gen(function* storeBodyAndMessage() {
+      yield* tx
+        .insert(MessageBodyTable)
+        .values({ message_id: messageId, text: body.text, html: body.html, fetched_at: now })
+        .onConflictDoUpdate({
+          target: MessageBodyTable.message_id,
+          set: { text: body.text, html: body.html, fetched_at: now },
+        })
+      yield* tx
+        .update(MessageTable)
+        .set({
+          body_fetched_at: now,
+          snippet: toSnippet(body.text),
+          has_attachments: hasAttachments,
+          updated_at: now,
+        })
+        .where(eq(MessageTable.id, messageId))
+    }),
+  )
 })
 
 const listPendingBodies = Effect.fn("Message.listPendingBodies")(function* listPending() {

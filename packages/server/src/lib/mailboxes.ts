@@ -1,11 +1,16 @@
-import type { MailboxId } from "@vingroto/core/ids"
-
+import { MailboxId } from "@vingroto/core/ids"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 
 import { ServerEvents } from "@/lib/events"
-import { listMailboxes, setMailboxMuted } from "@/lib/store/mailboxes"
+import { getMailbox, listMailboxes, setMailboxMuted } from "@/lib/store/mailboxes"
 import { unreadMessageCounts } from "@/lib/store/message-views"
 import { messageCounts } from "@/lib/store/messages"
+
+class MailboxNotFound extends Schema.TaggedError<MailboxNotFound>()("MailboxNotFound", {
+  mailboxId: MailboxId,
+  message: Schema.String,
+}) {}
 
 const readMailboxSnapshot = Effect.fn("Mailbox.snapshot")(function* readMailboxSnapshot() {
   const mailboxes = yield* listMailboxes()
@@ -28,8 +33,16 @@ const updateMailboxMute = Effect.fn("Mailbox.updateMute")(function* updateMailbo
   muted: boolean,
 ) {
   const events = yield* ServerEvents
+  const mailbox = yield* getMailbox(mailboxId)
+  if (mailbox === undefined) {
+    yield* new MailboxNotFound({
+      mailboxId,
+      message: `mailbox ${mailboxId} was not found`,
+    })
+    return
+  }
   yield* setMailboxMuted(mailboxId, muted)
   yield* events.publish({ _tag: "data-changed" })
 })
 
-export { readMailboxSnapshot, updateMailboxMute }
+export { MailboxNotFound, readMailboxSnapshot, updateMailboxMute }

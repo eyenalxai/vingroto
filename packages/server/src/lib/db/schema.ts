@@ -78,6 +78,7 @@ const MessageTable = sqliteTable(
   (table) => [
     uniqueIndex("message_mailbox_id_uid_unique").on(table.mailbox_id, table.uid),
     index("message_account_id_date_index").on(table.account_id, table.date),
+    index("message_body_fetched_at_index").on(table.body_fetched_at),
   ],
 )
 
@@ -112,22 +113,26 @@ const AttachmentTable = sqliteTable(
   (table) => [index("attachment_message_id_index").on(table.message_id)],
 )
 
-const OutboxTable = sqliteTable("outbox", {
-  id: integer().primaryKey({ autoIncrement: true }).$type<OutboxId>(),
-  account_id: text().notNull().$type<AccountId>(),
-  to: text({ mode: "json" }).notNull().$type<readonly MailAddress[]>(),
-  cc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
-  bcc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
-  subject: text().notNull().default(""),
-  body: text().notNull().default(""),
-  in_reply_to: text(),
-  references: text({ mode: "json" }).notNull().default([]).$type<readonly string[]>(),
-  send_at: integer().notNull(),
-  attempts: integer().notNull().default(0),
-  state: text().notNull().default("pending").$type<"pending" | "failed">(),
-  last_error: text(),
-  ...timestamps,
-})
+const OutboxTable = sqliteTable(
+  "outbox",
+  {
+    id: integer().primaryKey({ autoIncrement: true }).$type<OutboxId>(),
+    account_id: text().notNull().$type<AccountId>(),
+    to: text({ mode: "json" }).notNull().$type<readonly MailAddress[]>(),
+    cc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
+    bcc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
+    subject: text().notNull().default(""),
+    body: text().notNull().default(""),
+    in_reply_to: text(),
+    references: text({ mode: "json" }).notNull().default([]).$type<readonly string[]>(),
+    send_at: integer().notNull(),
+    attempts: integer().notNull().default(0),
+    state: text().notNull().default("pending").$type<"pending" | "failed">(),
+    last_error: text(),
+    ...timestamps,
+  },
+  (table) => [index("outbox_state_send_at_index").on(table.state, table.send_at)],
+)
 
 const DraftTable = sqliteTable("draft", {
   id: integer().primaryKey({ autoIncrement: true }).$type<DraftId>(),
