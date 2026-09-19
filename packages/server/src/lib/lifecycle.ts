@@ -5,6 +5,7 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import path from "node:path"
 
@@ -12,6 +13,7 @@ class ServerAlreadyRunning extends Schema.TaggedError<ServerAlreadyRunning>()(
   "ServerAlreadyRunning",
   {
     lock: Schema.String,
+    message: Schema.String,
   },
 ) {}
 
@@ -19,15 +21,14 @@ interface ServerLifecycleShape {
   readonly startedAt: number
 }
 
-const isErrnoException = (error: unknown): error is NodeJS.ErrnoException =>
-  error instanceof Error && "code" in error
-
 const isProcessAlive = (pid: number) => {
   try {
     process.kill(pid, 0)
     return true
   } catch (error) {
-    return isErrnoException(error) && error.code === "EPERM"
+    return (
+      Predicate.isError(error) && Predicate.hasProperty(error, "code") && error.code === "EPERM"
+    )
   }
 }
 
@@ -69,7 +70,10 @@ class ServerLifecycle extends Context.Service<ServerLifecycle, ServerLifecycleSh
           }
           const pid = yield* readLockPid(fs, paths.lock)
           if (Number.isSafeInteger(pid) && pid > 0 && isProcessAlive(pid)) {
-            yield* new ServerAlreadyRunning({ lock: paths.lock })
+            yield* new ServerAlreadyRunning({
+              lock: paths.lock,
+              message: `another vingroto server is already running with pid ${pid}`,
+            })
             return
           }
           yield* Effect.logInfo("removing a stale server lock").pipe(

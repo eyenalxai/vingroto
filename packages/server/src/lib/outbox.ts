@@ -37,23 +37,31 @@ const maximumAttempts = 7
 const maximumRetryDelay = Duration.minutes(10)
 const workerInterval = Duration.seconds(1)
 
+// Why: the outbox persists send times instead of sleeping, so the schedule output carries the delay and the step has no duration.
 const retrySchedule = Schedule.exponential("5 seconds", 2).pipe(
   Schedule.modifyDelay(({ duration }) => Effect.succeed(Duration.min(duration, maximumRetryDelay))),
+  Schedule.jittered,
+  Schedule.map(({ duration }) => duration),
+  Schedule.modifyDelay(() => Effect.succeed(Duration.zero)),
   Schedule.upTo({ times: maximumAttempts }),
 )
 
-const nextRetryDelay = (attempt: number): Effect.Effect<Option.Option<Duration.Duration>> =>
-  Effect.gen(function* makeNextRetryDelay() {
-    const step = yield* Schedule.toStep(retrySchedule)
-    let delay = Option.none<Duration.Duration>()
-    for (let index = 0; index < attempt; index += 1) {
-      delay = yield* Effect.option(step(0, null).pipe(Effect.map(([, value]) => value)))
-      if (Option.isNone(delay)) {
-        return Option.none()
-      }
+const nextRetryDelay = Effect.fnUntraced(function* makeNextRetryDelay(attempt: number) {
+  const step = yield* Schedule.toStepWithMetadata(retrySchedule)
+  let delay: Option.Option<Duration.Duration> = Option.none()
+  for (let index = 0; index < attempt; index += 1) {
+    delay = yield* Effect.option(
+      step(null).pipe(
+        // `send_at` is an integer column, so the jittered delay is persisted as whole milliseconds.
+        Effect.map((metadata) => Duration.millis(Math.round(Duration.toMillis(metadata.output)))),
+      ),
+    )
+    if (Option.isNone(delay)) {
+      return Option.none()
     }
-    return delay
-  })
+  }
+  return delay
+})
 
 class AccountNotConfigured extends Schema.TaggedError<AccountNotConfigured>()(
   "AccountNotConfigured",
@@ -175,7 +183,14 @@ class Outbox extends Context.Service<Outbox, OutboxShape>()("vingroto/lib/server
         const now = yield* Clock.currentTimeMillis
         const due = yield* listDueOutboxEntries(now)
         for (const entry of due) {
-          yield* sendEntry(entry)
+          yield* sendEntry(entry).pipe(
+            Effect.tapError((error) =>
+              Effect.logWarning("outbox entry failed").pipe(
+                Effect.annotateLogs({ outbox: entry.id, reason: describeError(error) }),
+              ),
+            ),
+            Effect.ignore,
+          )
         }
       })
 
