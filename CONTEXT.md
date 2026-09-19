@@ -75,7 +75,7 @@ Which state namespace a process uses: the installed package's `vingroto` or the 
 The process that owns the config file, the OS keyring, the database and every mail connection. It serves the API and syncs in the background.
 
 **API**:
-The daemon's HTTP interface, and the only way a client talks to it. The daemon serves its OpenAPI document beside the routes.
+The daemon's HTTP interface, and the only way a client talks to it. The daemon serves its OpenAPI document beside the routes, answers every failure with a JSON error object, and names the input that failed (`query.scope`, `body.items[0].id`) when a request is invalid.
 
 **Token**:
 The local secret every API request carries. The daemon writes it to its runtime directory and clients read it there.

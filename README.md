@@ -93,7 +93,15 @@ vingroto api message.setSeen -d '{"ids":[42],"seen":true}'
 vingroto api GET /api/status
 ```
 
-The first argument is an OpenAPI operation id, resolved against the live document, or an HTTP method followed by a path. `--param key=value` fills `{path}` parameters and appends the rest as query parameters, `-d`/`--data` sets the body (JSON unless a content type is given), `-H`/`--header name:value` adds a header, and `--server`/`VINGROTO_SERVER` plus `--token`/`VINGROTO_TOKEN` override discovery. The body goes to stdout; a non-2xx response writes the status to stderr and exits non-zero. From a checkout the same command is `bun client api server.status`.
+The first argument is an OpenAPI operation id, resolved against the live document, or an HTTP method followed by a path. `--param key=value` fills `{path}` parameters and appends the rest as query parameters, `-d`/`--data` sets the body (JSON unless a content type is given), `-H`/`--header name:value` adds a header, and `--server`/`VINGROTO_SERVER` plus `--token`/`VINGROTO_TOKEN` override discovery. From a checkout the same command is `bun client api server.status`.
+
+The response body is streamed to stdout as it arrives, so a long-lived response such as `vingroto api event.subscribe` prints events while it stays open. A non-2xx response writes the body to stdout once and one line to stderr:
+
+```
+error: GET /api/messages failed with HTTP 400 Bad Request: missing required query parameter "scope" (one of: all, unread, mailbox)
+```
+
+The exit code is 0 on success, 1 for a usage error, 2 when the daemon cannot be reached and 3 when the API answers with an error response. Failures are JSON error objects (`_tag`, `message`, and `field` for invalid requests); a method or path that matches no route answers `NotFoundError` with 404 instead of an empty body.
 
 Plain HTTP works too:
 

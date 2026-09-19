@@ -1,12 +1,12 @@
 import { describeError } from "@vingroto/core/errors"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import { Argument, CliError, Command, Flag } from "effect/unstable/cli"
 import { EOL } from "node:os"
 
 import type { OpenApiDocument } from "@/lib/cli/openapi"
-import type { DaemonError } from "@/lib/daemon"
 
 import { httpMethods, OpenApiDocumentSchema } from "@/lib/cli/openapi"
 import { resolveDaemon } from "@/lib/daemon"
@@ -21,7 +21,41 @@ interface ApiRequest {
 const userError = (message: string) =>
   new CliError.UserError({ cause: message, userMessage: message })
 
-const daemonUserError = (error: DaemonError) => userError(error.message)
+class DaemonUnreachable extends Schema.TaggedError<DaemonUnreachable>()("DaemonUnreachable", {
+  message: Schema.String,
+}) {}
+
+const errorLine = (code: number, message: string) =>
+  Effect.sync(() => {
+    process.stderr.write(`error: ${message}${EOL}`)
+    process.exitCode = code
+  })
+
+const ResponseMessage = Schema.Struct({ message: Schema.String })
+
+const responseMessage = (body: string) => {
+  const result = Schema.decodeUnknownResult(Schema.fromJsonString(ResponseMessage))(body)
+  return Result.isSuccess(result) ? result.success.message : undefined
+}
+
+const newlineByte = 10
+
+const streamBody = async (response: Response) => {
+  if (response.body === null) {
+    return
+  }
+  let last = -1
+  for await (const value of response.body) {
+    if (value.length === 0) {
+      continue
+    }
+    process.stdout.write(value)
+    last = value.at(-1) ?? last
+  }
+  if (last !== -1 && last !== newlineByte) {
+    process.stdout.write(EOL)
+  }
+}
 
 const interpolate = Effect.fnUntraced(function* interpolate(
   path: string,
@@ -91,7 +125,9 @@ const loadOpenApiDocument = Effect.fnUntraced(function* loadOpenApiDocument(
   const response = yield* Effect.tryPromise({
     try: async () => fetch(new URL("/openapi.json", url), { headers }),
     catch: (cause) =>
-      userError(`could not reach the vingroto daemon at ${url}: ${describeError(cause)}`),
+      new DaemonUnreachable({
+        message: `could not reach the vingroto daemon at ${url}: ${describeError(cause)}`,
+      }),
   })
   if (!response.ok) {
     return yield* Effect.fail(
@@ -174,7 +210,7 @@ const apiCommand = Command.make(
       const daemon = yield* resolveDaemon({
         server: Option.getOrUndefined(config.server),
         token: Option.getOrUndefined(config.token),
-      }).pipe(Effect.mapError(daemonUserError))
+      }).pipe(Effect.mapError((error) => new DaemonUnreachable({ message: error.message })))
       const headers = new Headers({ authorization: `Bearer ${daemon.token}` })
       for (const header of config.header) {
         const separator = header.indexOf(":")
@@ -199,26 +235,37 @@ const apiCommand = Command.make(
             body: body ?? null,
           }),
         catch: (cause) =>
-          userError(
-            `could not reach the vingroto daemon at ${daemon.url}: ${describeError(cause)}`,
-          ),
+          new DaemonUnreachable({
+            message: `could not reach the vingroto daemon at ${daemon.url}: ${describeError(cause)}`,
+          }),
       })
-      const output = yield* Effect.tryPromise({
-        try: async () => response.text(),
-        catch: (cause) => userError(`could not read the response body: ${describeError(cause)}`),
-      })
-      const text = output.length === 0 || output.endsWith(EOL) ? output : `${output}${EOL}`
-      process.stdout.write(text)
       if (!response.ok) {
-        process.stderr.write(
-          `HTTP ${response.status}${response.statusText.length === 0 ? "" : ` ${response.statusText}`}${EOL}`,
+        const text = yield* Effect.tryPromise({
+          try: async () => response.text(),
+          catch: (cause) =>
+            new DaemonUnreachable({
+              message: `could not read the response body: ${describeError(cause)}`,
+            }),
+        })
+        if (text.length > 0) {
+          process.stdout.write(text.endsWith(EOL) ? text : `${text}${EOL}`)
+        }
+        const detail = responseMessage(text)
+        const status = `HTTP ${response.status}${response.statusText.length === 0 ? "" : ` ${response.statusText}`}`
+        yield* errorLine(
+          3,
+          `${request.method} ${request.path} failed with ${status}${detail === undefined ? "" : `: ${detail}`}`,
         )
-        process.stderr.write(text)
-        yield* Effect.fail(
-          userError(`${request.method} ${request.path} returned HTTP ${response.status}`),
-        )
+        return
       }
-    }),
+      yield* Effect.tryPromise({
+        try: async () => streamBody(response),
+        catch: (cause) =>
+          new DaemonUnreachable({
+            message: `could not read the response body: ${describeError(cause)}`,
+          }),
+      })
+    }).pipe(Effect.catchTag("DaemonUnreachable", (error) => errorLine(2, error.message))),
 ).pipe(Command.withDescription("Make a request to the running vingroto daemon"))
 
 export {

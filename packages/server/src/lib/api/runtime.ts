@@ -14,6 +14,7 @@ import { authorizationLayer } from "@/lib/api/authorization"
 import { EventHandlers } from "@/lib/api/events"
 import { MailboxHandlers } from "@/lib/api/mailboxes"
 import { MessageHandlers } from "@/lib/api/messages"
+import { notFoundLayer } from "@/lib/api/not-found"
 import { writeRegistration } from "@/lib/api/registration"
 import { schemaErrorLayer } from "@/lib/api/schema-error"
 import { SearchHandlers } from "@/lib/api/search"
@@ -38,16 +39,19 @@ const HandlersLayer = Layer.mergeAll(
   EventHandlers,
 )
 
-const apiLayer = (token: string) =>
-  HttpApiBuilder.layer(ServerApi, { openapiPath: "/openapi.json" }).pipe(
-    Layer.provide(HandlersLayer),
-    Layer.provide(authorizationLayer(token)),
-    Layer.provide(schemaErrorLayer),
+const appLayer = (token: string) =>
+  Layer.merge(
+    HttpApiBuilder.layer(ServerApi, { openapiPath: "/openapi.json" }).pipe(
+      Layer.provide(HandlersLayer),
+      Layer.provide(authorizationLayer(token)),
+      Layer.provide(schemaErrorLayer),
+    ),
+    notFoundLayer,
   )
 
 const bind = (token: string, port: number) =>
   Layer.build(
-    HttpRouter.serve(apiLayer(token), { disableListenLog: true, disableLogger: true }).pipe(
+    HttpRouter.serve(appLayer(token), { disableListenLog: true, disableLogger: true }).pipe(
       Layer.provideMerge(BunHttpServer.layer({ hostname, port })),
     ),
   )

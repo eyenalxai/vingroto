@@ -70,6 +70,14 @@ class InternalError extends Schema.TaggedError<InternalError>()(
   { httpApiStatus: 500 },
 ) {}
 
+class NotFoundError extends Schema.TaggedError<NotFoundError>()(
+  "NotFoundError",
+  {
+    message: Schema.String,
+  },
+  { httpApiStatus: 404 },
+) {}
+
 export {
   AccountNotFoundError,
   CredentialsError,
@@ -77,6 +85,7 @@ export {
   InvalidRequestError,
   MailboxNotFoundError,
   MessageNotFoundError,
+  NotFoundError,
   UnauthorizedError,
   UpstreamError,
 }
