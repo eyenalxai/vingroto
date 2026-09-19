@@ -5,12 +5,22 @@ import { Authorization } from "./authorization"
 import { EventGroup } from "./events"
 import { MailboxGroup } from "./mailboxes"
 import { MessageGroup } from "./messages"
+import { SearchGroup } from "./search"
 import { ServerGroup } from "./server"
 import { SettingsGroup } from "./settings"
 import { SyncGroup } from "./sync"
 
 const Api = HttpApi.make("vingroto")
-  .add(ServerGroup, MailboxGroup, MessageGroup, AccountGroup, SyncGroup, SettingsGroup, EventGroup)
+  .add(
+    ServerGroup,
+    MailboxGroup,
+    MessageGroup,
+    AccountGroup,
+    SyncGroup,
+    SettingsGroup,
+    EventGroup,
+    SearchGroup,
+  )
   .middleware(Authorization)
   .annotateMerge(
     OpenApi.annotations({

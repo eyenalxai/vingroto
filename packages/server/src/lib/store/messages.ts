@@ -1,4 +1,5 @@
-import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
+import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
+import type { MailAddress } from "@vingroto/core/mail/address"
 import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
@@ -43,6 +44,35 @@ const listColumns = {
   hasAttachments: MessageTable.has_attachments,
   snippet: MessageTable.snippet,
 } as const
+
+const searchColumns = {
+  ...listColumns,
+  messageId: MessageTable.message_id,
+  to: MessageTable.to,
+  cc: MessageTable.cc,
+  bodyFetchedAt: MessageTable.body_fetched_at,
+} as const
+
+interface MessageSearchRow {
+  readonly id: MessageId
+  readonly uid: Uid
+  readonly accountId: AccountId
+  readonly mailboxId: MailboxId
+  readonly mailboxPath: string
+  readonly subject: string | null
+  readonly fromName: string | null
+  readonly fromAddress: string | null
+  readonly date: number | null
+  readonly seen: boolean
+  readonly flagged: boolean
+  readonly size: number | null
+  readonly hasAttachments: boolean
+  readonly snippet: string | null
+  readonly messageId: string | null
+  readonly to: readonly MailAddress[] | null
+  readonly cc: readonly MailAddress[] | null
+  readonly bodyFetchedAt: number | null
+}
 
 const toEnvelopeColumns = (envelope: MessageEnvelope, now: number) => {
   const sender = envelope.from[0]
@@ -129,6 +159,17 @@ const listMessages = Effect.fn("Message.list")(function* list(
     .limit(limit)
 })
 
+const listMailboxSearchRows = Effect.fn("Message.listSearch")(function* listSearch(
+  mailboxId: MailboxId,
+): Effect.fn.Return<readonly MessageSearchRow[], EffectDrizzleQueryError, Database> {
+  const database = yield* Database
+  return yield* database.client
+    .select(searchColumns)
+    .from(MessageTable)
+    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
+    .where(eq(MessageTable.mailbox_id, mailboxId))
+})
+
 const getMessage = Effect.fn("Message.get")(function* get(
   messageId: MessageId,
 ): Effect.fn.Return<MessageDetail | undefined, EffectDrizzleQueryError, Database> {
@@ -204,10 +245,13 @@ export {
   deleteMessages,
   getMessage,
   listColumns,
+  listMailboxSearchRows,
   listMessages,
   messageCounts,
+  searchColumns,
   setMessagesSeen,
   storeMessages,
   type MailboxCounts,
+  type MessageSearchRow,
   type MessageStoreOutcome,
 }

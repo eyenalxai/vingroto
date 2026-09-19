@@ -120,4 +120,4 @@ const fetchMailboxResult = Effect.fn("Imap.fetchMailboxWindow")(function* resolv
   return outcome
 })
 
-export { fetchMailboxResult }
+export { fetchEnvelopes, fetchMailboxResult }

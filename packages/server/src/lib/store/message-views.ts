@@ -5,9 +5,11 @@ import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 import { and, countDistinct, desc, eq, sql } from "drizzle-orm"
 import * as Effect from "effect/Effect"
 
+import type { MessageSearchRow } from "@/lib/store/messages"
+
 import { Database } from "@/lib/db/database"
 import { MailboxTable, MessageTable } from "@/lib/db/schema"
-import { listColumns, listMessages } from "@/lib/store/messages"
+import { listMessages, searchColumns } from "@/lib/store/messages"
 
 type VirtualListScope =
   | { readonly kind: "all" }
@@ -37,10 +39,7 @@ const representativeRank = sql<number>`row_number() over (
     ${MessageTable.uid} asc
 )`
 
-const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtual(
-  scope: VirtualListScope,
-  limit: number,
-): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
+const virtualRanked = Effect.fnUntraced(function* buildRankedRows(scope: VirtualListScope) {
   const database = yield* Database
   const filters =
     scope.kind === "unread"
@@ -52,12 +51,50 @@ const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtu
             eq(MailboxTable.muted, false),
           ]
       : []
-  const ranked = database.client
-    .select({ ...listColumns, rank: representativeRank.as("rank") })
+  return database.client
+    .select({ ...searchColumns, rank: representativeRank.as("rank") })
     .from(MessageTable)
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
     .where(filters.length === 0 ? undefined : and(...filters))
     .as("ranked")
+})
+
+const listVirtualRows = Effect.fn("Message.listVirtualRows")(function* listVirtualRows(
+  scope: VirtualListScope,
+): Effect.fn.Return<readonly MessageSearchRow[], EffectDrizzleQueryError, Database> {
+  const ranked = yield* virtualRanked(scope)
+  const database = yield* Database
+  return yield* database.client
+    .select({
+      id: ranked.id,
+      uid: ranked.uid,
+      accountId: ranked.accountId,
+      mailboxId: ranked.mailboxId,
+      mailboxPath: ranked.mailboxPath,
+      subject: ranked.subject,
+      fromName: ranked.fromName,
+      fromAddress: ranked.fromAddress,
+      date: ranked.date,
+      seen: ranked.seen,
+      flagged: ranked.flagged,
+      size: ranked.size,
+      hasAttachments: ranked.hasAttachments,
+      snippet: ranked.snippet,
+      messageId: ranked.messageId,
+      to: ranked.to,
+      cc: ranked.cc,
+      bodyFetchedAt: ranked.bodyFetchedAt,
+    })
+    .from(ranked)
+    .where(eq(ranked.rank, 1))
+})
+
+const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtual(
+  scope: VirtualListScope,
+  limit: number,
+): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
+  const ranked = yield* virtualRanked(scope)
+  const database = yield* Database
   return yield* database.client
     .select({
       id: ranked.id,
@@ -118,6 +155,7 @@ const unreadMessageCounts = Effect.fn("Message.unreadCounts")(function* countUnr
 export {
   listMessagesForScope,
   listVirtualMessages,
+  listVirtualRows,
   unreadMessageCounts,
   type UnreadMessageCounts,
   type VirtualListScope,

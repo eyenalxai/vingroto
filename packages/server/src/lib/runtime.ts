@@ -14,6 +14,7 @@ import { Discovery } from "@/lib/mail/autoconfig"
 import { MessageBodies } from "@/lib/mail/bodies"
 import { Imap } from "@/lib/mail/imap"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
+import { Search } from "@/lib/mail/search"
 import { SyncEngine } from "@/lib/mail/sync"
 import { Scheduler } from "@/lib/scheduler"
 import { Settings } from "@/lib/settings"
@@ -49,6 +50,7 @@ const AppLayer = Layer.mergeAll(
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
   Accounts.layer.pipe(Layer.provide(SchedulerLayer), Layer.provide(CoreLayer)),
   Settings.layer.pipe(Layer.provide(CoreLayer)),
+  Search.layer.pipe(Layer.provide(CoreLayer)),
 )
 
 const ServerRuntime = ApiServer.pipe(Layer.provide(AppLayer))

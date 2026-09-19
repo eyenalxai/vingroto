@@ -57,11 +57,13 @@ const recordStores = (calls: StoreCall[]): Layer.Layer<Imap> =>
   Layer.succeed(
     Imap,
     Imap.of({
+      fetchEnvelopes: () => Effect.die("fetchEnvelopes must not be called"),
       fetchMailboxWindows: () => Effect.succeed([]),
       fetchMessageSource: () => Effect.succeed(Buffer.alloc(0)),
       fetchMessageSources: () => Effect.succeed([]),
       listMailboxes: () => Effect.succeed([]),
       moveMessages: () => Effect.die("moveMessages must not be called"),
+      searchMessages: () => Effect.die("searchMessages must not be called"),
       setFlags: (account, mailboxPath, uids, flags, mode) =>
         Effect.sync(() => {
           calls.push({ account: account.id, mailboxPath, uids: [...uids], flags: [...flags], mode })

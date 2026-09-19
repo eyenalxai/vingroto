@@ -16,6 +16,7 @@ import { MailboxHandlers } from "@/lib/api/mailboxes"
 import { MessageHandlers } from "@/lib/api/messages"
 import { writeRegistration } from "@/lib/api/registration"
 import { schemaErrorLayer } from "@/lib/api/schema-error"
+import { SearchHandlers } from "@/lib/api/search"
 import { ServerHandlers } from "@/lib/api/server"
 import { SettingsHandlers } from "@/lib/api/settings"
 import { SyncHandlers } from "@/lib/api/sync"
@@ -30,6 +31,7 @@ const HandlersLayer = Layer.mergeAll(
   ServerHandlers,
   MailboxHandlers,
   MessageHandlers,
+  SearchHandlers,
   AccountHandlers,
   SyncHandlers,
   SettingsHandlers,

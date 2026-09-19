@@ -12,6 +12,7 @@ import type {
   MailboxInfo,
   MailboxWindowRequest,
   MailboxWindowResult,
+  MessageEnvelope,
   MessageSourceRequest,
   MessageSourceResult,
 } from "@/lib/mail/imap-types"
@@ -27,6 +28,7 @@ import {
   readMailboxSources,
   readMessageSource,
 } from "@/lib/mail/imap-message"
+import { fetchMailboxEnvelopes, searchMailbox } from "@/lib/mail/imap-search"
 
 interface ImapShape {
   readonly listMailboxes: (
@@ -58,6 +60,17 @@ interface ImapShape {
     uids: readonly Uid[],
     targetPath: string,
   ) => Effect.Effect<void, ImapServiceError>
+  readonly searchMessages: (
+    account: AccountConfig,
+    mailboxPath: string,
+    terms: readonly string[],
+    unseenOnly: boolean,
+  ) => Effect.Effect<readonly Uid[], ImapServiceError>
+  readonly fetchEnvelopes: (
+    account: AccountConfig,
+    mailboxPath: string,
+    uids: readonly Uid[],
+  ) => Effect.Effect<readonly MessageEnvelope[], ImapServiceError>
 }
 
 class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") {
@@ -164,6 +177,25 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
         ) {
           return yield* withClient(account, (client) =>
             moveMessages(client, account, sourcePath, uids, targetPath),
+          )
+        }),
+        searchMessages: Effect.fn("Imap.searchMessages")(function* searchMessagesForAccount(
+          account: AccountConfig,
+          mailboxPath: string,
+          terms: readonly string[],
+          unseenOnly: boolean,
+        ) {
+          return yield* withClient(account, (client) =>
+            searchMailbox(client, account, mailboxPath, terms, unseenOnly),
+          )
+        }),
+        fetchEnvelopes: Effect.fn("Imap.fetchEnvelopes")(function* fetchEnvelopesForAccount(
+          account: AccountConfig,
+          mailboxPath: string,
+          uids: readonly Uid[],
+        ) {
+          return yield* withClient(account, (client) =>
+            fetchMailboxEnvelopes(client, account, mailboxPath, uids),
           )
         }),
       })

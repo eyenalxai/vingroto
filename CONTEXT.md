@@ -24,6 +24,13 @@ _Avoid_: Virtual folder
 What the message list shows right now: a view or a mailbox.
 _Avoid_: Filter
 
+**Search**:
+A filter over the current list scope: fuzzy local matching over cached mail plus remote IMAP matching in the same scope. A search never changes which list scope is selected.
+_Avoid_: Find, filter
+
+**Remote match**:
+A message an IMAP search found for the current query. The daemon imports its envelope like a sync would and remembers it as a match, so it stays in the results even when its cached fields do not contain the query.
+
 **Read on display**:
 Marking a message read once its body is displayed in the reader. The message keeps its place in the current Unread view — marker cleared, counts already updated — until that view is visited again.
 

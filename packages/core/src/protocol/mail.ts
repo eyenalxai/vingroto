@@ -119,6 +119,21 @@ const SyncReport = Schema.Struct({
 
 type SyncReport = Schema.Schema.Type<typeof SyncReport>
 
+const MessageTarget = Schema.Struct({
+  id: MessageId,
+  accountId: AccountId,
+  mailboxPath: Schema.String,
+})
+
+type MessageTarget = Schema.Schema.Type<typeof MessageTarget>
+
+const SearchOutcome = Schema.Struct({
+  messages: Schema.Array(MessageListItem),
+  hasMore: Schema.Boolean,
+})
+
+type SearchOutcome = Schema.Schema.Type<typeof SearchOutcome>
+
 export {
   ListScope,
   MailboxSnapshot,
@@ -127,7 +142,9 @@ export {
   MessageBody,
   MessageDetail,
   MessageListItem,
+  MessageTarget,
   MoveOutcome,
+  SearchOutcome,
   SeenOutcome,
   SyncReport,
 }
