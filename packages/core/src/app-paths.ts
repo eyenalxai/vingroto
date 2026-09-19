@@ -6,7 +6,15 @@ import * as Layer from "effect/Layer"
 import { homedir } from "node:os"
 import path from "node:path"
 
+import { isStandaloneExecutable } from "./standalone"
+
+const profiles = ["installed", "development"] as const
+
+type Profile = (typeof profiles)[number]
+
 interface AppPathsShape {
+  readonly profile: Profile
+  readonly appName: string
   readonly dataDir: string
   readonly configDir: string
   readonly runtimeDir: string
@@ -25,6 +33,10 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
     AppPaths,
     Effect.gen(function* loadPaths() {
       const fs = yield* FileSystem.FileSystem
+      const profile = yield* Config.Literals(profiles, "VINGROTO_PROFILE").pipe(
+        Config.withDefault(isStandaloneExecutable ? "installed" : "development"),
+      )
+      const appName = profile === "installed" ? "vingroto" : "vingroto-dev"
       const dataHome = yield* Config.String("XDG_DATA_HOME").pipe(
         Config.withDefault(path.join(homedir(), ".local", "share")),
       )
@@ -34,14 +46,16 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
       const stateHome = yield* Config.String("XDG_STATE_HOME").pipe(
         Config.withDefault(path.join(homedir(), ".local", "state")),
       )
-      const dataDir = path.join(dataHome, "vingroto")
-      const configDir = path.join(configHome, "vingroto")
-      const logsDir = path.join(stateHome, "vingroto")
+      const dataDir = path.join(dataHome, appName)
+      const configDir = path.join(configHome, appName)
+      const logsDir = path.join(stateHome, appName)
       const runtimeDir = yield* Config.String("XDG_RUNTIME_DIR").pipe(
-        Config.map((runtimeHome) => path.join(runtimeHome, "vingroto")),
+        Config.map((runtimeHome) => path.join(runtimeHome, appName)),
         Config.withDefault(path.join(dataDir, "run")),
       )
       const paths = AppPaths.of({
+        profile,
+        appName,
         dataDir,
         configDir,
         runtimeDir,
@@ -61,4 +75,4 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
   )
 }
 
-export { AppPaths, type AppPathsShape }
+export { AppPaths, type AppPathsShape, type Profile }

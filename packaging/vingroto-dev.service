@@ -1,5 +1,5 @@
 [Unit]
-Description=vingroto mail daemon
+Description=vingroto development mail daemon
 After=network-online.target
 
 [Service]
@@ -7,6 +7,7 @@ Type=simple
 ExecStart=/usr/bin/env bun run server
 WorkingDirectory=%h/Projects/js/vingroto
 Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
+Environment=VINGROTO_PROFILE=development
 Restart=on-failure
 RestartSec=3
 StandardOutput=journal

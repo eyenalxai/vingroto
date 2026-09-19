@@ -9,7 +9,6 @@ import { ChildProcess } from "effect/unstable/process"
 
 import { runProcess } from "@/lib/credential/process"
 
-const SERVICE = "vingroto"
 const TIMEOUT = Duration.seconds(30)
 
 class KeyringError extends Schema.TaggedError<KeyringError>()("KeyringError", {
@@ -25,12 +24,13 @@ const timedOut = (operation: "lookup" | "store") =>
 
 const lookupSecret = Effect.fn("Keyring.lookupSecret")(function* lookup(
   spawner: ChildProcessSpawner["Service"],
+  service: string,
   reference: string,
 ) {
   const result = yield* runProcess(spawner, "secret-tool", [
     "lookup",
     "service",
-    SERVICE,
+    service,
     "ref",
     reference,
   ]).pipe(
@@ -56,6 +56,7 @@ const lookupSecret = Effect.fn("Keyring.lookupSecret")(function* lookup(
 
 const storeSecret = Effect.fn("Keyring.storeSecret")(function* store(
   spawner: ChildProcessSpawner["Service"],
+  service: string,
   reference: string,
   secret: string,
 ) {
@@ -64,9 +65,9 @@ const storeSecret = Effect.fn("Keyring.storeSecret")(function* store(
       ChildProcess.make("secret-tool", [
         "store",
         "--label",
-        `vingroto: ${reference}`,
+        `${service}: ${reference}`,
         "service",
-        SERVICE,
+        service,
         "ref",
         reference,
       ]),

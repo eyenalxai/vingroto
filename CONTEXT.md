@@ -68,6 +68,9 @@ The daemon fetching new messages into the cache. A mailbox's first sync covers t
 Detecting a provider's IMAP and SMTP servers for an email address, in order: published provider configuration, DNS SRV records, hostname guess.
 _Avoid_: Autoconfig
 
+**Profile**:
+Which state namespace a process uses: the installed package's `vingroto` or the development checkout's `vingroto-dev`. It covers the data, config, log and runtime directories and the keyring service, and is the application name shown in desktop notifications.
+
 **Daemon**:
 The process that owns the config file, the OS keyring, the database and every mail connection. It serves the API and syncs in the background.
 

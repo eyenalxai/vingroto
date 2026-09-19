@@ -1,3 +1,4 @@
+import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
 import * as dbus from "dbus-next"
 import * as Config from "effect/Config"
@@ -10,7 +11,6 @@ import * as Ref from "effect/Ref"
 const notificationsName = "org.freedesktop.Notifications"
 const notificationsPath = "/org/freedesktop/Notifications"
 const notificationsInterface = "org.freedesktop.Notifications"
-const appName = "vingroto"
 
 interface DesktopNotification {
   readonly title: string
@@ -58,6 +58,7 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
   static readonly layer = Layer.effect(
     DesktopNotifications,
     Effect.gen(function* makeDesktopNotifications() {
+      const paths = yield* AppPaths
       const connection = yield* Ref.make<NotificationConnection | null>(null)
       yield* Effect.addFinalizer(() =>
         Effect.gen(function* closeNotificationBus() {
@@ -105,7 +106,7 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
         yield* Effect.tryPromise({
           try: async () => {
             await connected.proxy.Notify(
-              appName,
+              paths.appName,
               0,
               "",
               notification.title,

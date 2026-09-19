@@ -70,6 +70,8 @@ const makeFixture = async (): Promise<Fixture> => {
     mkdir(runtimeDir, { recursive: true }),
   ])
   const paths = AppPaths.of({
+    profile: "development",
+    appName: "vingroto-dev",
     dataDir,
     configDir,
     logsDir,

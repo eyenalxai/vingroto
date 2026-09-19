@@ -9,7 +9,9 @@ A terminal mail client: an OpenTUI (Solid) TUI talking to a daemon over a local 
 - **TUI client** (`packages/client/src/tui.tsx`, `bun client`) renders the interface and talks to the API. It never reads the config file, touches the keyring or the database, or opens an IMAP/SMTP connection. While the daemon is unreachable it shows a connecting screen and keeps retrying.
 - **Daemon** (`packages/server/src/server.ts`, `bun server`) owns the configuration file, the OS keyring, the SQLite database and every IMAP/SMTP connection. It serves the API and syncs mail in the background.
 
-The daemon listens on `127.0.0.1`, starting at `VINGROTO_API_PORT` (default `8464`) and taking the next free port. The live `url`, `pid` and version go to `$XDG_RUNTIME_DIR/vingroto/server.json` and the bearer token to `$XDG_RUNTIME_DIR/vingroto/token`, both `0600`, falling back to `$XDG_DATA_HOME/vingroto/run/` when `XDG_RUNTIME_DIR` is not set. Accounts, credentials, sync settings and cached mail live on the daemon side; passwords stay in the keyring and never cross the API, so the client cannot leak them and closing the TUI does not stop syncing.
+The daemon listens on `127.0.0.1`, starting at `VINGROTO_API_PORT` (default `8464`) and taking the next free port. The live `url`, `pid` and version go to `$XDG_RUNTIME_DIR/<app>/server.json` and the bearer token to `$XDG_RUNTIME_DIR/<app>/token`, both `0600`, falling back to `$XDG_DATA_HOME/<app>/run/` when `XDG_RUNTIME_DIR` is not set. Accounts, credentials, sync settings and cached mail live on the daemon side; passwords stay in the keyring and never cross the API, so the client cannot leak them and closing the TUI does not stop syncing.
+
+The app name in those paths is the process's **profile**: `vingroto` when running as a standalone binary (the installed package) and `vingroto-dev` when running from source. The profile selects the data, config, log and runtime directories, the keyring service and the application name desktop notifications are raised under, so a checkout and an installed package never share state or credentials. `VINGROTO_PROFILE=installed` or `VINGROTO_PROFILE=development` overrides the detected profile.
 
 ## Workspace
 
@@ -37,23 +39,23 @@ bun server &   # daemon
 bun client     # client
 ```
 
-The client retries until the daemon answers, so it is fine to start the client first. Clients find the daemon through `$XDG_RUNTIME_DIR/vingroto/server.json` and read the bearer token from `$XDG_RUNTIME_DIR/vingroto/token`, falling back to `$XDG_DATA_HOME/vingroto/run/` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the API, and the client never writes the config file or the database.
+The client retries until the daemon answers, so it is fine to start the client first. Both run in the development profile and use the `vingroto-dev` paths: clients find the daemon through `$XDG_RUNTIME_DIR/vingroto-dev/server.json` and read the bearer token from `$XDG_RUNTIME_DIR/vingroto-dev/token`, falling back to `$XDG_DATA_HOME/vingroto-dev/run/` when `XDG_RUNTIME_DIR` is not set. Credentials never leave the daemon: passwords are read from the OS keyring inside the daemon process and are never sent over the API, and the client never writes the config file or the database.
 
 The root scripts change into the package before starting it. Bun's workspace filter runner (`bun run --filter`) captures a child's stdout and stderr and points its stdin at `/dev/null`, which leaves the TUI unable to read input; the client also refuses to start when stdin or stdout is not an interactive terminal.
 
 ### systemd user service
 
-A user unit is provided in `packaging/vingroto.service`. Copy it into place, adjust `WorkingDirectory` and `Environment` if your checkout differs, then enable it:
+A user unit is provided in `packaging/vingroto-dev.service`. Copy it into place, adjust `WorkingDirectory` and `Environment` if your checkout differs, then enable it:
 
 ```sh
 mkdir -p ~/.config/systemd/user
-cp packaging/vingroto.service ~/.config/systemd/user/
-$EDITOR ~/.config/systemd/user/vingroto.service
+cp packaging/vingroto-dev.service ~/.config/systemd/user/
+$EDITOR ~/.config/systemd/user/vingroto-dev.service
 systemctl --user daemon-reload
-systemctl --user enable --now vingroto.service
+systemctl --user enable --now vingroto-dev.service
 ```
 
-The unit runs `bun run server` from the repository root, which delegates to the server workspace, so `WorkingDirectory` must point at the checkout (not at `packages/server`). Its stdout and stderr go to the journal (`StandardOutput=journal`, `StandardError=journal`), so `journalctl --user -u vingroto -f` shows the readable log lines while `$XDG_STATE_HOME/vingroto/server.log` keeps the structured JSON records. Check on the daemon with `systemctl --user status vingroto`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
+The unit runs `bun run server` from the repository root, which delegates to the server workspace, so `WorkingDirectory` must point at the checkout (not at `packages/server`). It sets `VINGROTO_PROFILE=development`, so the daemon uses the `vingroto-dev` state. Its stdout and stderr go to the journal (`StandardOutput=journal`, `StandardError=journal`), so `journalctl --user -u vingroto-dev -f` shows the readable log lines while `$XDG_STATE_HOME/vingroto-dev/server.log` keeps the structured JSON records. Check on the daemon with `systemctl --user status vingroto-dev`. The service runs only while your user session exists; run `loginctl enable-linger $USER` once if it should keep syncing after you log out.
 
 ### Standalone binaries
 
@@ -65,7 +67,7 @@ packages/server/dist/vingroto-server &   # daemon
 packages/client/dist/vingroto            # client
 ```
 
-The daemon binary embeds the SQLite migrations and the app version, and the client binary embeds OpenTUI and its native library, so neither reads anything from the checkout at runtime.
+The daemon binary embeds the SQLite migrations and the app version, and the client binary embeds OpenTUI and its native library, so neither reads anything from the checkout at runtime. They run in the installed profile and use the `vingroto` state and keyring entries, which a checkout's `vingroto-dev` runs never touch.
 
 ### Shell completions
 
@@ -96,8 +98,8 @@ The first argument is an OpenAPI operation id, resolved against the live documen
 Plain HTTP works too:
 
 ```sh
-base=$(jq -r .url "${XDG_RUNTIME_DIR:-$XDG_DATA_HOME/vingroto/run}/vingroto/server.json")
-token=$(cat "${XDG_RUNTIME_DIR:-$XDG_DATA_HOME/vingroto/run}/vingroto/token")
+base=$(jq -r .url "${XDG_RUNTIME_DIR:-$XDG_DATA_HOME/vingroto-dev/run}/vingroto-dev/server.json")
+token=$(cat "${XDG_RUNTIME_DIR:-$XDG_DATA_HOME/vingroto-dev/run}/vingroto-dev/token")
 curl -s -H "Authorization: Bearer $token" "$base/api/status"
 ```
 
@@ -109,7 +111,7 @@ Credentials are written to the OS keyring (`secret-tool`) and never to disk in p
 
 ## Configuration
 
-`$XDG_CONFIG_HOME/vingroto/config.json`, which defaults to `~/.config/vingroto/config.json`. It is written by the daemon during account setup and holds no secrets:
+`$XDG_CONFIG_HOME/<app>/config.json`: `~/.config/vingroto/config.json` for the installed package and `~/.config/vingroto-dev/config.json` from a checkout. It is written by the daemon during account setup and holds no secrets:
 
 ```json
 {
@@ -171,7 +173,7 @@ Mailboxes are never mirrored in full. Each mailbox is fetched window by window: 
 
 `INBOX` is refreshed by the daemon on startup and then every `sync.intervalMinutes`, and a mailbox that has never been synced is fetched when it is first selected. `ctrl+x r` asks the daemon to sync the selected scope: a virtual view syncs every account's `INBOX`, an account its `INBOX`, a mailbox that mailbox. Every pane shows a spinner while a query or sync is in flight instead of a stale or empty state.
 
-The daemon keeps the database in `$XDG_DATA_HOME/vingroto/vingroto.db` and writes structured JSON logs to `$XDG_STATE_HOME/vingroto/server.log` (default `~/.local/state/vingroto/server.log`), mirroring the same records to stderr as plain single-line entries for journald. The client keeps its own JSON log at `$XDG_STATE_HOME/vingroto/client.log` and never writes to the terminal. `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
+The daemon keeps the database in `$XDG_DATA_HOME/<app>/vingroto.db` (with `<app>` being `vingroto` when installed and `vingroto-dev` from a checkout) and writes structured JSON logs to `$XDG_STATE_HOME/<app>/server.log` (default `~/.local/state/<app>/server.log`), mirroring the same records to stderr as plain single-line entries for journald. The client keeps its own JSON log at `$XDG_STATE_HOME/<app>/client.log` and never writes to the terminal. `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
 
 ## Reading
 

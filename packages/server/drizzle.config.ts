@@ -11,6 +11,6 @@ export default defineConfig({
   schema: "./src/lib/db/schema.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: join(homedir(), ".local", "share", "vingroto", "vingroto.db"),
+    url: join(homedir(), ".local", "share", "vingroto-dev", "vingroto.db"),
   },
 })

@@ -21,9 +21,12 @@ import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { Scheduler } from "@/lib/scheduler"
 import { Settings } from "@/lib/settings"
 
-const ServicesLayer = Layer.mergeAll(AppPaths.layer, Credential.layer).pipe(
-  Layer.provideMerge(BunServices.layer),
-)
+const PathsLayer = AppPaths.layer
+
+const ServicesLayer = Layer.mergeAll(
+  PathsLayer,
+  Credential.layer.pipe(Layer.provide(PathsLayer)),
+).pipe(Layer.provideMerge(BunServices.layer))
 
 const LifecycleLayer = ServerLifecycle.layer.pipe(Layer.provide(ServicesLayer))
 
@@ -33,7 +36,7 @@ const InfraLayer = Layer.mergeAll(
   LifecycleLayer,
   LoggingLayer.server.pipe(Layer.provide(ServicesLayer)),
   ServerEvents.layer,
-  DesktopNotifications.layer,
+  DesktopNotifications.layer.pipe(Layer.provide(ServicesLayer)),
 )
 
 const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideMerge(InfraLayer))

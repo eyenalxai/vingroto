@@ -1,3 +1,4 @@
+import { AppPaths } from "@vingroto/core/app-paths"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -27,9 +28,10 @@ class Credential extends Context.Service<Credential, CredentialShape>()(
   static readonly layer = Layer.effect(
     Credential,
     Effect.gen(function* makeCredential() {
+      const paths = yield* AppPaths
       const spawner = yield* ChildProcessSpawner
       const get = Effect.fn("Credential.get")(function* get(reference: string) {
-        const cached = yield* lookupSecret(spawner, reference)
+        const cached = yield* lookupSecret(spawner, paths.appName, reference)
         if (Option.isSome(cached)) {
           return cached.value
         }
@@ -42,7 +44,7 @@ class Credential extends Context.Service<Credential, CredentialShape>()(
         })
       })
       const set = Effect.fn("Credential.set")(function* set(reference: string, secret: string) {
-        yield* storeSecret(spawner, reference, secret)
+        yield* storeSecret(spawner, paths.appName, reference, secret)
         yield* Effect.logDebug("credential stored in the keyring").pipe(
           Effect.annotateLogs({ reference }),
         )
