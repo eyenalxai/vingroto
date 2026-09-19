@@ -16,7 +16,7 @@ _Avoid_: Outbox
 How long an outgoing message waits before it is sent. Zero sends immediately.
 
 **Outbox**:
-Messages the daemon has accepted but has not sent yet: each waits out its send delay or retry backoff, and can be cancelled into a draft.
+Messages the daemon has accepted but has not sent yet: each waits out its send delay or retry backoff, and can be cancelled into a draft. The Outbox view lists them.
 _Avoid_: Queue
 
 **Pending message**:
@@ -24,12 +24,20 @@ One message in the outbox.
 _Avoid_: Queued message, job
 
 **Draft**:
-A message stored by the daemon rather than on a mail server, so it survives client restarts and can be reopened in the composer.
+A message stored by the daemon rather than on a mail server, so it survives client restarts and can be reopened in the composer. The Drafts view lists them.
 _Avoid_: Drafts folder
 
 **Composer**:
-The full-screen editor for a new, replied or reopened message: the From, To/Cc/Bcc, subject and body fields, draft autosave and the hand-off to an external editor. It talks to the daemon over the API and never sends directly.
-_Avoid_: Editor (that is the external program), compose window
+The full-screen editor for a new, replied or reopened message: the From, To/Cc/Bcc, subject and body fields, draft autosave and a body edited by the built-in text area or the system editor according to the editor setting. It talks to the daemon over the API and never sends directly.
+_Avoid_: Compose window, message window
+
+**Editor**:
+Which editor edits the composer body: the built-in text area or the system editor.
+_Avoid_: Editor mode, external editor
+
+**System editor**:
+The external program the composer runs in place when the editor is system, resolved from `$VISUAL`, then `$EDITOR`, then `vi`.
+_Avoid_: The editor (that is the setting)
 
 **Mailbox**:
 An IMAP mailbox on a server, cached locally with its path, delimiter, special-use flags, UID validity and read state.
@@ -40,7 +48,7 @@ One mailbox's cached row of an email: the row a mailbox-scoped action selects, a
 _Avoid_: Duplicate
 
 **View**:
-A virtual list of messages that is not a mailbox: All emails and All unread, globally or for one account. A view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once.
+A virtual list that is not a mailbox: All emails, All unread — globally or for one account — plus the Outbox and the Drafts. A mail view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once; the Outbox and Drafts views list the daemon's pending messages and drafts.
 _Avoid_: Virtual folder
 
 **List scope**:
