@@ -6,6 +6,7 @@ import { onCleanup } from "solid-js"
 
 import type { FieldId } from "@/components/setup/form-model"
 
+import { handleQuitKey } from "@/components/quit-key"
 import { AccountSetupView } from "@/components/setup/account-setup-view"
 import { useAccountSetup } from "@/components/setup/use-account-setup"
 
@@ -31,9 +32,8 @@ const AccountSetup = (props: AccountSetupProps) => {
   }
 
   const handleGlobalKey = (event: KeyEvent) => {
-    if (event.ctrl && event.name === "c") {
+    if (handleQuitKey({ renderer }, event)) {
       event.preventDefault()
-      renderer.destroy()
       return true
     }
     if (event.name === "tab") {

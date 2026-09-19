@@ -64,7 +64,7 @@ const useComposerEditor = (options: ComposerEditorOptions) => {
     options.runtime.runFork(program)
   }
 
-  return { editExternally, editing, setTextarea, textarea }
+  return { editExternally, setTextarea, textarea }
 }
 
 export { useComposerEditor, type ComposerEditorOptions }

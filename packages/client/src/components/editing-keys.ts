@@ -1,23 +1,13 @@
 import type { CliRenderer, KeyEvent } from "@opentui/core"
 
-import { clearSelection, copySelection, hasSelection } from "@/lib/selection"
+import { clearSelection, hasSelection } from "@/lib/selection"
 
 interface SelectionKeyOptions {
   readonly renderer: CliRenderer
-  readonly onStatus: (message: string) => void
 }
 
 const handleSelectionKey = (options: SelectionKeyOptions, key: KeyEvent): boolean => {
   if (hasSelection(options.renderer)) {
-    if (key.ctrl && key.name === "c") {
-      const outcome = copySelection(options.renderer)
-      if (outcome === "copied") {
-        options.onStatus("selection copied to the clipboard")
-      } else if (outcome === "unsupported") {
-        options.onStatus("this terminal cannot write to the clipboard")
-      }
-      return true
-    }
     if (key.name === "escape") {
       clearSelection(options.renderer)
       return true

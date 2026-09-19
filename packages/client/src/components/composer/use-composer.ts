@@ -274,7 +274,6 @@ const useComposer = (options: ComposerOptions) => {
     cycleFrom,
     draftId,
     editExternally: editor.editExternally,
-    editing: editor.editing,
     enqueue,
     field,
     fromAccount,

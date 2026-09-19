@@ -10,6 +10,7 @@ import type { MailStore } from "@/components/use-mail-store"
 
 import { handleSearchKey, handleSelectionKey } from "@/components/editing-keys"
 import { useLeaderKey } from "@/components/leader-key"
+import { handleQuitKey } from "@/components/quit-key"
 import { usePaneNavigation } from "@/components/use-pane-navigation"
 
 interface AppKeysOptions {
@@ -93,9 +94,6 @@ const useAppKeys = (options: AppKeysOptions) => {
     scrollReaderPage,
     toggleFocusedAccount,
   } = navigation
-
-  const handleSelection = (key: KeyEvent): boolean =>
-    handleSelectionKey({ onStatus: options.onStatus, renderer: options.renderer }, key)
 
   const handleSearch = (key: KeyEvent): boolean =>
     handleSearchKey(
@@ -189,7 +187,7 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   const handleActionKey = (key: KeyEvent): boolean => {
-    if ((key.ctrl && key.name === "c") || (key.name === "q" && !key.ctrl)) {
+    if (key.name === "q" && !key.ctrl) {
       options.renderer.destroy()
       return true
     }
@@ -276,12 +274,16 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   useKeyboard((key: KeyEvent) => {
+    if (handleQuitKey({ onStatus: options.onStatus, renderer: options.renderer }, key)) {
+      key.preventDefault()
+      return
+    }
     if (!options.enabled()) {
       return
     }
     const handled =
       leader.handle(key) ||
-      handleSelection(key) ||
+      handleSelectionKey({ renderer: options.renderer }, key) ||
       handleSearch(key) ||
       handleViewKey(key) ||
       handleActionKey(key) ||

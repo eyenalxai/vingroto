@@ -20,8 +20,10 @@ import { OutboxPreview } from "@/components/outbox/outbox-preview"
 import {
   describePaneHint,
   mailboxPaneWidthFor,
+  markedActionsHint,
   markedHint,
   resolveLayoutMode,
+  searchClearHint,
   searchHint,
   visiblePanesFor,
 } from "@/components/pane-layout"
@@ -121,6 +123,11 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     }
     if (props.pane === "list" && props.store.searchEditing()) {
       return searchHint
+    }
+    if (props.pane === "list" && props.store.searchActive()) {
+      const actions =
+        props.store.markedIds().size > 0 ? markedActionsHint : describePaneHint("list", view())
+      return `${searchClearHint} · ${actions}`
     }
     if (props.pane === "list" && props.store.markedIds().size > 0) {
       return markedHint

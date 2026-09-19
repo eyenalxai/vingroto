@@ -9,6 +9,7 @@ import type { ComposerSeed } from "@/lib/mail/compose"
 import type { AppRuntime } from "@/lib/runtime"
 
 import { useComposer } from "@/components/composer/use-composer"
+import { handleQuitKey } from "@/components/quit-key"
 import { StatusBar } from "@/components/status-bar"
 import { useTheme } from "@/components/theme-provider"
 import { describeSystemEditor } from "@/lib/external"
@@ -59,9 +60,8 @@ const ComposerScreen = (props: ComposerScreenProps) => {
   const hint = "tab next · esc save & close · ctrl+s queue · ctrl+c quit app"
 
   useKeyboard((event: KeyEvent) => {
-    if (event.ctrl && event.name === "c") {
+    if (handleQuitKey({ renderer }, event)) {
       event.preventDefault()
-      renderer.destroy()
       return
     }
     if (event.name === "tab") {

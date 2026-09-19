@@ -6,6 +6,7 @@ import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import { Divider } from "@/components/divider"
+import { handleQuitKey } from "@/components/quit-key"
 import { StatusBar } from "@/components/status-bar"
 import { useTheme } from "@/components/theme-provider"
 import { matchesQuery } from "@/lib/search"
@@ -76,9 +77,8 @@ const MovePicker = (props: MovePickerProps) => {
   }
 
   useKeyboard((event) => {
-    if (event.ctrl && event.name === "c") {
+    if (handleQuitKey({ renderer }, event)) {
       event.preventDefault()
-      renderer.destroy()
       return
     }
     if (event.name === "down") {

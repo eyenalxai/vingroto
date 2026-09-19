@@ -1,6 +1,7 @@
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { Show } from "solid-js"
 
+import { handleQuitKey } from "@/components/quit-key"
 import { StatusBar } from "@/components/status-bar"
 import { useTheme } from "@/components/theme-provider"
 
@@ -14,15 +15,14 @@ const StartupScreen = (props: StartupScreenProps) => {
   const theme = useTheme()
   const renderer = useRenderer()
 
-  const message = () => {
-    if (props.failure !== undefined) {
-      return props.failure
-    }
-    return props.retrying ? "connecting to the daemon…" : "ready"
-  }
+  const message = () => props.failure ?? "connecting to the daemon…"
 
   useKeyboard((key) => {
-    if ((key.ctrl && key.name === "c") || (key.name === "q" && !key.ctrl)) {
+    if (handleQuitKey({ renderer }, key)) {
+      key.preventDefault()
+      return
+    }
+    if (key.name === "q" && !key.ctrl) {
       key.preventDefault()
       renderer.destroy()
     }
