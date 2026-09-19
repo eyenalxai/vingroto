@@ -77,6 +77,13 @@ The process that owns the config file, the OS keyring, the database and every ma
 **API**:
 The daemon's HTTP interface, and the only way a client talks to it. The daemon serves its OpenAPI document beside the routes, answers every failure with a JSON error object, and names the input that failed (`query.scope`, `body.items[0].id`) when a request is invalid.
 
+**Operation**:
+One endpoint of the API, named by its operation id (`message.list`, `settings.saveSyncSettings`). The client's catalog lists every operation, and `vingroto api describe` prints one.
+_Avoid_: Command (that is a CLI subcommand), route (that is the path)
+
+**Catalog**:
+The client's built-in list of API operations, projected from the core API definition when the client starts. `vingroto api list` and `describe` read it, the client validates an invocation against it before sending, and the completion scripts are generated from it.
+
 **Token**:
 The local secret every API request carries. The daemon writes it to its runtime directory and clients read it there.
 _Avoid_: Password (that is a mail credential)
@@ -89,5 +96,5 @@ The interactive, full-screen client.
 _Avoid_: UI, app
 
 **Completion script**:
-A static shell script, printed by `vingroto completions <shell>`, that completes the client's commands, flags and the operation ids of its `api` command for bash, zsh or nushell. Generated from the client's own command surface and the API definition, never fetched from the daemon.
+A static shell script, printed by `vingroto completions <shell>`, that completes the client's commands, flags, `api` operation ids, HTTP methods, request paths and `--param` values for bash, zsh or nushell. Generated from the client's own command surface and the catalog, never fetched from the daemon.
 _Avoid_: Autocomplete

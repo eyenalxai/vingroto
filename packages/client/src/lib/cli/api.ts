@@ -1,186 +1,104 @@
-import { describeError } from "@vingroto/core/errors"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
-import * as Result from "effect/Result"
-import * as Schema from "effect/Schema"
-import { Argument, CliError, Command, Flag } from "effect/unstable/cli"
-import { EOL } from "node:os"
+import { Argument, Command, Flag } from "effect/unstable/cli"
 
-import type { OpenApiDocument } from "@/lib/cli/openapi"
+import type { CatalogOperation } from "@/lib/cli/catalog"
 
-import { httpMethods, OpenApiDocumentSchema } from "@/lib/cli/openapi"
+import { UsageError, resolveBody, resolveTarget, unknownOperation } from "@/lib/cli/api-invocation"
+import {
+  DaemonUnreachable,
+  errorLine,
+  reportFailure,
+  sendRequest,
+  streamResponse,
+  writeJson,
+} from "@/lib/cli/api-transport"
+import { operationById, operations, usageOf } from "@/lib/cli/catalog"
 import { resolveDaemon } from "@/lib/daemon"
 
-const methods = new Set<string>(httpMethods)
-
-interface ApiRequest {
+interface ListEntry {
+  readonly operationId: string
   readonly method: string
   readonly path: string
+  readonly summary: string | null
 }
 
-const userError = (message: string) =>
-  new CliError.UserError({ cause: message, userMessage: message })
-
-class DaemonUnreachable extends Schema.TaggedError<DaemonUnreachable>()("DaemonUnreachable", {
-  message: Schema.String,
-}) {}
-
-const errorLine = (code: number, message: string) =>
-  Effect.sync(() => {
-    process.stderr.write(`error: ${message}${EOL}`)
-    process.exitCode = code
+const listEntries = (): readonly ListEntry[] =>
+  operations.map((operation) => {
+    return {
+      method: operation.method,
+      operationId: operation.operationId,
+      path: operation.path,
+      summary: operation.summary ?? null,
+    }
   })
 
-const ResponseMessage = Schema.Struct({ message: Schema.String })
-
-const responseMessage = (body: string) => {
-  const result = Schema.decodeUnknownResult(Schema.fromJsonString(ResponseMessage))(body)
-  return Result.isSuccess(result) ? result.success.message : undefined
-}
-
-const newlineByte = 10
-
-const streamBody = async (response: Response) => {
-  if (response.body === null) {
-    return
-  }
-  let last = -1
-  for await (const value of response.body) {
-    if (value.length === 0) {
-      continue
-    }
-    process.stdout.write(value)
-    last = value.at(-1) ?? last
-  }
-  if (last !== -1 && last !== newlineByte) {
-    process.stdout.write(EOL)
+const describeEntry = (operation: CatalogOperation) => {
+  const { description, parameters, requestBody, responses, summary } = operation.fragment
+  return {
+    operationId: operation.operationId,
+    method: operation.method,
+    path: operation.path,
+    usage: usageOf(operation),
+    summary,
+    description,
+    parameters,
+    requestBody,
+    responses,
   }
 }
-
-const interpolate = Effect.fnUntraced(function* interpolate(
-  path: string,
-  params: Record<string, string>,
-) {
-  const separator = path.indexOf("?")
-  let pathname = separator === -1 ? path : path.slice(0, separator)
-  const query = new URLSearchParams(separator === -1 ? "" : path.slice(separator + 1))
-  const used = new Set<string>()
-  for (const [name, value] of Object.entries(params)) {
-    const placeholder = `{${name}}`
-    if (!pathname.includes(placeholder)) {
-      continue
-    }
-    pathname = pathname.replaceAll(placeholder, encodeURIComponent(value))
-    used.add(name)
-  }
-  const open = pathname.indexOf("{")
-  if (open !== -1) {
-    const close = pathname.indexOf("}", open)
-    const name = close === -1 ? pathname.slice(open + 1) : pathname.slice(open + 1, close)
-    return yield* Effect.fail(userError(`missing path parameter: ${name}`))
-  }
-  for (const [name, value] of Object.entries(params)) {
-    if (!used.has(name)) {
-      query.append(name, value)
-    }
-  }
-  const search = query.toString()
-  return search.length === 0 ? pathname : `${pathname}?${search}`
-})
-
-const resolveOperation = Effect.fnUntraced(function* resolveOperation(
-  document: OpenApiDocument,
-  operationId: string,
-  params: Record<string, string>,
-) {
-  for (const [path, operations] of Object.entries(document.paths ?? {})) {
-    for (const [method, operation] of Object.entries(operations)) {
-      if (!methods.has(method) || operation.operationId !== operationId) {
-        continue
-      }
-      return { method: method.toUpperCase(), path: yield* interpolate(path, params) }
-    }
-  }
-  return yield* Effect.fail(userError(`operation not found: ${operationId}`))
-})
-
-const rawRequest = (input: readonly string[]): ApiRequest | undefined => {
-  if (input.length !== 2) {
-    return undefined
-  }
-  const [method, path] = input
-  if (method === undefined || path === undefined) {
-    return undefined
-  }
-  if (!methods.has(method.toLowerCase()) || !path.startsWith("/")) {
-    return undefined
-  }
-  return { method: method.toUpperCase(), path }
-}
-
-const loadOpenApiDocument = Effect.fnUntraced(function* loadOpenApiDocument(
-  url: string,
-  headers: Headers,
-) {
-  const response = yield* Effect.tryPromise({
-    try: async () => fetch(new URL("/openapi.json", url), { headers }),
-    catch: (cause) =>
-      new DaemonUnreachable({
-        message: `could not reach the vingroto daemon at ${url}: ${describeError(cause)}`,
-      }),
-  })
-  if (!response.ok) {
-    return yield* Effect.fail(
-      userError(`could not load the OpenAPI document: HTTP ${response.status}`),
-    )
-  }
-  const raw = yield* Effect.tryPromise({
-    try: async (): Promise<unknown> => response.json(),
-    catch: (cause) => userError(`could not parse the OpenAPI document: ${describeError(cause)}`),
-  })
-  return yield* Schema.decodeUnknownEffect(OpenApiDocumentSchema)(raw).pipe(
-    Effect.mapError((cause) =>
-      userError(`could not parse the OpenAPI document: ${describeError(cause)}`),
-    ),
-  )
-})
-
-const resolveRequest = Effect.fnUntraced(function* resolveRequest(
-  url: string,
-  headers: Headers,
-  input: readonly string[],
-  params: Record<string, string>,
-) {
-  const raw = rawRequest(input)
-  if (raw !== undefined) {
-    return { method: raw.method, path: yield* interpolate(raw.path, params) }
-  }
-  const [operationId] = input
-  if (operationId === undefined) {
-    return yield* Effect.fail(userError("expected an operation ID or an HTTP method and a path"))
-  }
-  const document = yield* loadOpenApiDocument(url, headers)
-  return yield* resolveOperation(document, operationId, params)
-})
 
 const apiArgumentDescriptions = {
-  request: "OpenAPI operation ID, or an HTTP method followed by a path",
+  describe: "OpenAPI operation ID to describe",
+  operation: "OpenAPI operation ID, or an HTTP method followed by a request path",
+  path: "Request path, when the first argument is an HTTP method",
 } as const
 
 const apiFlagDescriptions = {
-  param: "OpenAPI path or query parameter",
-  data: "Request body",
+  param: "Path or query parameter for an operation, as name=value",
+  data: "Request body, @file to read a file, or - to read stdin",
   header: "Request header in name:value form",
   server: "Daemon base URL (defaults to VINGROTO_SERVER or the registration file)",
   token: "Daemon bearer token (defaults to VINGROTO_TOKEN or the token file)",
 } as const
 
+const apiSubcommandDescriptions = {
+  describe: "Print one operation from the built-in API catalog as JSON",
+  list: "List every operation in the built-in API catalog as JSON",
+} as const
+
+const listCommand = Command.make("list", {}, () => writeJson(listEntries())).pipe(
+  Command.withDescription(apiSubcommandDescriptions.list),
+)
+
+const describeCommand = Command.make(
+  "describe",
+  {
+    operation: Argument.String("operation").pipe(
+      Argument.withDescription(apiArgumentDescriptions.describe),
+    ),
+  },
+  ({ operation }) =>
+    Effect.gen(function* describeOperation() {
+      const entry = operationById.get(operation)
+      if (entry === undefined) {
+        yield* Effect.fail(unknownOperation(operation))
+        return
+      }
+      yield* writeJson(describeEntry(entry))
+    }).pipe(Effect.catchTag("UsageError", (error) => errorLine(1, error.message))),
+).pipe(Command.withDescription(apiSubcommandDescriptions.describe))
+
 const apiCommand = Command.make(
   "api",
   {
-    request: Argument.String("operation | method path").pipe(
-      Argument.withDescription(apiArgumentDescriptions.request),
-      Argument.variadic({ min: 1, max: 2 }),
+    operation: Argument.String("operation").pipe(
+      Argument.withDescription(apiArgumentDescriptions.operation),
+      Argument.optional,
+    ),
+    path: Argument.String("path").pipe(
+      Argument.withDescription(apiArgumentDescriptions.path),
+      Argument.optional,
     ),
     param: Flag.KeyValuePair("param").pipe(
       Flag.withDescription(apiFlagDescriptions.param),
@@ -207,6 +125,18 @@ const apiCommand = Command.make(
   },
   (config) =>
     Effect.gen(function* run() {
+      const operation = Option.getOrUndefined(config.operation)
+      if (operation === undefined) {
+        yield* writeJson(listEntries())
+        return
+      }
+      const path = Option.getOrUndefined(config.path)
+      const params = Option.getOrElse(config.param, () => {
+        return {}
+      })
+      const data = Option.getOrUndefined(config.data)
+      const request = yield* resolveTarget(operation, path, params, data !== undefined)
+      const body = data === undefined ? undefined : yield* resolveBody(data)
       const daemon = yield* resolveDaemon({
         server: Option.getOrUndefined(config.server),
         token: Option.getOrUndefined(config.token),
@@ -215,64 +145,29 @@ const apiCommand = Command.make(
       for (const header of config.header) {
         const separator = header.indexOf(":")
         if (separator < 1) {
-          yield* Effect.fail(userError(`invalid header, expected name:value: ${header}`))
+          yield* Effect.fail(
+            new UsageError({ message: `invalid header, expected name:value: ${header}` }),
+          )
+          return
         }
         headers.set(header.slice(0, separator).trim(), header.slice(separator + 1).trim())
       }
-      const body = Option.getOrUndefined(config.data)
       if (body !== undefined && !headers.has("content-type")) {
         headers.set("content-type", "application/json")
       }
-      const params = Option.getOrElse(config.param, () => {
-        return {}
-      })
-      const request = yield* resolveRequest(daemon.url, headers, config.request, params)
-      const response = yield* Effect.tryPromise({
-        try: async () =>
-          fetch(new URL(request.path, daemon.url), {
-            method: request.method,
-            headers,
-            body: body ?? null,
-          }),
-        catch: (cause) =>
-          new DaemonUnreachable({
-            message: `could not reach the vingroto daemon at ${daemon.url}: ${describeError(cause)}`,
-          }),
-      })
+      const response = yield* sendRequest(daemon.url, request, headers, body)
       if (!response.ok) {
-        const text = yield* Effect.tryPromise({
-          try: async () => response.text(),
-          catch: (cause) =>
-            new DaemonUnreachable({
-              message: `could not read the response body: ${describeError(cause)}`,
-            }),
-        })
-        if (text.length > 0) {
-          process.stdout.write(text.endsWith(EOL) ? text : `${text}${EOL}`)
-        }
-        const detail = responseMessage(text)
-        const status = `HTTP ${response.status}${response.statusText.length === 0 ? "" : ` ${response.statusText}`}`
-        yield* errorLine(
-          3,
-          `${request.method} ${request.path} failed with ${status}${detail === undefined ? "" : `: ${detail}`}`,
-        )
+        yield* reportFailure(request, response)
         return
       }
-      yield* Effect.tryPromise({
-        try: async () => streamBody(response),
-        catch: (cause) =>
-          new DaemonUnreachable({
-            message: `could not read the response body: ${describeError(cause)}`,
-          }),
-      })
-    }).pipe(Effect.catchTag("DaemonUnreachable", (error) => errorLine(2, error.message))),
-).pipe(Command.withDescription("Make a request to the running vingroto daemon"))
+      yield* streamResponse(response)
+    }).pipe(
+      Effect.catchTag("UsageError", (error) => errorLine(1, error.message)),
+      Effect.catchTag("DaemonUnreachable", (error) => errorLine(2, error.message)),
+    ),
+).pipe(
+  Command.withDescription("Make a request to the running vingroto daemon"),
+  Command.withSubcommands([describeCommand, listCommand]),
+)
 
-export {
-  apiArgumentDescriptions,
-  apiCommand,
-  apiFlagDescriptions,
-  interpolate,
-  rawRequest,
-  resolveOperation,
-}
+export { apiArgumentDescriptions, apiCommand, apiFlagDescriptions, apiSubcommandDescriptions }

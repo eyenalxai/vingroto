@@ -71,7 +71,7 @@ The daemon binary embeds the SQLite migrations and the app version, and the clie
 
 ### Shell completions
 
-`vingroto completions <bash|zsh|nushell>` prints a completion script for the client, its subcommands and the operation ids of the `api` command:
+`vingroto completions <bash|zsh|nushell>` prints a completion script for the client: its subcommands, the `api` operation ids and HTTP methods, request paths and `--param` values (including enum choices such as `scope=unread`):
 
 ```sh
 vingroto completions bash >> ~/.bashrc
@@ -83,17 +83,29 @@ Distribution packages install these files for every supported shell; the command
 
 ## API
 
-The daemon's HTTP API is the only wire surface; it serves its OpenAPI document at `/openapi.json`. The `api` command (the client binary) sends a request to the running daemon:
+The daemon's HTTP API is the only wire surface; it serves its OpenAPI document at `/openapi.json`. The `api` command (the client binary) makes a request, and `api list` or `api describe <operation>` print the client's built-in catalog without touching the daemon:
 
 ```sh
+vingroto api list
+vingroto api describe message.list
+
 vingroto api server.status
 vingroto api message.list --param scope=unread --param limit=20
 vingroto api message.get --param messageId=42
 vingroto api message.setSeen -d '{"ids":[42],"seen":true}'
+vingroto api message.setSeen -d @body.json
 vingroto api GET /api/status
 ```
 
-The first argument is an OpenAPI operation id, resolved against the live document, or an HTTP method followed by a path. `--param key=value` fills `{path}` parameters and appends the rest as query parameters, `-d`/`--data` sets the body (JSON unless a content type is given), `-H`/`--header name:value` adds a header, and `--server`/`VINGROTO_SERVER` plus `--token`/`VINGROTO_TOKEN` override discovery. From a checkout the same command is `bun client api server.status`.
+The client builds its catalog by projecting the same `@vingroto/core` API definition the daemon serves, so `vingroto api` with no arguments and `vingroto api list` print every operation id, method, path and summary as JSON, and `vingroto api describe message.list` adds the parameters, request body, responses and a ready-to-run `usage` line. The first argument is an operation id, or an HTTP method followed by a path (`vingroto api GET /api/status` works too). `--param key=value` fills `{path}` parameters and appends the rest as query parameters, `-d`/`--data` sets the body (`@file` reads a file, `-` reads stdin; JSON unless a content type is given), `-H`/`--header name:value` adds a header, and `--server`/`VINGROTO_SERVER` plus `--token`/`VINGROTO_TOKEN` override discovery. From a checkout the same command is `bun client api server.status`.
+
+Before sending, the client checks the invocation against the catalog: the operation must exist, every `--param` name must be one the operation declares, every required path or query parameter must be present, and an operation that requires a body must be given one. A violation exits 1 with one actionable line and never reaches the daemon:
+
+```
+error: operation account.username requires path parameter "accountId" — pass --param accountId=<value>
+```
+
+Values are the daemon's business; `--param scope=inbox` is sent and answered with the message below. Raw `vingroto api get /api/...` requests skip the catalog and stay free-form.
 
 The response body is streamed to stdout as it arrives, so a long-lived response such as `vingroto api event.subscribe` prints events while it stays open. A non-2xx response writes the body to stdout once and one line to stderr:
 

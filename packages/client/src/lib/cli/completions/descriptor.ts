@@ -1,6 +1,12 @@
 import type { Completions } from "effect/unstable/cli"
 
-import { apiArgumentDescriptions, apiCommand, apiFlagDescriptions } from "@/lib/cli/api"
+import {
+  apiArgumentDescriptions,
+  apiCommand,
+  apiFlagDescriptions,
+  apiSubcommandDescriptions,
+} from "@/lib/cli/api"
+import { operationChoices, operationIds, paramCompletions, paths } from "@/lib/cli/catalog"
 import {
   completionsDescription,
   completionsName,
@@ -12,7 +18,12 @@ import {
 
 // Why: Effect CLI does not expose flag or argument metadata to consumers, so the completion surface mirrors the commands defined in api.ts and spec.ts.
 const apiFlags: readonly Completions.FlagDescriptor[] = [
-  { name: "param", aliases: [], description: apiFlagDescriptions.param, type: { _tag: "String" } },
+  {
+    name: "param",
+    aliases: [],
+    description: apiFlagDescriptions.param,
+    type: { _tag: "Choice", values: paramCompletions() },
+  },
   { name: "data", aliases: ["d"], description: apiFlagDescriptions.data, type: { _tag: "String" } },
   {
     name: "header",
@@ -29,24 +40,53 @@ const apiFlags: readonly Completions.FlagDescriptor[] = [
   { name: "token", aliases: [], description: apiFlagDescriptions.token, type: { _tag: "String" } },
 ]
 
-const apiArguments = (choices: readonly string[]): readonly Completions.ArgumentDescriptor[] => [
+const apiArguments: readonly Completions.ArgumentDescriptor[] = [
   {
     name: "operation",
-    description: apiArgumentDescriptions.request,
-    required: true,
-    variadic: true,
-    type: { _tag: "Choice", values: choices },
+    description: apiArgumentDescriptions.operation,
+    required: false,
+    variadic: false,
+    type: { _tag: "Choice", values: operationChoices },
+  },
+  {
+    name: "path",
+    description: apiArgumentDescriptions.path,
+    required: false,
+    variadic: false,
+    type: { _tag: "Choice", values: paths },
   },
 ]
 
-const apiDescriptor = (choices: readonly string[]): Completions.CommandDescriptor => {
-  return {
-    name: apiCommand.name,
-    description: apiCommand.shortDescription ?? apiCommand.description,
-    flags: apiFlags,
-    arguments: apiArguments(choices),
-    subcommands: [],
-  }
+const describeDescriptor: Completions.CommandDescriptor = {
+  name: "describe",
+  description: apiSubcommandDescriptions.describe,
+  flags: [],
+  arguments: [
+    {
+      name: "operation",
+      description: apiArgumentDescriptions.describe,
+      required: true,
+      variadic: false,
+      type: { _tag: "Choice", values: operationIds },
+    },
+  ],
+  subcommands: [],
+}
+
+const listDescriptor: Completions.CommandDescriptor = {
+  name: "list",
+  description: apiSubcommandDescriptions.list,
+  flags: [],
+  arguments: [],
+  subcommands: [],
+}
+
+const apiDescriptor: Completions.CommandDescriptor = {
+  name: apiCommand.name,
+  description: apiCommand.shortDescription ?? apiCommand.description,
+  flags: apiFlags,
+  arguments: apiArguments,
+  subcommands: [describeDescriptor, listDescriptor],
 }
 
 const completionsDescriptor = (): Completions.CommandDescriptor => {
@@ -67,13 +107,13 @@ const completionsDescriptor = (): Completions.CommandDescriptor => {
   }
 }
 
-const clientDescriptor = (choices: readonly string[]): Completions.CommandDescriptor => {
+const clientDescriptor = (): Completions.CommandDescriptor => {
   return {
     name: rootName,
     description: rootDescription,
     flags: [],
     arguments: [],
-    subcommands: [apiDescriptor(choices), completionsDescriptor()],
+    subcommands: [apiDescriptor, completionsDescriptor()],
   }
 }
 

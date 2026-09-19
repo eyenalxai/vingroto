@@ -4,7 +4,6 @@ import type { Shell } from "@/lib/cli/spec"
 
 import { clientDescriptor } from "@/lib/cli/completions/descriptor"
 import { generateNushell } from "@/lib/cli/completions/nushell"
-import { completionChoices } from "@/lib/cli/completions/operations"
 import { rootName } from "@/lib/cli/spec"
 
 const completionFileNames: Record<Shell, string> = {
@@ -23,6 +22,6 @@ const generators: Record<Shell, (descriptor: Completions.CommandDescriptor) => s
   zsh: (descriptor) => fixInstallHint(Completions.generate(rootName, "zsh", descriptor), "zsh"),
 }
 
-const scriptFor = (shell: Shell): string => generators[shell](clientDescriptor(completionChoices()))
+const scriptFor = (shell: Shell): string => generators[shell](clientDescriptor())
 
 export { completionFileNames, scriptFor }

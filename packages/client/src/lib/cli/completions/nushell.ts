@@ -7,12 +7,31 @@ const identifier = (name: string): string => /[\w-]+/u.exec(name)?.[0] ?? "argum
 const completerName = (path: readonly string[], argument: string): string =>
   ["nu-complete", ...path, argument].join(" ")
 
-const flagLine = (flag: Completions.FlagDescriptor): string => {
+const flagCompleter = (name: string): string => `flag ${identifier(name)}`
+
+const completerBlock = (
+  path: readonly string[],
+  name: string,
+  values: readonly string[],
+): readonly string[] => {
+  const lines = [`def ${nuString(completerName(path, name))} [] {`, "  ["]
+  for (const value of values) {
+    lines.push(`    ${nuString(value)}`)
+  }
+  lines.push("  ]", "}", "")
+  return lines
+}
+
+const flagLine = (flag: Completions.FlagDescriptor, path: readonly string[]): string => {
   const alias = flag.aliases.find((candidate) => candidate.length === 1)
   const name = alias === undefined ? `--${flag.name}` : `--${flag.name}(-${alias})`
   const type = flag.type._tag === "Boolean" ? "" : ": string"
+  const completer =
+    flag.type._tag === "Choice" && flag.type.values.length > 0
+      ? `@${nuString(completerName(path, flagCompleter(flag.name)))}`
+      : ""
   const description = flag.description === undefined ? "" : ` # ${flag.description}`
-  return `${name}${type}${description}`
+  return `${name}${type}${completer}${description}`
 }
 
 const argumentLine = (
@@ -34,19 +53,19 @@ const completerLines = (
   descriptor: Completions.CommandDescriptor,
   path: readonly string[],
 ): readonly string[] => {
+  const current = [...path, descriptor.name]
   const lines: string[] = []
   for (const argument of descriptor.arguments) {
     if (argument.type._tag !== "Choice" || argument.type.values.length === 0) {
       continue
     }
-    lines.push(
-      `def ${nuString(completerName([...path, descriptor.name], identifier(argument.name)))} [] {`,
-      "  [",
-    )
-    for (const value of argument.type.values) {
-      lines.push(`    ${nuString(value)}`)
+    lines.push(...completerBlock(current, identifier(argument.name), argument.type.values))
+  }
+  for (const flag of descriptor.flags) {
+    if (flag.type._tag !== "Choice" || flag.type.values.length === 0) {
+      continue
     }
-    lines.push("  ]", "}", "")
+    lines.push(...completerBlock(current, flagCompleter(flag.name), flag.type.values))
   }
   return lines
 }
@@ -59,7 +78,7 @@ const externLines = (
   const current = [...path, descriptor.name]
   const target = path.length === 0 ? executable : nuString(current.join(" "))
   const signature = [
-    ...descriptor.flags.map(flagLine),
+    ...descriptor.flags.map((flag) => flagLine(flag, current)),
     ...descriptor.arguments.map((argument) => argumentLine(argument, current)),
   ]
   if (signature.length === 0) {
