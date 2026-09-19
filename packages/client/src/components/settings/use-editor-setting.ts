@@ -58,6 +58,7 @@ const useEditorSetting = (options: UseEditorSettingOptions) => {
         Effect.tap(() =>
           Effect.sync(() => {
             setBusy(false)
+            setSource(editor)
             options.onStatus(`editor set to ${editor}`)
             options.onSaved()
           }),

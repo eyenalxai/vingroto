@@ -10,12 +10,8 @@ import { createStore } from "solid-js/store"
 import type { AccountDraft, FieldId } from "@/components/setup/form-model"
 import type { AppRuntime } from "@/lib/runtime"
 
-import {
-  applySecretKey,
-  cycleSecurity,
-  emptyDraft,
-  validateEditDraft,
-} from "@/components/setup/form-model"
+import { draftFromAccount, draftsMatch } from "@/components/settings/account-draft"
+import { applySecretKey, cycleSecurity, validateEditDraft } from "@/components/setup/form-model"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
 
@@ -27,44 +23,11 @@ interface UseAccountProfileOptions {
   readonly onDisconnected: (message: string) => void
 }
 
-const draftFromAccount = (account: AccountConfig, username: string | undefined): AccountDraft => {
-  return {
-    ...emptyDraft(),
-    email: account.email,
-    label: account.label,
-    name: account.name ?? "",
-    username: username ?? account.email,
-    imapHost: account.imap.host,
-    imapPort: String(account.imap.port),
-    imapSecurity: account.imap.security,
-    smtpHost: account.smtp.host,
-    smtpPort: String(account.smtp.port),
-    smtpSecurity: account.smtp.security,
-    saveSent: account.saveSent,
-  }
-}
-
 const draftMatchesAccount = (
   draft: AccountDraft,
   account: AccountConfig,
   username: string | undefined,
-): boolean => {
-  const source = draftFromAccount(account, username)
-  return (
-    draft.email === source.email &&
-    draft.label === source.label &&
-    draft.name === source.name &&
-    draft.username === source.username &&
-    draft.imapHost === source.imapHost &&
-    draft.imapPort === source.imapPort &&
-    draft.imapSecurity === source.imapSecurity &&
-    draft.smtpHost === source.smtpHost &&
-    draft.smtpPort === source.smtpPort &&
-    draft.smtpSecurity === source.smtpSecurity &&
-    draft.saveSent === source.saveSent &&
-    draft.password === ""
-  )
-}
+): boolean => draft.password === "" && draftsMatch(draft, draftFromAccount(account, username))
 
 const setMembership = (
   set: Setter<ReadonlySet<AccountId>>,
@@ -244,6 +207,7 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
       options.onStatus(result.message, true)
       return
     }
+    const snapshot: AccountDraft = { ...draft }
     setMembership(setBusyIds, accountId, true)
     options.onStatus("saving…")
     const program = Effect.gen(function* persistProfile() {
@@ -253,7 +217,12 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
           Effect.sync(() => {
             setMembership(setBusyIds, accountId, false)
             storedUsernames.set(accountId, result.value.username)
-            initialize(updated, result.value.username)
+            const current = drafts[accountId]
+            if (current === undefined || draftsMatch(current, snapshot)) {
+              initialize(updated, result.value.username)
+            } else {
+              sources.set(accountId, updated)
+            }
             options.onStatus(`saved ${updated.label}`)
             options.onSaved(updated)
           }),

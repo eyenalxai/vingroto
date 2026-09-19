@@ -71,6 +71,7 @@ const useSendProfile = (options: UseSendProfileOptions) => {
       options.onStatus("enter a delay of 0 seconds or more", true)
       return
     }
+    const snapshot = draft.delaySeconds
     setBusy(true)
     options.onStatus("saving…")
     const program = Effect.gen(function* persistSendSettings() {
@@ -79,7 +80,10 @@ const useSendProfile = (options: UseSendProfileOptions) => {
         Effect.tap(() =>
           Effect.sync(() => {
             setBusy(false)
-            setDraft({ delaySeconds: String(delaySeconds) })
+            setSource({ delaySeconds })
+            if (draft.delaySeconds === snapshot) {
+              setDraft({ delaySeconds: String(delaySeconds) })
+            }
             options.onStatus("sending settings saved")
             options.onSaved()
           }),

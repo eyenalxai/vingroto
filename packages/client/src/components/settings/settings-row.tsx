@@ -125,7 +125,7 @@ const TextRow = (props: RowProps<"text">) => {
           />
         }
       >
-        <Spinner />
+        <Spinner color={props.selected ? theme.selectionForeground : theme.muted} />
       </Show>
     </RowFrame>
   )
@@ -160,10 +160,10 @@ const ChoiceRow = (props: RowProps<"choice">) => {
 const ToggleRow = (props: RowProps<"toggle">) => {
   const theme = useTheme()
   const toggleColor = () => {
-    if (!props.row.value()) {
-      return theme.muted
+    if (props.selected) {
+      return theme.selectionForeground
     }
-    return props.selected ? theme.selectionForeground : theme.unread
+    return props.row.value() ? theme.unread : theme.muted
   }
   return (
     <RowFrame row={props.row} selected={props.selected} onSelect={props.onSelect}>
@@ -176,7 +176,7 @@ const ToggleRow = (props: RowProps<"toggle">) => {
           </text>
         }
       >
-        <Spinner />
+        <Spinner color={props.selected ? theme.selectionForeground : theme.muted} />
       </Show>
     </RowFrame>
   )
@@ -208,10 +208,10 @@ const ActionRow = (props: RowProps<"action">) => {
 const MailboxRow = (props: RowProps<"mailbox">) => {
   const theme = useTheme()
   const unreadColor = () => {
-    if (props.row.unread() === 0) {
-      return theme.muted
+    if (props.selected) {
+      return theme.selectionForeground
     }
-    return props.selected ? theme.selectionForeground : theme.unread
+    return props.row.unread() === 0 ? theme.muted : theme.unread
   }
   return (
     <RowFrame row={props.row} selected={props.selected} onSelect={props.onSelect}>
@@ -224,7 +224,7 @@ const MailboxRow = (props: RowProps<"mailbox">) => {
             </text>
           }
         >
-          <Spinner />
+          <Spinner color={props.selected ? theme.selectionForeground : theme.muted} />
         </Show>
       </box>
       <box width={mailboxNameWidth} flexShrink={0}>

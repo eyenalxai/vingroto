@@ -27,6 +27,7 @@ import {
 } from "@/components/settings/settings-section-builders"
 import { useAccountOrder } from "@/components/settings/use-account-order"
 import { useAccountProfile } from "@/components/settings/use-account-profile"
+import { useArmedDiscard } from "@/components/settings/use-armed-discard"
 import { useEditorSetting } from "@/components/settings/use-editor-setting"
 import { useNotificationsSetting } from "@/components/settings/use-notifications-setting"
 import { useSendProfile } from "@/components/settings/use-send-profile"
@@ -59,6 +60,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const runtime = useRuntime()
   const dimensions = useTerminalDimensions()
   const expansion = useSettingsExpansion()
+  const discard = useArmedDiscard()
   const [status, setStatus] = createSignal("")
   const [statusError, setStatusError] = createSignal(false)
 
@@ -79,6 +81,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     runtime,
     accounts: () => accountOrder.accounts(),
     onSaved: (account) => {
+      discard.disarm()
       report(`saved ${account.label}`)
       props.onAccountSaved(account)
     },
@@ -89,6 +92,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     runtime,
     sync: () => props.sync,
     onSaved: () => {
+      discard.disarm()
       report("sync settings saved")
       props.onSyncSaved()
     },
@@ -99,6 +103,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     runtime,
     send: () => props.send,
     onSaved: () => {
+      discard.disarm()
       report("sending settings saved")
       props.onSendSaved()
     },
@@ -109,6 +114,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     runtime,
     editor: () => props.editor,
     onSaved: () => {
+      discard.disarm()
       props.onEditorSaved()
     },
     onStatus: report,
@@ -118,7 +124,10 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     runtime,
     notifications: () => props.notifications,
     onStatus: report,
-    onSaved: props.onNotificationsSaved,
+    onSaved: () => {
+      discard.disarm()
+      props.onNotificationsSaved()
+    },
     onDisconnected: props.onDisconnected,
   })
   const mailboxMute = useMailboxMute({
@@ -180,6 +189,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     sections,
     layout,
     dirty,
+    discard,
     onClose: props.onClose,
   })
 
@@ -214,7 +224,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
         message={settingsInput.armed() ? settingsInput.discard() : status()}
         busy={pending()}
         hint={settingsInput.hint()}
-        error={statusError()}
+        error={!settingsInput.armed() && statusError()}
       />
     </box>
   )

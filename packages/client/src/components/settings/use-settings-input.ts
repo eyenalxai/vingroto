@@ -1,17 +1,19 @@
 import type { KeyEvent } from "@opentui/core"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
+import { createSignal } from "solid-js"
 
 import type { SettingsLayout } from "@/components/settings/settings-layout"
 import type { SettingsItem, SettingsSection } from "@/components/settings/settings-rows"
+import type { useArmedDiscard } from "@/components/settings/use-armed-discard"
 
+import { handleQuitKey } from "@/components/quit-key"
 import {
   arrowDelta,
   contentHint,
   cycleRow,
   isActivatable,
 } from "@/components/settings/settings-input-model"
-import { useArmedDiscard } from "@/components/settings/use-armed-discard"
 import { useSettingsEditing } from "@/components/settings/use-settings-editing"
 import { useSettingsSelection } from "@/components/settings/use-settings-selection"
 
@@ -19,13 +21,15 @@ interface SettingsInputOptions {
   readonly sections: () => readonly SettingsSection[]
   readonly layout: () => SettingsLayout
   readonly dirty: () => boolean
+  readonly discard: ReturnType<typeof useArmedDiscard>
   readonly onClose: () => void
 }
 
 const useSettingsInput = (options: SettingsInputOptions) => {
   const renderer = useRenderer()
   const selection = useSettingsSelection({ sections: options.sections })
-  const discard = useArmedDiscard()
+  const discard = options.discard
+  const [pendingAction, setPendingAction] = createSignal<{ readonly run: () => void } | undefined>()
   const saveItem = () => {
     const item = selection.selectedItem()
     if (item === undefined) {
@@ -62,6 +66,11 @@ const useSettingsInput = (options: SettingsInputOptions) => {
       return
     }
     if (item.row.kind === "action") {
+      if (options.dirty()) {
+        setPendingAction({ run: item.row.run })
+        discard.arm()
+        return
+      }
       item.row.run()
       return
     }
@@ -69,14 +78,15 @@ const useSettingsInput = (options: SettingsInputOptions) => {
   }
 
   const selectSection = (key: string) => {
+    editing.clear()
     selection.selectSection(key)
-    discard.disarm()
     if (options.layout() === "single") {
       focusContent()
     }
   }
 
   const selectGroup = (key: string) => {
+    editing.clear()
     const current = selection.section()
     if (current === undefined) {
       return
@@ -167,9 +177,8 @@ const useSettingsInput = (options: SettingsInputOptions) => {
   }
 
   useKeyboard((event) => {
-    if (event.ctrl && event.name === "c") {
+    if (handleQuitKey({ renderer }, event)) {
       event.preventDefault()
-      renderer.destroy()
       return
     }
     if (editing.editingKey() !== undefined) {
@@ -178,24 +187,29 @@ const useSettingsInput = (options: SettingsInputOptions) => {
     }
     if (event.name === "escape") {
       event.preventDefault()
-      if (selection.focus() === "content") {
+      if (discard.armed()) {
+        const action = pendingAction()
+        setPendingAction(undefined)
         discard.disarm()
+        if (action === undefined) {
+          options.onClose()
+        } else {
+          action.run()
+        }
+        return
+      }
+      if (selection.focus() === "content") {
         focusSections()
         return
       }
-      if (discard.armed()) {
-        discard.disarm()
-        options.onClose()
-        return
-      }
       if (options.dirty()) {
+        setPendingAction({ run: options.onClose })
         discard.arm()
         return
       }
       options.onClose()
       return
     }
-    discard.disarm()
     if (event.ctrl && event.name === "s") {
       event.preventDefault()
       saveItem()

@@ -46,6 +46,7 @@ const useNotificationsSetting = (options: UseNotificationsSettingOptions) => {
       yield* client.saveNotifications({ enabled }).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
+            setSource({ enabled })
             options.onStatus(`notifications ${enabled ? "enabled" : "disabled"}`)
             options.onSaved()
           }),
@@ -75,7 +76,7 @@ const useNotificationsSetting = (options: UseNotificationsSettingOptions) => {
     save(!draft())
   }
 
-  return { dirty, saving, toggle, value: draft }
+  return { dirty, save, saving, toggle, value: draft }
 }
 
 export { useNotificationsSetting, type UseNotificationsSettingOptions }

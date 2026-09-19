@@ -186,6 +186,9 @@ const buildNotificationsSection = (input: NotificationsSectionInput): SettingsSe
         toggle: () => {
           input.notificationsSetting.toggle()
         },
+        save: () => {
+          input.notificationsSetting.save(input.notificationsSetting.value())
+        },
         pending: () => input.notificationsSetting.saving(),
       },
     ],

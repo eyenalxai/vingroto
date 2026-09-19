@@ -81,6 +81,10 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
       options.onStatus("enter whole numbers", true)
       return
     }
+    const snapshot: SyncDraft = {
+      initialDays: draft.initialDays,
+      intervalMinutes: draft.intervalMinutes,
+    }
     setBusy(true)
     options.onStatus("saving…")
     const program = Effect.gen(function* persistSyncSettings() {
@@ -89,7 +93,16 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
         Effect.tap(() =>
           Effect.sync(() => {
             setBusy(false)
-            setDraft({ initialDays: String(initialDays), intervalMinutes: String(intervalMinutes) })
+            setSource({ initialDays, intervalMinutes })
+            if (
+              draft.initialDays === snapshot.initialDays &&
+              draft.intervalMinutes === snapshot.intervalMinutes
+            ) {
+              setDraft({
+                initialDays: String(initialDays),
+                intervalMinutes: String(intervalMinutes),
+              })
+            }
             options.onStatus("sync settings saved")
             options.onSaved()
           }),
