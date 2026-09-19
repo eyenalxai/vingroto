@@ -269,3 +269,7 @@ bun run check      # format check, lint, typecheck, tests
 ```
 
 Migrations live in `packages/server/drizzle/` and are applied by the daemon on startup.
+
+## Development
+
+`bun run check` is the gate: oxfmt, type-aware oxlint, `tsc` and the test suites. Effect diagnostics are reported by the `@effect/tsgo` recommended rules wired into `oxlint.config.ts`; `bun install` re-applies the oxlint patch through the root `prepare` script. The workspace conventions this repository expects are in `AGENTS.md`.

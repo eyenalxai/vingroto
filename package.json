@@ -20,10 +20,13 @@
     "test": "bun run --filter @vingroto/server test && bun run --filter @vingroto/client test",
     "check": "bun run format:check && bun run lint && bun run tsc && bun run test",
     "db:generate": "bun run --filter @vingroto/server db:generate",
-    "db:check": "bun run --filter @vingroto/server db:check"
+    "db:check": "bun run --filter @vingroto/server db:check",
+    "prepare": "effect-tsgo patch --no-typescript --oxlint"
   },
   "devDependencies": {
+    "@effect/tsgo": "0.45.0",
     "@types/bun": "1.4.2",
+    "effect": "4.0.0-rc.115",
     "oxfmt": "0.67.0",
     "oxlint": "1.82.0",
     "oxlint-tsgolint": "7.0.2001",
