@@ -172,7 +172,7 @@ The window splits into three panes: mailboxes, the message list and the reader. 
 | 64 - 109 | mailboxes plus the focused pane (list or reader) |
 | < 64     | only the focused pane                            |
 
-The mailbox pane starts with two virtual views, **All emails** and **All unread**, computed from the cached messages of every account, then the **Outbox** and **Drafts** rows with the number of pending messages and saved drafts (a count of zero has no badge). A virtual view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups mailboxes by account the same way, with its own collapse state.
+The mailbox pane starts with two virtual views, **All emails** and **All unread**, computed from the cached messages of every account, then the **Outbox** and **Drafts** rows with the number of pending messages and saved drafts (a count of zero has no badge). A virtual view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen lists the same mailboxes per account as mute toggles, with the unread count beside each row.
 
 The Outbox and Drafts are views of the workspace, not screens: selecting one shows its entries in the list pane and a read-only preview of the selected entry in the reader pane. Pending rows tick every second towards their send time (`sends in 42s`, `sending…` once it is due, and `retry in 42s · N attempts · failed: …` after a failure); draft rows show when they were last updated. In the Outbox `enter` reads the message in the reader and `s` twice releases it to send now, `x` cancels it into drafts; in Drafts `enter` reopens the draft in the composer and `d` twice deletes it. `escape` steps back to the mailbox pane, and the mail-only keys (`/`, `m`, `space`, `ctrl+a`, `r`, `u`, the read `s`) do not act in these views.
 
@@ -182,15 +182,17 @@ Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox i
 
 ## Settings
 
-`ctrl+x s` opens a full-screen settings screen: a sidebar on the left, the selected editor on the right.
+`ctrl+x s` opens a full-screen settings screen: one scrolling column of always-expanded blocks — **Accounts**, **Mailboxes**, **Composer**, **Sending**, **Sync** and **Notifications**. One cursor moves over the rows; `up`/`down` (or `j`/`k`) move it.
 
-- **Accounts** — edit the mailbox name, sender name, username, IMAP and SMTP servers, and whether a copy of sent mail is saved (`saveSent`). The email address is fixed; a new password can be entered, otherwise the stored one is kept.
-- **Mailboxes** — mute or unmute any synced mailbox. Mailboxes are grouped by account; `enter` or `space` collapses a group, and on a mailbox toggles its mute in place.
-- **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`).
-- **Sending** — how long a message waits before it is sent (`delaySeconds`); `0` sends immediately.
+- **Accounts** — one block per account with every field inline: the mailbox name (`label`), sender name, read-only email, username, password, IMAP and SMTP hosts, ports and security, and whether a copy of sent mail is saved (`saveSent`). The password is kept when the field is left empty. `enter` edits a text or number row and `escape` restores the previous value; `enter` cycles a security row or toggles **Save sent copy**; `ctrl+s` saves the account.
+- **Mailboxes** — one row per synced mailbox under its account, with its unread count and mute state. `enter` mutes or unmutes it right away.
+- **Composer** — the **Editor** setting: `builtin` edits the composer body in its text area, `system` edits it in the system editor. `enter` cycles the value and `ctrl+s` saves it.
+- **Sending** — how long a message waits before it is sent (`delaySeconds`); `0` sends immediately. `ctrl+s` saves it.
+- **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`). `ctrl+s` saves it.
+- **Notifications** — whether new mail raises an alert. `enter` toggles it right away.
 - **+ Add account** — closes settings and starts the account wizard.
 
-The account order is the order of the config file. `shift+up` and `shift+down` move the selected account, so the first account is the compose default. `enter` on an account, the sync settings or the sending settings opens its editor, `tab` moves between the sidebar and the editor, `esc` climbs back one step and closes the screen at the top.
+The account order is the order of the config file. `shift+up` and `shift+down` move the account whose heading is selected, so the first account is the compose default. Moving the cursor never edits a value: a row is edited with `enter`, and `escape` cancels that edit or closes the screen at the top. `ctrl+s` saves the selected block's changed values through the daemon and `ctrl+c` quits.
 
 ## Syncing
 
@@ -202,7 +204,7 @@ The daemon keeps the database in `$XDG_DATA_HOME/<app>/vingroto.db` (with `<app>
 
 ## Sending
 
-A composed message goes to the daemon's outbox, not straight to SMTP. It waits out the send delay — the **Sending** editor in settings, `send.delaySeconds`, 60 seconds by default — before the daemon's worker sends it, so it can still be cancelled; cancelling moves it into drafts. A send that fails is retried with a growing backoff of 5, 10, 20, 40, 80, 160 and 320 seconds for up to seven attempts and then stays in the outbox as failed until it is released by hand, which resets its attempts and sends it on the next worker pass. Drafts and outbox entries live in the daemon's database, so they survive client and daemon restarts and are reopened in the composer. When the account's save-sent setting is on, a successful send is also appended to the account's Sent mailbox.
+A composed message goes to the daemon's outbox, not straight to SMTP. It waits out the send delay — the **Sending** block in settings, `send.delaySeconds`, 60 seconds by default — before the daemon's worker sends it, so it can still be cancelled; cancelling moves it into drafts. A send that fails is retried with a growing backoff of 5, 10, 20, 40, 80, 160 and 320 seconds for up to seven attempts and then stays in the outbox as failed until it is released by hand, which resets its attempts and sends it on the next worker pass. Drafts and outbox entries live in the daemon's database, so they survive client and daemon restarts and are reopened in the composer. When the account's save-sent setting is on, a successful send is also appended to the account's Sent mailbox.
 
 ## Reading
 
@@ -214,7 +216,7 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 
 ## Writing
 
-`c` opens a full-screen composer from any mail pane. The first field is **From**, defaulting to the first account in the config file; `left`/`right` (or `up`/`down`) cycle between accounts. `To`, `Cc` and `Bcc` take addresses separated by commas or semicolons, each optionally as `Name <address>`; an address that does not parse is refused with an inline error instead of being sent. `tab` and `shift+tab` move between fields, `enter` moves on from a header field, and the body is a textarea that wraps, scrolls and accepts pasted text. `ctrl+s` queues the message and the footer reports `queued · sends in 60s` from the daemon's answer; `escape` closes the composer once the draft is saved, unless the message is already queued. `ctrl+e` opens the body in `$VISUAL`, then `$EDITOR`, then `vi`, with the TUI suspended, and `ctrl+c` quits.
+`c` opens a full-screen composer from any mail pane. The first field is **From**, defaulting to the first account in the config file; `left`/`right` (or `up`/`down`) cycle between accounts. `To`, `Cc` and `Bcc` take addresses separated by commas or semicolons, each optionally as `Name <address>`; an address that does not parse is refused with an inline error instead of being sent. `tab` and `shift+tab` move between fields and `enter` moves on from a header field. The body follows the **Editor** setting in settings: with `builtin` (the default) it is a textarea that wraps, scrolls and accepts pasted text, and `enter` inserts a newline; with `system` the body row reads `enter to edit in <editor>` and `enter` opens `$VISUAL`, then `$EDITOR`, then `vi`, with the TUI suspended, and puts the saved text back into the body. `ctrl+s` queues the message and the footer reports `queued · sends in 60s` from the daemon's answer; `escape` closes the composer once the draft is saved, unless the message is already queued; `ctrl+c` quits.
 
 `r` replies to the selected message and `R` replies to all of them, from the list or the reader. The composer prefills the sender, reply-all adds the original recipients minus your own address and duplicates, the subject gains `Re:` when it does not have one, the `In-Reply-To` and `References` headers are carried over, and the body quotes the original after an attribution line with the cursor at the top.
 
@@ -222,31 +224,34 @@ The composer autosaves a draft a second after the last change; an empty message 
 
 ## Keys
 
-| Key                                           | Action                                                     |
-| --------------------------------------------- | ---------------------------------------------------------- |
-| `q`, `ctrl+c`                                 | quit                                                       |
-| `c`                                           | compose a message                                          |
-| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                               |
-| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                      |
-| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                          |
-| `enter`                                       | open a mailbox / read a message / download the body        |
-| `space`                                       | mailboxes: collapse the account · list: select the message |
-| `r`                                           | list, reader: reply                                        |
-| `R`                                           | list, reader: reply all                                    |
-| `s`                                           | list, reader: mark read · outbox: send now (press twice)   |
-| `u`                                           | list, reader: mark unread                                  |
-| `m`                                           | list: move to another mailbox                              |
-| `x`                                           | outbox: cancel the pending message into drafts             |
-| `d`                                           | drafts: delete the draft (press twice)                     |
-| `ctrl+a`                                      | list: select every loaded message / clear                  |
-| `i`                                           | mailboxes: mute or unmute the mailbox                      |
-| `shift+up`, `shift+down`                      | settings: move the selected account up or down             |
-| `escape`                                      | list: clear the selection · otherwise step back            |
-| `ctrl+x` `a`                                  | add an account                                             |
-| `ctrl+x` `o`                                  | the outbox view                                            |
-| `ctrl+x` `d`                                  | the drafts view                                            |
-| `ctrl+x` `s`                                  | settings                                                   |
-| `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                  |
+| Key                                           | Action                                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------- |
+| `q`, `ctrl+c`                                 | quit                                                                   |
+| `c`                                           | compose a message                                                      |
+| `tab`, `shift+tab`, `left`, `right`, `h`, `l` | switch panes                                                           |
+| `up`, `down`, `j`, `k`                        | move the selection (reader: one line)                                  |
+| `pgup`, `pgdn`, `b`, `f`                      | scroll the reader half a viewport                                      |
+| `enter`                                       | open a mailbox / read a message / download the body                    |
+| `enter` (settings)                            | edit or toggle the selected row                                        |
+| `enter` (composer body)                       | open the body in the system editor when the Editor setting is `system` |
+| `space`                                       | mailboxes: collapse the account · list: select the message             |
+| `r`                                           | list, reader: reply                                                    |
+| `R`                                           | list, reader: reply all                                                |
+| `s`                                           | list, reader: mark read · outbox: send now (press twice)               |
+| `u`                                           | list, reader: mark unread                                              |
+| `m`                                           | list: move to another mailbox                                          |
+| `x`                                           | outbox: cancel the pending message into drafts                         |
+| `d`                                           | drafts: delete the draft (press twice)                                 |
+| `ctrl+a`                                      | list: select every loaded message / clear                              |
+| `i`                                           | mailboxes: mute or unmute the mailbox                                  |
+| `ctrl+s`                                      | settings: save the selected block                                      |
+| `shift+up`, `shift+down`                      | settings: move the selected account up or down                         |
+| `escape`                                      | list: clear the selection · otherwise step back                        |
+| `ctrl+x` `a`                                  | add an account                                                         |
+| `ctrl+x` `o`                                  | the outbox view                                                        |
+| `ctrl+x` `d`                                  | the drafts view                                                        |
+| `ctrl+x` `s`                                  | settings                                                               |
+| `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                              |
 
 `ctrl+x` is the leader: press it, then the action key. The secondary bindings are listed in the status bar while it waits.
 

@@ -18,7 +18,7 @@ type SecretFieldId = "password"
 type BooleanFieldId = "saveSent"
 type FieldId = TextFieldId | SecurityFieldId | SecretFieldId | BooleanFieldId
 
-type FieldKind = "text" | "secret" | "security" | "boolean"
+type FieldKind = "text" | "secret" | "security" | "boolean" | "readonly"
 
 interface FieldDescriptor<Id extends string = FieldId> {
   readonly id: Id
@@ -75,8 +75,13 @@ const serverFields = [
   ...connectionFields,
 ] as const satisfies readonly FieldDescriptor[]
 
+const [labelField, nameField, usernameField] = profileFields
+
 const editFields = [
-  ...profileFields,
+  labelField,
+  nameField,
+  { id: "email", label: "Email", kind: "readonly" },
+  usernameField,
   { id: "password", label: "Password", kind: "secret", placeholder: "unchanged" },
   ...connectionFields,
   { id: "saveSent", label: "Save sent copy", kind: "boolean" },

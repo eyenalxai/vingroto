@@ -201,6 +201,8 @@ const ClientLayer = Layer.unwrap(
       reorderAccounts: (accountIds) =>
         guard(api.accounts["account.reorder"]({ payload: { accountIds } })),
       saveDraft: (draft) => guard(api.drafts["draft.save"]({ payload: draft })),
+      saveEditorSettings: (editor) =>
+        guard(api.settings["settings.saveEditor"]({ payload: { editor } })),
       saveNotifications: (settings) =>
         guard(api.settings["settings.saveNotifications"]({ payload: settings })),
       saveSendSettings: (settings) =>

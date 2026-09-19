@@ -10,7 +10,7 @@ import { describeClientFailure } from "@/lib/failure"
 
 interface UseMailboxMuteOptions {
   readonly runtime: AppRuntime
-  readonly onStatus: (message: string) => void
+  readonly onStatus: (message: string, error?: boolean) => void
   readonly onChanged: () => void
   readonly onDisconnected: (message: string) => void
 }
@@ -51,7 +51,7 @@ const useMailboxMute = (options: UseMailboxMuteOptions) => {
               options.onDisconnected(failure.message)
               return
             }
-            options.onStatus(`could not update the mailbox · ${failure.message}`)
+            options.onStatus(`could not update the mailbox · ${failure.message}`, true)
           }),
         ),
       )

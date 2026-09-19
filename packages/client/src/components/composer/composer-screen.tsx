@@ -1,7 +1,8 @@
 import type { KeyEvent } from "@opentui/core"
-import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, EditorConfig } from "@vingroto/core/config/schema"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
+import { Show } from "solid-js"
 
 import type { ComposerField } from "@/components/composer/composer-fields"
 import type { ComposerSeed } from "@/lib/mail/compose"
@@ -9,11 +10,13 @@ import type { AppRuntime } from "@/lib/runtime"
 
 import { useComposer } from "@/components/composer/use-composer"
 import { useTheme } from "@/components/theme-provider"
+import { describeSystemEditor } from "@/lib/external"
 
 interface ComposerScreenProps {
   readonly runtime: AppRuntime
   readonly accounts: readonly AccountConfig[]
   readonly seed: ComposerSeed
+  readonly editor: EditorConfig
   readonly sendDelaySeconds: number
   readonly onClose: () => void
   readonly onDisconnected: (message: string) => void
@@ -24,8 +27,10 @@ const labelWidth = 8
 const ComposerScreen = (props: ComposerScreenProps) => {
   const renderer = useRenderer()
   const theme = useTheme()
+  const systemEditor = describeSystemEditor()
   const composer = useComposer({
     accounts: props.accounts,
+    editor: () => props.editor,
     onClose: props.onClose,
     onDisconnected: props.onDisconnected,
     runtime: props.runtime,
@@ -45,7 +50,7 @@ const ComposerScreen = (props: ComposerScreenProps) => {
   const hint = () =>
     composer.editing()
       ? "waiting for the editor…"
-      : "tab next · ctrl+s queue · ctrl+e editor · esc close · ctrl+c quit"
+      : "tab next · ctrl+s queue · esc close · ctrl+c quit"
 
   useKeyboard((event: KeyEvent) => {
     if (event.ctrl && event.name === "c") {
@@ -68,7 +73,7 @@ const ComposerScreen = (props: ComposerScreenProps) => {
       composer.enqueue()
       return
     }
-    if (event.ctrl && event.name === "e") {
+    if (event.name === "return" && composer.field() === "body" && props.editor === "system") {
       event.preventDefault()
       composer.editExternally()
       return
@@ -203,22 +208,31 @@ const ComposerScreen = (props: ComposerScreenProps) => {
               Body
             </text>
           </box>
-          <textarea
-            ref={(node) => {
-              composer.setTextarea(node)
-            }}
-            initialValue={props.seed.body}
-            onContentChange={() => {
-              composer.inputBody(composer.textarea()?.plainText ?? "")
-            }}
-            focused={composer.field() === "body"}
-            placeholder="write your message…"
-            placeholderColor={theme.muted}
-            textColor={theme.text}
-            focusedTextColor={theme.text}
-            cursorColor={theme.accent}
-            flexGrow={1}
-          />
+          <Show
+            when={props.editor === "builtin"}
+            fallback={
+              <text fg={composer.field() === "body" ? theme.text : theme.muted} wrapMode="none">
+                {`enter to edit in ${systemEditor}`}
+              </text>
+            }
+          >
+            <textarea
+              ref={(node) => {
+                composer.setTextarea(node)
+              }}
+              initialValue={composer.body()}
+              onContentChange={() => {
+                composer.inputBody(composer.textarea()?.plainText ?? "")
+              }}
+              focused={composer.field() === "body"}
+              placeholder="write your message…"
+              placeholderColor={theme.muted}
+              textColor={theme.text}
+              focusedTextColor={theme.text}
+              cursorColor={theme.accent}
+              flexGrow={1}
+            />
+          </Show>
         </box>
       </box>
       <box flexDirection="row" gap={1} paddingLeft={2} paddingRight={2} flexShrink={0} height={1}>

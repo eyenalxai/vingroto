@@ -1,8 +1,7 @@
-import type { KeyEvent } from "@opentui/core"
 import type { SyncConfig } from "@vingroto/core/config/schema"
 
 import { Effect } from "effect"
-import { createEffect, createMemo, createSignal } from "solid-js"
+import { createEffect, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 
 import type { FieldDescriptor } from "@/components/setup/form-model"
@@ -22,6 +21,7 @@ interface UseSyncProfileOptions {
   readonly runtime: AppRuntime
   readonly sync: () => SyncConfig
   readonly onSaved: () => void
+  readonly onStatus: (message: string, error?: boolean) => void
   readonly onDisconnected: (message: string) => void
 }
 
@@ -37,17 +37,7 @@ const parseWholeNumber = (value: string) => {
 
 const useSyncProfile = (options: UseSyncProfileOptions) => {
   const [draft, setDraft] = createStore<SyncDraft>({ initialDays: "", intervalMinutes: "" })
-  const [focusIndex, setFocusIndex] = createSignal(0)
-  const [status, setStatus] = createSignal("")
-  const [statusError, setStatusError] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
-
-  const focusedField = createMemo(() => syncFields[focusIndex()])
-
-  const report = (message: string, isError = false) => {
-    setStatus(message)
-    setStatusError(isError)
-  }
 
   createEffect(() => {
     const sync = options.sync()
@@ -57,15 +47,10 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
     })
   })
 
-  const fieldValue = (id: SyncFieldId): string => draft[id]
+  const value = (id: SyncFieldId): string => draft[id]
 
-  const moveFocus = (delta: number) => {
-    const count = syncFields.length
-    setFocusIndex((current) => (current + delta + count) % count)
-  }
-
-  const input = (id: SyncFieldId, value: string) => {
-    setDraft(id, value)
+  const input = (id: SyncFieldId, next: string) => {
+    setDraft(id, next)
   }
 
   const save = () => {
@@ -75,18 +60,18 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
     const initialDays = parseWholeNumber(draft.initialDays)
     const intervalMinutes = parseWholeNumber(draft.intervalMinutes)
     if (initialDays === undefined || intervalMinutes === undefined) {
-      report("enter whole numbers", true)
+      options.onStatus("enter whole numbers", true)
       return
     }
     setBusy(true)
-    report("saving…")
+    options.onStatus("saving…")
     const program = Effect.gen(function* persistSyncSettings() {
       const client = yield* MailClient
       yield* client.saveSyncSettings({ initialDays, intervalMinutes }).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             setBusy(false)
-            report("saved")
+            options.onStatus("sync settings saved")
             options.onSaved()
           }),
         ),
@@ -98,7 +83,7 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
               options.onDisconnected(failure.message)
               return
             }
-            report(`could not save · ${failure.message}`, true)
+            options.onStatus(`could not save · ${failure.message}`, true)
           }),
         ),
       )
@@ -106,35 +91,7 @@ const useSyncProfile = (options: UseSyncProfileOptions) => {
     options.runtime.runFork(program)
   }
 
-  const handleKey = (event: KeyEvent): boolean => {
-    if (event.ctrl && event.name === "s") {
-      save()
-      return true
-    }
-    if (event.name === "tab") {
-      moveFocus(event.shift ? -1 : 1)
-      return true
-    }
-    if (event.name === "down" && !event.shift) {
-      moveFocus(1)
-      return true
-    }
-    if (event.name === "up" && !event.shift) {
-      moveFocus(-1)
-      return true
-    }
-    if (event.name === "return") {
-      if (focusIndex() === syncFields.length - 1) {
-        save()
-      } else {
-        moveFocus(1)
-      }
-      return true
-    }
-    return false
-  }
-
-  return { busy, fieldValue, focusedField, handleKey, input, save, status, statusError }
+  return { busy, input, save, value }
 }
 
 export { syncFields, useSyncProfile, type SyncFieldId, type UseSyncProfileOptions }

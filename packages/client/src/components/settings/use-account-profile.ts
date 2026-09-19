@@ -1,18 +1,18 @@
 import type { KeyEvent } from "@opentui/core"
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { AccountId } from "@vingroto/core/ids"
+import type { Setter } from "solid-js"
 
 import { Effect, Fiber } from "effect"
-import { createEffect, createMemo, createSignal } from "solid-js"
+import { createEffect, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 
-import type { AccountDraft, FieldDescriptor, FieldId } from "@/components/setup/form-model"
+import type { AccountDraft, FieldId } from "@/components/setup/form-model"
 import type { AppRuntime } from "@/lib/runtime"
 
 import {
   applySecretKey,
   cycleSecurity,
-  editFields,
   emptyDraft,
   validateEditDraft,
 } from "@/components/setup/form-model"
@@ -21,29 +21,19 @@ import { describeClientFailure } from "@/lib/failure"
 
 interface UseAccountProfileOptions {
   readonly runtime: AppRuntime
-  readonly account: () => AccountConfig | undefined
-  readonly active: () => boolean
+  readonly accounts: () => readonly AccountConfig[]
   readonly onSaved: (account: AccountConfig) => void
+  readonly onStatus: (message: string, error?: boolean) => void
   readonly onDisconnected: (message: string) => void
 }
 
-const cycleDirection = (event: KeyEvent): number | undefined => {
-  if (event.name === "left" || event.name === "h") {
-    return -1
-  }
-  if (event.name === "right" || event.name === "l" || event.name === "space") {
-    return 1
-  }
-  return undefined
-}
-
-const draftFromAccount = (account: AccountConfig): AccountDraft => {
+const draftFromAccount = (account: AccountConfig, username: string | undefined): AccountDraft => {
   return {
     ...emptyDraft(),
     email: account.email,
     label: account.label,
     name: account.name ?? "",
-    username: account.email,
+    username: username ?? account.email,
     imapHost: account.imap.host,
     imapPort: String(account.imap.port),
     imapSecurity: account.imap.security,
@@ -54,237 +44,209 @@ const draftFromAccount = (account: AccountConfig): AccountDraft => {
   }
 }
 
+const setMembership = (
+  set: Setter<ReadonlySet<AccountId>>,
+  accountId: AccountId,
+  present: boolean,
+): void => {
+  set((current) => {
+    const next = new Set(current)
+    if (present) {
+      next.add(accountId)
+    } else {
+      next.delete(accountId)
+    }
+    return next
+  })
+}
+
 const useAccountProfile = (options: UseAccountProfileOptions) => {
-  const [draft, setDraft] = createStore<AccountDraft>(emptyDraft())
-  const [focusIndex, setFocusIndex] = createSignal(0)
-  const [status, setStatus] = createSignal("")
-  const [statusError, setStatusError] = createSignal(false)
-  const [busy, setBusy] = createSignal(false)
-  const [loading, setLoading] = createSignal(false)
-  const fields: readonly FieldDescriptor[] = editFields
-  let usernameEdited = false
-  let loadedUsernameId: AccountId | null = null
-  let loadToken = 0
-  let usernameFiber: Fiber.Fiber<unknown, unknown> | null = null
+  const [drafts, setDrafts] = createStore<Record<string, AccountDraft>>({})
+  const [busyIds, setBusyIds] = createSignal<ReadonlySet<AccountId>>(new Set())
+  const [loadingIds, setLoadingIds] = createSignal<ReadonlySet<AccountId>>(new Set())
+  const sources = new Map<AccountId, AccountConfig>()
+  const storedUsernames = new Map<AccountId, string>()
+  const loadedUsernames = new Set<AccountId>()
+  const editedUsernames = new Set<AccountId>()
+  const fibers: Fiber.Fiber<unknown, unknown>[] = []
 
-  const focusedField = createMemo(() => fields[focusIndex()])
+  const initialize = (account: AccountConfig, username: string | undefined) => {
+    sources.set(account.id, account)
+    setDrafts(account.id, draftFromAccount(account, username))
+  }
 
-  const report = (message: string, isError = false) => {
-    setStatus(message)
-    setStatusError(isError)
+  for (const account of options.accounts()) {
+    initialize(account, storedUsernames.get(account.id))
   }
 
   createEffect(() => {
-    const account = options.account()
-    if (account === undefined) {
-      return
+    for (const account of options.accounts()) {
+      if (sources.get(account.id) === account) {
+        continue
+      }
+      editedUsernames.delete(account.id)
+      initialize(account, storedUsernames.get(account.id))
     }
-    setDraft(draftFromAccount(account))
-    setFocusIndex(0)
-    setBusy(false)
-    report("")
-    usernameEdited = false
   })
 
   createEffect(() => {
-    const account = options.account()
-    if (account === undefined || !options.active() || loadedUsernameId === account.id) {
-      return
-    }
-    loadedUsernameId = account.id
-    loadToken += 1
-    const token = loadToken
-    setLoading(true)
-    const program = Effect.gen(function* loadStoredUsername() {
-      const client = yield* MailClient
-      const stored = yield* client.accountUsername(account.id).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            if (options.account()?.id === account.id) {
-              report(
-                `could not read the stored username · ${describeClientFailure(error).message}`,
+    for (const account of options.accounts()) {
+      if (loadedUsernames.has(account.id)) {
+        continue
+      }
+      loadedUsernames.add(account.id)
+      setMembership(setLoadingIds, account.id, true)
+      const program = Effect.gen(function* loadStoredUsername() {
+        const client = yield* MailClient
+        const stored = yield* client.accountUsername(account.id).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              options.onStatus(
+                `could not read the stored username for ${account.label} · ${describeClientFailure(error).message}`,
                 true,
               )
-            }
-            return account.email
+              return null
+            }),
+          ),
+        )
+        yield* Effect.sync(() => {
+          if (stored !== null) {
+            storedUsernames.set(account.id, stored)
+          }
+          if (!editedUsernames.has(account.id)) {
+            setDrafts(account.id, "username", stored ?? account.email)
+          }
+        })
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            setMembership(setLoadingIds, account.id, false)
           }),
         ),
       )
-      yield* Effect.sync(() => {
-        if (!usernameEdited && options.account()?.id === account.id) {
-          setDraft("username", stored ?? account.email)
-        }
-      })
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          if (loadToken === token) {
-            setLoading(false)
-          }
-        }),
-      ),
-    )
-    usernameFiber = options.runtime.runFork(program)
+      fibers.push(options.runtime.runFork(program))
+    }
   })
 
-  const fieldValue = (id: FieldId): string => {
-    if (id === "imapSecurity") {
+  const value = (accountId: AccountId, field: FieldId): string => {
+    const draft = drafts[accountId]
+    if (draft === undefined) {
+      return ""
+    }
+    if (field === "imapSecurity") {
       return draft.imapSecurity
     }
-    if (id === "smtpSecurity") {
+    if (field === "smtpSecurity") {
       return draft.smtpSecurity
     }
-    if (id === "saveSent") {
+    if (field === "saveSent") {
       return draft.saveSent ? "yes" : "no"
     }
-    return draft[id]
+    return draft[field]
   }
 
-  const moveFocus = (delta: number) => {
-    const count = fields.length
-    setFocusIndex((current) => (current + delta + count) % count)
-  }
-
-  const cycleField = (id: FieldId, delta: number) => {
-    if (id === "imapSecurity") {
-      setDraft("imapSecurity", (current) => cycleSecurity(current, delta))
+  const input = (accountId: AccountId, field: FieldId, next: string) => {
+    if (
+      field === "imapSecurity" ||
+      field === "smtpSecurity" ||
+      field === "password" ||
+      field === "saveSent"
+    ) {
       return
     }
-    if (id === "smtpSecurity") {
-      setDraft("smtpSecurity", (current) => cycleSecurity(current, delta))
+    setDrafts(accountId, field, next)
+    if (field === "username") {
+      editedUsernames.add(accountId)
     }
   }
 
-  const input = (id: FieldId, value: string) => {
-    if (id === "imapSecurity" || id === "smtpSecurity" || id === "password" || id === "saveSent") {
+  const cycle = (accountId: AccountId, field: FieldId, delta: number) => {
+    if (field === "imapSecurity") {
+      setDrafts(accountId, "imapSecurity", (current) => cycleSecurity(current, delta))
       return
     }
-    setDraft(id, value)
-    if (id === "username") {
-      usernameEdited = true
+    if (field === "smtpSecurity") {
+      setDrafts(accountId, "smtpSecurity", (current) => cycleSecurity(current, delta))
+      return
+    }
+    if (field === "saveSent") {
+      setDrafts(accountId, "saveSent", (current) => !current)
     }
   }
 
-  const applySecret = (event: KeyEvent) => {
-    const next = applySecretKey(draft.password, event)
-    if (next !== undefined) {
-      setDraft("password", next)
+  const applyKey = (accountId: AccountId, event: KeyEvent): boolean => {
+    const next = applySecretKey(drafts[accountId]?.password ?? "", event)
+    if (next === undefined) {
+      return false
     }
+    setDrafts(accountId, "password", next)
+    return true
   }
 
-  const appendPassword = (text: string) => {
-    setDraft("password", (current: string) => current + text)
+  const restorePassword = (accountId: AccountId, password: string) => {
+    setDrafts(accountId, "password", password)
   }
 
-  const save = () => {
-    const account = options.account()
-    if (account === undefined || busy()) {
+  const save = (accountId: AccountId) => {
+    if (busyIds().has(accountId)) {
+      return
+    }
+    const account = options.accounts().find((candidate) => candidate.id === accountId)
+    const draft = drafts[accountId]
+    if (account === undefined || draft === undefined) {
       return
     }
     const result = validateEditDraft(draft)
     if (result._tag === "error") {
-      report(result.message, true)
+      options.onStatus(result.message, true)
       return
     }
-    setBusy(true)
-    report("saving…")
+    setMembership(setBusyIds, accountId, true)
+    options.onStatus("saving…")
     const program = Effect.gen(function* persistProfile() {
       const client = yield* MailClient
       yield* client.updateAccount(account.id, result.value).pipe(
         Effect.tap((updated) =>
           Effect.sync(() => {
-            setBusy(false)
-            report(`saved ${updated.label}`)
+            setMembership(setBusyIds, accountId, false)
+            options.onStatus(`saved ${updated.label}`)
             options.onSaved(updated)
           }),
         ),
         Effect.catch((error) =>
           Effect.sync(() => {
-            setBusy(false)
+            setMembership(setBusyIds, accountId, false)
             const failure = describeClientFailure(error)
             if (failure._tag === "connection") {
               options.onDisconnected(failure.message)
               return
             }
-            report(`could not save · ${failure.message}`, true)
+            options.onStatus(`could not save · ${failure.message}`, true)
           }),
         ),
       )
     })
-    options.runtime.runFork(program)
-  }
-
-  const handleKey = (event: KeyEvent): boolean => {
-    if (event.ctrl && event.name === "s") {
-      save()
-      return true
-    }
-    if (event.name === "tab") {
-      moveFocus(event.shift ? -1 : 1)
-      return true
-    }
-    if (event.name === "down" && !event.shift) {
-      moveFocus(1)
-      return true
-    }
-    if (event.name === "up" && !event.shift) {
-      moveFocus(-1)
-      return true
-    }
-    const active = focusedField()
-    if (active === undefined) {
-      return false
-    }
-    if (event.name === "return") {
-      if (focusIndex() === fields.length - 1) {
-        save()
-      } else {
-        moveFocus(1)
-      }
-      return true
-    }
-    if (active.kind === "secret") {
-      applySecret(event)
-      return true
-    }
-    if (active.kind === "security") {
-      const direction = cycleDirection(event)
-      if (direction === undefined) {
-        return false
-      }
-      cycleField(active.id, direction)
-      return true
-    }
-    if (active.kind === "boolean" && active.id === "saveSent") {
-      if (cycleDirection(event) === undefined) {
-        return false
-      }
-      setDraft("saveSent", (current) => !current)
-      return true
-    }
-    return false
+    fibers.push(options.runtime.runFork(program))
   }
 
   const dispose = () => {
-    if (usernameFiber !== null) {
-      options.runtime.runFork(Fiber.interrupt(usernameFiber))
-      usernameFiber = null
+    for (const fiber of fibers) {
+      options.runtime.runFork(Fiber.interrupt(fiber))
     }
+    fibers.length = 0
   }
 
   return {
-    appendPassword,
-    busy,
+    applyKey,
+    busy: (accountId: AccountId) => busyIds().has(accountId),
+    busyAny: () => busyIds().size > 0,
+    cycle,
     dispose,
-    fieldValue,
-    fields,
-    focusedField,
-    handleKey,
     input,
-    loading,
+    loading: (accountId: AccountId) => loadingIds().has(accountId),
+    restorePassword,
     save,
-    status,
-    statusError,
+    value,
   }
 }
 

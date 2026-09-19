@@ -225,6 +225,7 @@ const App = () => {
               sync={config().sync}
               send={config().send}
               notifications={config().notifications}
+              editor={config().editor}
               onAddAccount={beginAddAccount}
               onClose={() => {
                 setSettingsOpen(false)
@@ -234,6 +235,7 @@ const App = () => {
               onSyncSaved={settings.handleSyncSaved}
               onSendSaved={settings.handleSendSaved}
               onNotificationsSaved={settings.handleNotificationsSaved}
+              onEditorSaved={settings.handleEditorSaved}
               onDisconnected={daemon.retry}
             />
           )}
@@ -246,6 +248,7 @@ const App = () => {
               runtime={runtime}
               accounts={accounts()}
               seed={seed()}
+              editor={appConfig()?.editor ?? "builtin"}
               sendDelaySeconds={appConfig()?.send.delaySeconds ?? 0}
               onClose={flow.closeComposer}
               onDisconnected={daemon.retry}

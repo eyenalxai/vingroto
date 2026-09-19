@@ -73,13 +73,25 @@ const readEditorVariable = (name: string) =>
     ),
   )
 
+const editorCommand = (
+  visual: string | undefined,
+  editor: string | undefined,
+): readonly string[] => {
+  const value = (visual ?? editor ?? "").trim()
+  const parts = value.split(/\s+/u).filter((part) => part.length > 0)
+  return parts.length === 0 ? ["vi"] : parts
+}
+
 const resolveEditorCommand = Effect.gen(function* resolveEditorCommand() {
   const visual = yield* readEditorVariable("VISUAL")
   const editor = yield* readEditorVariable("EDITOR")
-  const value = (Option.getOrUndefined(visual) ?? Option.getOrUndefined(editor) ?? "").trim()
-  const parts = value.split(/\s+/u).filter((part) => part.length > 0)
-  return parts.length === 0 ? ["vi"] : parts
+  return editorCommand(Option.getOrUndefined(visual), Option.getOrUndefined(editor))
 })
+
+const describeSystemEditor = (): string => {
+  const [executable, ...args] = editorCommand(Bun.env.VISUAL, Bun.env.EDITOR)
+  return [path.basename(executable ?? "vi"), ...args].join(" ")
+}
 
 const writeFile = (file: string, text: string) =>
   Effect.gen(function* writeTemporaryFile() {
@@ -168,4 +180,10 @@ const editTextExternally = Effect.fn("External.editText")(function* editTextExte
   return yield* edit
 })
 
-export { editTextExternally, ExternalEditorError, ExternalOpenError, openExternal }
+export {
+  describeSystemEditor,
+  editTextExternally,
+  ExternalEditorError,
+  ExternalOpenError,
+  openExternal,
+}

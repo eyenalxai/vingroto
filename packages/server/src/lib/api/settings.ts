@@ -73,6 +73,19 @@ const SettingsHandlers = HttpApiBuilder.group(ServerApi, "settings", (handlers) 
           return toInternal(error)
         }),
       ),
+    )
+    .handle("settings.saveEditor", ({ payload }) =>
+      Settings.pipe(
+        Effect.flatMap((settings) => settings.saveEditor(payload.editor)),
+        Effect.mapError((error): InvalidRequestError | InternalError => {
+          if (error._tag === "ConfigInvalid") {
+            return new InvalidRequestError({
+              message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
+            })
+          }
+          return toInternal(error)
+        }),
+      ),
     ),
 )
 

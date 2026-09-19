@@ -1,4 +1,4 @@
-import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, EditorConfig } from "@vingroto/core/config/schema"
 import type { DraftId } from "@vingroto/core/ids"
 import type { Setter } from "solid-js"
 
@@ -30,6 +30,7 @@ interface ComposerOptions {
   readonly runtime: AppRuntime
   readonly accounts: readonly AccountConfig[]
   readonly seed: ComposerSeed
+  readonly editor: () => EditorConfig
   readonly sendDelaySeconds: number
   readonly onClose: () => void
   readonly onDisconnected: (message: string) => void
@@ -71,13 +72,19 @@ const useComposer = (options: ComposerOptions) => {
 
   const editor = useComposerEditor({
     body,
+    editor: options.editor,
     report,
     runtime: options.runtime,
     setBody,
     setField,
   })
 
-  const bodyText = () => editor.textarea()?.plainText ?? body()
+  const bodyText = () => {
+    if (options.editor() !== "builtin") {
+      return body()
+    }
+    return editor.textarea()?.plainText ?? body()
+  }
 
   const texts = (): ComposerTexts => {
     return {

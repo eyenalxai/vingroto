@@ -37,6 +37,9 @@ const createSettingsActions = (options: SettingsActionsOptions) => {
     handleAccountUpdated: (account: AccountConfig) => {
       refreshWithStatus(`account ${account.label} updated`)
     },
+    handleEditorSaved: () => {
+      refreshWithStatus("editor setting saved")
+    },
     handleNotificationsSaved: () => {
       refreshWithStatus("notification settings saved")
     },

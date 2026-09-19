@@ -46,11 +46,18 @@ const defaultSend = (): SendConfig => {
   return { delaySeconds: 60 }
 }
 
+const EditorConfig = Schema.Literals(["builtin", "system"])
+
+type EditorConfig = Schema.Schema.Type<typeof EditorConfig>
+
+const defaultEditor = (): EditorConfig => "builtin"
+
 const AppConfig = Schema.Struct({
   accounts: Schema.Array(AccountConfig),
   sync: SyncConfig,
   notifications: NotificationsConfig,
   send: SendConfig.pipe(Schema.withDecodingDefaultTypeKey(Effect.sync(defaultSend))),
+  editor: EditorConfig.pipe(Schema.withDecodingDefaultTypeKey(Effect.sync(defaultEditor))),
 })
 
 type AppConfig = Schema.Schema.Type<typeof AppConfig>
@@ -67,6 +74,7 @@ export {
   AccountConfig,
   AppConfig,
   AppConfigFile,
+  EditorConfig,
   NotificationsConfig,
   SendConfig,
   ServerConfig,

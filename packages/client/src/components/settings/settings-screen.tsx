@@ -1,31 +1,34 @@
+import type { ScrollBoxRenderable } from "@opentui/core"
 import type {
   AccountConfig,
+  EditorConfig,
   NotificationsConfig,
   SendConfig,
   SyncConfig,
 } from "@vingroto/core/config/schema"
-import type { AccountId, MailboxId } from "@vingroto/core/ids"
+import type { MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
-import { useKeyboard, useRenderer } from "@opentui/solid"
-import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 
 import { useRuntime } from "@/components/runtime-provider"
-import { SettingsDetail } from "@/components/settings/settings-detail"
+import { buildAccountSection, settingsRowId } from "@/components/settings/settings-rows"
+import { SettingsSectionView } from "@/components/settings/settings-section"
 import {
-  buildSettingsEntries,
-  groupSettingsEntries,
-  resolveSelectionKey,
-  visibleSettingsEntries,
-} from "@/components/settings/settings-entries"
-import { SettingsNav } from "@/components/settings/settings-nav"
+  buildComposerSection,
+  buildMailboxSection,
+  buildNotificationsSection,
+  buildSendingSection,
+  buildSyncSection,
+} from "@/components/settings/settings-section-builders"
 import { useAccountOrder } from "@/components/settings/use-account-order"
 import { useAccountProfile } from "@/components/settings/use-account-profile"
+import { useEditorSetting } from "@/components/settings/use-editor-setting"
 import { useNotificationsSetting } from "@/components/settings/use-notifications-setting"
 import { useSendProfile } from "@/components/settings/use-send-profile"
-import { useSettingsKeys } from "@/components/settings/use-settings-keys"
-import { useSettingsSelection } from "@/components/settings/use-settings-selection"
+import { useSettingsInput } from "@/components/settings/use-settings-input"
 import { useSyncProfile } from "@/components/settings/use-sync-profile"
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { useMailboxMute } from "@/components/use-mailbox-mute"
 
@@ -36,6 +39,7 @@ interface SettingsScreenProps {
   readonly sync: SyncConfig
   readonly send: SendConfig
   readonly notifications: NotificationsConfig
+  readonly editor: EditorConfig
   readonly onAddAccount: () => void
   readonly onClose: () => void
   readonly onAccountSaved: (account: AccountConfig) => void
@@ -43,185 +47,190 @@ interface SettingsScreenProps {
   readonly onSyncSaved: () => void
   readonly onSendSaved: () => void
   readonly onNotificationsSaved: () => void
+  readonly onEditorSaved: () => void
   readonly onDisconnected: (message: string) => void
 }
 
 const SettingsScreen = (props: SettingsScreenProps) => {
   const runtime = useRuntime()
-  const renderer = useRenderer()
   const theme = useTheme()
-  const [zone, setZone] = createSignal<"nav" | "detail">("nav")
   const [status, setStatus] = createSignal("")
-  const [collapsedMailboxes, setCollapsedMailboxes] = createSignal(new Set<AccountId>())
-  const [selectedKey, setSelectedKey] = createSignal<string | undefined>(
-    props.accounts[0] === undefined ? "add-account" : `account:${props.accounts[0].id}`,
-  )
+  const [statusError, setStatusError] = createSignal(false)
+  const [selectedKey, setSelectedKey] = createSignal<string>()
+  const [editingKey, setEditingKey] = createSignal<string>()
+  const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
+
+  const report = (message: string, error = false) => {
+    setStatus(message)
+    setStatusError(error)
+  }
 
   const accountOrder = useAccountOrder({
     runtime,
     accounts: () => props.accounts,
     onStatus: (message) => {
-      setStatus(message)
+      report(message, true)
     },
     onDisconnected: props.onDisconnected,
   })
-  const orderedAccounts = accountOrder.accounts
-  const entries = createMemo(() =>
-    buildSettingsEntries({
-      accounts: orderedAccounts(),
-      mailboxes: props.mailboxes,
-      sync: props.sync,
-      send: props.send,
-      notifications: props.notifications,
-    }),
-  )
-  const visible = createMemo(() => visibleSettingsEntries(entries(), collapsedMailboxes()))
-  const groups = createMemo(() => groupSettingsEntries(visible()))
-  const mailboxMute = useMailboxMute({
-    runtime,
-    onStatus: (message) => {
-      setStatus(message)
-    },
-    onChanged: props.onMailboxChanged,
-    onDisconnected: props.onDisconnected,
-  })
-  const mutingAccounts = createMemo(() => {
-    const muted = props.mailboxes.filter((mailbox) => mailboxMute.mutingIds().has(mailbox.id))
-    return new Set(muted.map((mailbox) => mailbox.account_id))
-  })
-  const selectedEntry = createMemo(() => visible().find((entry) => entry.key === selectedKey()))
-
-  createEffect(() => {
-    setSelectedKey((current) => resolveSelectionKey(current, visible(), entries()))
-  })
-
-  createEffect(() => {
-    if (selectedEntry()?.kind === "mailbox") {
-      setZone("nav")
-    }
-  })
-
-  const { selectedAccount, selectedAccountLabel, selectedMailbox } = useSettingsSelection({
-    entry: selectedEntry,
-    accounts: orderedAccounts,
-    mailboxes: () => props.mailboxes,
-  })
-
   const accountProfile = useAccountProfile({
     runtime,
-    account: selectedAccount,
-    active: () => zone() === "detail",
+    accounts: () => accountOrder.accounts(),
     onSaved: (account) => {
-      setStatus(`account ${account.label} saved`)
+      report(`saved ${account.label}`)
       props.onAccountSaved(account)
     },
+    onStatus: report,
+    onDisconnected: props.onDisconnected,
+  })
+  const syncProfile = useSyncProfile({
+    runtime,
+    sync: () => props.sync,
+    onSaved: () => {
+      report("sync settings saved")
+      props.onSyncSaved()
+    },
+    onStatus: report,
+    onDisconnected: props.onDisconnected,
+  })
+  const sendProfile = useSendProfile({
+    runtime,
+    send: () => props.send,
+    onSaved: () => {
+      report("sending settings saved")
+      props.onSendSaved()
+    },
+    onStatus: report,
+    onDisconnected: props.onDisconnected,
+  })
+  const editorSetting = useEditorSetting({
+    runtime,
+    editor: () => props.editor,
+    onSaved: () => {
+      props.onEditorSaved()
+    },
+    onStatus: report,
+    onDisconnected: props.onDisconnected,
+  })
+  const notificationsSetting = useNotificationsSetting({
+    runtime,
+    onStatus: report,
+    onSaved: props.onNotificationsSaved,
+    onDisconnected: props.onDisconnected,
+  })
+  const mailboxMute = useMailboxMute({
+    runtime,
+    onStatus: report,
+    onChanged: props.onMailboxChanged,
     onDisconnected: props.onDisconnected,
   })
 
   onCleanup(accountProfile.dispose)
 
-  const syncProfile = useSyncProfile({
-    runtime,
-    sync: () => props.sync,
-    onSaved: () => {
-      setStatus("sync settings saved")
-      props.onSyncSaved()
-    },
-    onDisconnected: props.onDisconnected,
-  })
+  const accountSection = createMemo(() =>
+    buildAccountSection({
+      accounts: () => accountOrder.accounts(),
+      accountOrder,
+      accountProfile,
+      onAddAccount: props.onAddAccount,
+    }),
+  )
+  const mailboxSection = createMemo(() =>
+    buildMailboxSection({
+      accounts: () => accountOrder.accounts(),
+      mailboxes: () => props.mailboxes,
+      counts: () => props.counts,
+      mailboxMute,
+    }),
+  )
+  const composerSection = createMemo(() => buildComposerSection({ editorSetting }))
+  const sendingSection = createMemo(() => buildSendingSection({ sendProfile }))
+  const syncSection = createMemo(() => buildSyncSection({ syncProfile }))
+  const notificationsSection = createMemo(() =>
+    buildNotificationsSection({
+      notifications: () => props.notifications,
+      notificationsSetting,
+    }),
+  )
 
-  const sendProfile = useSendProfile({
-    runtime,
-    send: () => props.send,
-    onSaved: () => {
-      setStatus("sending settings saved")
-      props.onSendSaved()
-    },
-    onDisconnected: props.onDisconnected,
-  })
+  const sections = [
+    accountSection,
+    mailboxSection,
+    composerSection,
+    sendingSection,
+    syncSection,
+    notificationsSection,
+  ]
 
-  const notificationsSetting = useNotificationsSetting({
-    runtime,
-    onStatus: (message) => {
-      setStatus(message)
-    },
-    onSaved: props.onNotificationsSaved,
-    onDisconnected: props.onDisconnected,
-  })
+  const rows = createMemo(() =>
+    sections.flatMap((section) => section().blocks.flatMap((block) => block.rows)),
+  )
 
-  const toggleGroup = (accountId: AccountId) => {
-    setCollapsedMailboxes((current) => {
-      const next = new Set(current)
-      if (next.has(accountId)) {
-        next.delete(accountId)
-      } else {
-        next.add(accountId)
-      }
-      return next
-    })
-  }
-
-  const settingsKeys = useSettingsKeys({
-    visible,
-    selectedEntry,
+  const { hint, selectRow } = useSettingsInput({
+    rows,
     selectedKey,
+    editingKey,
     setSelectedKey,
-    zone,
-    setZone,
-    accountOrder,
-    accountProfile,
-    syncProfile,
-    sendProfile,
-    notificationsSetting,
-    mailboxMute,
-    notifications: () => props.notifications,
-    onToggleGroup: toggleGroup,
-    onAddAccount: props.onAddAccount,
+    setEditingKey,
     onClose: props.onClose,
   })
 
-  useKeyboard((event) => {
-    if (event.ctrl && event.name === "c") {
-      event.preventDefault()
-      renderer.destroy()
-      return
-    }
-    settingsKeys.handleKey(event)
+  createEffect(() => {
+    const current = rows()
+    setSelectedKey((key) =>
+      key !== undefined && current.some((row) => row.key === key) ? key : current[0]?.key,
+    )
+    setEditingKey((key) =>
+      key !== undefined && current.some((row) => row.key === key) ? key : undefined,
+    )
   })
+
+  createEffect(() => {
+    const box = scrollBox()
+    const key = selectedKey()
+    if (box !== undefined && key !== undefined && rows().some((row) => row.key === key)) {
+      box.scrollChildIntoView(settingsRowId(key))
+    }
+  })
+
+  const pending = () =>
+    accountProfile.busyAny() ||
+    syncProfile.busy() ||
+    sendProfile.busy() ||
+    editorSetting.busy() ||
+    notificationsSetting.saving()
 
   return (
     <box flexGrow={1} flexDirection="column">
-      <box flexGrow={1} flexDirection="row" gap={1}>
-        <SettingsNav
-          groups={groups()}
-          collapsed={collapsedMailboxes()}
-          mutingIds={mailboxMute.mutingIds()}
-          mutingAccounts={mutingAccounts()}
-          selectedKey={selectedKey()}
-          onSelect={(key) => {
-            setSelectedKey(key)
-          }}
-          onActivate={settingsKeys.activateEntry}
-        />
-        <SettingsDetail
-          entry={selectedEntry()}
-          zone={zone()}
-          account={selectedAccount()}
-          mailbox={selectedMailbox()}
-          accountLabel={selectedAccountLabel()}
-          counts={props.counts}
-          accountProfile={accountProfile}
-          syncProfile={syncProfile}
-          sendProfile={sendProfile}
-          mutingIds={mailboxMute.mutingIds()}
-          notifications={props.notifications}
-          notificationsSaving={notificationsSetting.saving()}
-        />
+      <scrollbox
+        ref={(box) => {
+          setScrollBox(box)
+        }}
+        flexGrow={1}
+        paddingLeft={2}
+        paddingRight={2}
+      >
+        <For each={sections}>
+          {(section) => (
+            <SettingsSectionView
+              section={section}
+              selectedKey={selectedKey}
+              editingKey={editingKey}
+              onSelect={selectRow}
+            />
+          )}
+        </For>
+      </scrollbox>
+      <box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={1}>
+        <Show
+          when={pending()}
+          fallback={<text fg={statusError() ? theme.error : theme.muted}>{status()}</text>}
+        >
+          <Spinner label={status()} />
+        </Show>
       </box>
       <box flexShrink={0} paddingLeft={2} paddingRight={2}>
-        <text fg={theme.muted} wrapMode="none" truncate>
-          {status()}
-        </text>
+        <text fg={theme.muted}>{hint()}</text>
       </box>
     </box>
   )

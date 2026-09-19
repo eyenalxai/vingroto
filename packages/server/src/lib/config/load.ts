@@ -16,6 +16,7 @@ const emptyConfig: AppConfig = {
   sync: defaultSync,
   notifications: defaultNotifications,
   send: { delaySeconds: 60 },
+  editor: "builtin",
 }
 
 class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", {
@@ -54,6 +55,7 @@ const loadConfigFile = Effect.fnUntraced(function* loadFile(
     sync: decoded.sync ?? defaultSync,
     notifications: decoded.notifications ?? defaultNotifications,
     send: decoded.send,
+    editor: decoded.editor,
   }
   yield* Effect.logInfo("configuration loaded").pipe(
     Effect.annotateLogs({ accounts: config.accounts.length, path: configPath }),

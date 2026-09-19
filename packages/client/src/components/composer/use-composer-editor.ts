@@ -1,9 +1,10 @@
 import type { TextareaRenderable } from "@opentui/core"
+import type { EditorConfig } from "@vingroto/core/config/schema"
 import type { Setter } from "solid-js"
 
 import { useRenderer } from "@opentui/solid"
 import { Effect } from "effect"
-import { createSignal } from "solid-js"
+import { createEffect, createSignal } from "solid-js"
 
 import type { ComposerField } from "@/components/composer/composer-fields"
 import type { AppRuntime } from "@/lib/runtime"
@@ -12,6 +13,7 @@ import { editTextExternally } from "@/lib/external"
 
 interface ComposerEditorOptions {
   readonly runtime: AppRuntime
+  readonly editor: () => EditorConfig
   readonly body: () => string
   readonly setBody: Setter<string>
   readonly setField: Setter<ComposerField>
@@ -22,6 +24,13 @@ const useComposerEditor = (options: ComposerEditorOptions) => {
   const renderer = useRenderer()
   const [editing, setEditing] = createSignal(false)
   const [textarea, setTextarea] = createSignal<TextareaRenderable>()
+
+  // The textarea unmounts when the editor turns system; drop the stale renderable so the body never reads its old text.
+  createEffect(() => {
+    if (options.editor() !== "builtin") {
+      setTextarea(undefined)
+    }
+  })
 
   const editExternally = () => {
     if (editing()) {

@@ -1,5 +1,6 @@
 import type {
   AccountConfig,
+  EditorConfig,
   NotificationsConfig,
   SendConfig,
   SyncConfig,
@@ -120,6 +121,7 @@ interface MailClientShape {
     settings: NotificationsConfig,
   ) => Effect.Effect<void, MailClientError>
   readonly saveSendSettings: (settings: SendConfig) => Effect.Effect<void, MailClientError>
+  readonly saveEditorSettings: (settings: EditorConfig) => Effect.Effect<void, MailClientError>
   readonly enqueueMessage: (
     message: OutgoingMessage & { readonly draftId?: DraftId },
   ) => Effect.Effect<OutboxEntry, MailClientError>

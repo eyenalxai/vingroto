@@ -8,7 +8,7 @@ import { describeClientFailure } from "@/lib/failure"
 
 interface UseNotificationsSettingOptions {
   readonly runtime: AppRuntime
-  readonly onStatus: (message: string) => void
+  readonly onStatus: (message: string, error?: boolean) => void
   readonly onSaved: () => void
   readonly onDisconnected: (message: string) => void
 }
@@ -37,7 +37,7 @@ const useNotificationsSetting = (options: UseNotificationsSettingOptions) => {
               options.onDisconnected(failure.message)
               return
             }
-            options.onStatus(`could not update notifications · ${failure.message}`)
+            options.onStatus(`could not update notifications · ${failure.message}`, true)
           }),
         ),
       )
