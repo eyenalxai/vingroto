@@ -23,6 +23,9 @@ const partLabels: Record<RequestPart, RequestPartLabel> = {
   ResponseHeaders: { base: "response headers", prefix: "response", subject: "response header" },
 }
 
+const requestFieldPath = (part: RequestPart, field: string): string =>
+  `${partLabels[part].prefix}.${field}`
+
 interface MissingProblem {
   readonly kind: "Missing"
   readonly path: readonly PropertyKey[]
@@ -221,8 +224,8 @@ const describeRequestIssue = (part: RequestPart, issue: SchemaIssue.Issue) => {
   const message = `${shown.map((problem) => describeProblem(label, problem)).join("; ")}${extra}`
   const first = problems[0]
   const firstPath = first === undefined ? "" : formatPath(first.path)
-  const field = firstPath.length === 0 ? undefined : `${label.prefix}.${firstPath}`
+  const field = firstPath.length === 0 ? undefined : requestFieldPath(part, firstPath)
   return { field, message }
 }
 
-export { describeRequestIssue }
+export { describeRequestIssue, requestFieldPath }

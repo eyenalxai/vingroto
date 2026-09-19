@@ -10,6 +10,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Accounts } from "@/lib/accounts"
 import { ServerApi } from "@/lib/api/api"
 import { internalFailure } from "@/lib/api/internal-error"
+import { invalidField } from "@/lib/api/invalid-request"
 import { Discovery } from "@/lib/mail/autoconfig"
 
 const credentialStoreMessage = "the credential store could not be used"
@@ -69,9 +70,7 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
         Accounts.pipe(Effect.flatMap((accounts) => accounts.reorder(payload.accountIds))),
         {
           AccountOrderInvalid: (error) =>
-            Effect.fail(
-              new InvalidRequestError({ field: "body.accountIds", message: error.message }),
-            ),
+            Effect.fail(invalidField("Body", "accountIds", error.message)),
           ConfigInvalid: (error) =>
             Effect.fail(
               new InvalidRequestError({

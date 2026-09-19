@@ -9,18 +9,14 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 
 import { ServerApi } from "@/lib/api/api"
 import { internalFailure, sanitizeFailure } from "@/lib/api/internal-error"
+import { invalidField } from "@/lib/api/invalid-request"
 import { Outbox } from "@/lib/outbox"
 
 const OutboxHandlers = HttpApiBuilder.group(ServerApi, "outbox", (handlers) =>
   handlers
     .handle("outbox.enqueue", ({ payload }) => {
       if (payload.to.length === 0) {
-        return Effect.fail(
-          new InvalidRequestError({
-            field: "body.to",
-            message: "a message needs at least one recipient",
-          }),
-        )
+        return Effect.fail(invalidField("Body", "to", "a message needs at least one recipient"))
       }
       return Effect.catchTags(
         Outbox.pipe(Effect.flatMap((outbox) => outbox.enqueue(payload))),

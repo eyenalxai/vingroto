@@ -80,7 +80,7 @@ const isAddressInUse = (cause: Cause.Cause<unknown>): boolean => {
 
 const bindWithFallback = Effect.fnUntraced(function* bindApi(initialPort: number, token: string) {
   const lastPort = Math.min(maxPort, initialPort + maximumBindAttempts - 1)
-  let cause: Cause.Cause<unknown> = Cause.die(
+  let cause: Cause.Cause<HttpServerError.ServeError> = Cause.die(
     new Error(`no api port was available between ${initialPort} and ${lastPort}`),
   )
   for (let port = initialPort; port <= lastPort; port += 1) {
@@ -111,13 +111,12 @@ const ApiServer = Layer.effectDiscard(
     const token = yield* readOrCreateToken()
     const server = yield* bindWithFallback(port, token)
     const address = server.address
-    if (address._tag === "InetAddressV4" || address._tag === "InetAddressV6") {
-      yield* writeRegistration(address.port)
-      const events = yield* ServerEvents
-      yield* Effect.addFinalizer(() => events.shutdown())
-    } else {
-      yield* Effect.die(new Error(`unexpected api address tag ${address._tag}`))
+    if (address._tag !== "InetAddressV4" && address._tag !== "InetAddressV6") {
+      return yield* Effect.die(new Error(`unexpected api address tag ${address._tag}`))
     }
+    yield* writeRegistration(address.port)
+    const events = yield* ServerEvents
+    return yield* Effect.addFinalizer(() => events.shutdown())
   }),
 )
 

@@ -9,6 +9,7 @@ import {
   InvalidRequestError,
   MailboxNotFoundError,
   MessageNotFoundError,
+  UpstreamError,
 } from "./errors"
 
 const ListScope = Schema.Literals(["all", "unread", "mailbox"])
@@ -48,7 +49,7 @@ const get = HttpApiEndpoint.get("message.get", "/api/messages/:messageId", {
 const body = HttpApiEndpoint.get("message.body", "/api/messages/:messageId/body", {
   params: { messageId: MessageId },
   success: MessageBody,
-  error: [MessageNotFoundError, InvalidRequestError, InternalError],
+  error: [MessageNotFoundError, InvalidRequestError, UpstreamError, InternalError],
 }).annotateMerge(
   OpenApi.annotations({
     identifier: "message.body",

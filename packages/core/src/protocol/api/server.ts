@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 
 import { ServerStatus } from "../accounts"
+import { InternalError } from "./errors"
 
 const health = HttpApiEndpoint.get("server.health", "/api/health", {
   success: Schema.Struct({ healthy: Schema.Literal(true) }),
@@ -15,6 +16,7 @@ const health = HttpApiEndpoint.get("server.health", "/api/health", {
 
 const status = HttpApiEndpoint.get("server.status", "/api/status", {
   success: ServerStatus,
+  error: InternalError,
 }).annotateMerge(
   OpenApi.annotations({
     identifier: "server.status",

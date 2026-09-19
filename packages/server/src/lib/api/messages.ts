@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 
 import { ServerApi } from "@/lib/api/api"
-import { internalFailure, sanitizeFailure } from "@/lib/api/internal-error"
+import { internalFailure, sanitizeFailure, upstreamFailure } from "@/lib/api/internal-error"
 import { limitFromQuery, scopeFromQuery } from "@/lib/api/list-scope"
 import { MailActions } from "@/lib/mail/actions"
 import { MessageBodies } from "@/lib/mail/bodies"
@@ -51,6 +51,8 @@ const MessageHandlers = HttpApiBuilder.group(ServerApi, "messages", (handlers) =
                 message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
               }),
             ),
+          ImapError: upstreamFailure,
+          BodyParseError: upstreamFailure,
         },
         internalFailure,
       ),

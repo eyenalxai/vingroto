@@ -90,8 +90,8 @@ class InternalError extends Schema.TaggedError<InternalError>()(
   { httpApiStatus: 500 },
 ) {}
 
-class NotFoundError extends Schema.TaggedError<NotFoundError>()(
-  "NotFoundError",
+class RouteNotFoundError extends Schema.TaggedError<RouteNotFoundError>()(
+  "RouteNotFoundError",
   {
     message: Schema.String,
   },
@@ -106,8 +106,8 @@ export {
   InvalidRequestError,
   MailboxNotFoundError,
   MessageNotFoundError,
-  NotFoundError,
   OutboxNotFoundError,
+  RouteNotFoundError,
   UnauthorizedError,
   UpstreamError,
 }
