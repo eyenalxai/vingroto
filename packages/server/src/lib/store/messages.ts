@@ -1,4 +1,4 @@
-import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
+import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
 import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
@@ -22,12 +22,6 @@ interface MessageStoreInput {
   readonly envelopes: readonly MessageEnvelope[]
 }
 
-interface MessageActionTarget {
-  readonly messageId: MessageId
-  readonly accountId: AccountId
-  readonly mailboxPath: string
-  readonly uid: Uid
-}
 interface MessageStoreOutcome {
   readonly inserted: number
   readonly updated: number
@@ -157,25 +151,6 @@ const getMessage = Effect.fn("Message.get")(function* get(
   return rows[0]
 })
 
-const listMessageActionTargets = Effect.fn("Message.actionTargets")(function* actionTargets(
-  messageIds: readonly MessageId[],
-) {
-  if (messageIds.length === 0) {
-    return []
-  }
-  const database = yield* Database
-  return yield* database.client
-    .select({
-      messageId: MessageTable.id,
-      accountId: MessageTable.account_id,
-      mailboxPath: MailboxTable.path,
-      uid: MessageTable.uid,
-    })
-    .from(MessageTable)
-    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
-    .where(inArray(MessageTable.id, [...messageIds]))
-})
-
 const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes() {
   const database = yield* Database
   const totals = yield* database.client
@@ -229,12 +204,10 @@ export {
   deleteMessages,
   getMessage,
   listColumns,
-  listMessageActionTargets,
   listMessages,
   messageCounts,
   setMessagesSeen,
   storeMessages,
   type MailboxCounts,
-  type MessageActionTarget,
   type MessageStoreOutcome,
 }

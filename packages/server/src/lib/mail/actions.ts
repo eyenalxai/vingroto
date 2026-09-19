@@ -12,14 +12,18 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
-import type { MessageActionTarget } from "@/lib/store/messages"
+import type { MessageActionTarget } from "@/lib/store/message-action-targets"
 
 import { loadConfig } from "@/lib/config/load"
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
 import { Imap } from "@/lib/mail/imap"
 import { listMailboxes } from "@/lib/store/mailboxes"
-import { deleteMessages, listMessageActionTargets, setMessagesSeen } from "@/lib/store/messages"
+import {
+  listEmailActionTargets,
+  listMessageActionTargets,
+} from "@/lib/store/message-action-targets"
+import { deleteMessages, setMessagesSeen } from "@/lib/store/messages"
 
 class MessageActionError extends Schema.TaggedError<MessageActionError>()("MessageActionError", {
   message: Schema.String,
@@ -91,7 +95,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
         requests: readonly MessageActionTarget[],
         seen: boolean,
       ) {
-        const applied: MessageId[] = []
+        const updated: MessageId[] = []
         const errors: string[] = []
         for (const group of groupByMailbox(requests)) {
           yield* imap
@@ -106,7 +110,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
               Effect.tap(() =>
                 Effect.sync(() => {
                   for (const request of group.requests) {
-                    applied.push(request.messageId)
+                    updated.push(request.messageId)
                   }
                 }),
               ),
@@ -117,8 +121,8 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
               ),
             )
         }
-        yield* setMessagesSeen(applied, seen)
-        return { affected: applied.length, errors }
+        yield* setMessagesSeen(updated, seen)
+        return { errors, updated }
       })
 
       const move = Effect.fn("MailActions.move")(function* moveToMailbox(
@@ -159,11 +163,12 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
       const setSeenByIds = Effect.fn("MailActions.setSeenByIds")(
         function* applySeenByIds(ids: readonly MessageId[], seen: boolean) {
           const config = yield* loadConfig()
-          const targets = yield* listMessageActionTargets(ids)
+          const targets = yield* listEmailActionTargets(ids)
+          const requestedIds = new Set(targets.requested.map((target) => target.messageId))
           const accounts = new Map(config.accounts.map((account) => [account.id, account]))
           let affected = 0
           const errors: string[] = []
-          for (const [accountId, group] of groupByAccount(targets)) {
+          for (const [accountId, group] of groupByAccount(targets.copies)) {
             const account = accounts.get(accountId)
             if (account === undefined) {
               errors.push(`account ${accountId} is not configured`)
@@ -172,15 +177,19 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
             const outcome = yield* setSeen(account, group, seen).pipe(
               Effect.catch((error) =>
                 Effect.succeed({
-                  affected: 0,
                   errors: [`could not update the local cache · ${describeError(error)}`],
+                  updated: [],
                 }),
               ),
             )
-            affected += outcome.affected
+            for (const messageId of outcome.updated) {
+              if (requestedIds.has(messageId)) {
+                affected += 1
+              }
+            }
             errors.push(...outcome.errors)
           }
-          const missing = new Set(ids).size - targets.length
+          const missing = new Set(ids).size - targets.requested.length
           if (missing > 0) {
             errors.push(`${missing} message(s) were not found locally`)
           }

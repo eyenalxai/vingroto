@@ -12,6 +12,10 @@ _Avoid_: Profile, login
 An IMAP mailbox on a server, cached locally with its path, delimiter, special-use flags, UID validity and read state.
 _Avoid_: Folder
 
+**Copy**:
+One mailbox's cached row of an email: the row a mailbox-scoped action selects, and the mailbox-specific UID that actions inside that mailbox use. An email with several copies has one read state, while folder membership stays per copy.
+_Avoid_: Duplicate
+
 **View**:
 A virtual list of messages that is not a mailbox: All emails and All unread, globally or for one account. A view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once.
 _Avoid_: Virtual folder
