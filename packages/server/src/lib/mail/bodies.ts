@@ -4,9 +4,14 @@ import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
 import { AppPaths } from "@vingroto/core/app-paths"
 import { AccountId, MessageId } from "@vingroto/core/ids"
+import * as Cache from "effect/Cache"
 import * as Context from "effect/Context"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Equal from "effect/Equal"
+import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
+import * as Hash from "effect/Hash"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
@@ -54,6 +59,25 @@ interface MessageBodiesShape {
   >
 }
 
+const bodyCacheCapacity = 256
+const bodyTimeToLive = Duration.minutes(1)
+
+class BodyLoadKey implements Equal.Equal {
+  readonly request: BodyRequest
+
+  constructor(request: BodyRequest) {
+    this.request = request
+  }
+
+  [Equal.symbol](that: Equal.Equal): boolean {
+    return that instanceof BodyLoadKey && this.request.messageId === that.request.messageId
+  }
+
+  [Hash.symbol](): number {
+    return Hash.number(this.request.messageId)
+  }
+}
+
 class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()(
   "vingroto/lib/mail/MessageBodies",
 ) {
@@ -65,7 +89,7 @@ class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()
       const paths = yield* AppPaths
       const fs = yield* FileSystem.FileSystem
 
-      const load = Effect.fn("MessageBodies.load")(
+      const loadFromSource = Effect.fn("MessageBodies.loadFromSource")(
         function* loadBody(request: BodyRequest) {
           const annotations = {
             account: request.account.id,
@@ -100,7 +124,17 @@ class MessageBodies extends Context.Service<MessageBodies, MessageBodiesShape>()
           return body
         },
         Effect.provideService(Database, database),
+        Effect.provideService(Imap, imap),
       )
+
+      const bodies = yield* Cache.makeWith((key: BodyLoadKey) => loadFromSource(key.request), {
+        capacity: bodyCacheCapacity,
+        timeToLive: (exit) => (Exit.isSuccess(exit) ? bodyTimeToLive : Duration.zero),
+      })
+
+      const load = Effect.fn("MessageBodies.load")(function* loadBody(request: BodyRequest) {
+        return yield* Cache.get(bodies, new BodyLoadKey(request))
+      })
 
       const loadById = Effect.fn("MessageBodies.loadById")(
         function* loadById(messageId: MessageId) {

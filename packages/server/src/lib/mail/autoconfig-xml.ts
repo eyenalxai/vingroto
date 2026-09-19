@@ -1,5 +1,7 @@
 import type { ServerConfig } from "@vingroto/core/config/schema"
 
+import { describeError } from "@vingroto/core/errors"
+import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
@@ -114,12 +116,23 @@ const serverFromRecord = (
   }
 }
 
-const parseAutoconfig = (
+class AutoconfigParseError extends Schema.TaggedError<AutoconfigParseError>()(
+  "AutoconfigParseError",
+  {
+    message: Schema.String,
+    cause: Schema.optionalKey(Schema.Defect()),
+  },
+) {}
+
+const parseAutoconfig = Effect.fn("Autoconfig.parse")(function* parseAutoconfigDocument(
   xml: string,
   email: string,
   domain: string,
-): ParsedAutoconfig | undefined => {
-  const document = decodeDocument(parser.parse(xml) as unknown)
+): Effect.fn.Return<ParsedAutoconfig | undefined, AutoconfigParseError> {
+  const document = yield* Effect.try({
+    try: () => decodeDocument(parser.parse(xml)),
+    catch: (cause: unknown) => new AutoconfigParseError({ message: describeError(cause), cause }),
+  })
   if (Option.isNone(document)) {
     return undefined
   }
@@ -151,6 +164,6 @@ const parseAutoconfig = (
     ...(username === undefined ? {} : { username }),
   }
   return redirect === undefined || resolved ? { servers } : { servers, redirect }
-}
+})
 
-export { parseAutoconfig }
+export { AutoconfigParseError, parseAutoconfig }

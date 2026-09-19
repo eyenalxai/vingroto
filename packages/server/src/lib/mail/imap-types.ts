@@ -52,6 +52,7 @@ class ImapError extends Schema.TaggedError<ImapError>()("ImapError", {
   accountId: AccountId,
   operation: Schema.String,
   message: Schema.String,
+  cause: Schema.optionalKey(Schema.Defect()),
 }) {}
 
 type ImapServiceError = ImapError | CredentialError

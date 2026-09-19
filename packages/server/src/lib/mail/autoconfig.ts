@@ -2,20 +2,24 @@ import type { ServerConfig } from "@vingroto/core/config/schema"
 import type { DiscoveryResult } from "@vingroto/core/protocol/accounts"
 
 import { describeError } from "@vingroto/core/errors"
-import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import * as Schedule from "effect/Schedule"
 import { FetchHttpClient, HttpClient } from "effect/unstable/http"
 
-import type { PartialServers } from "@/lib/mail/autoconfig-types"
+import type { ParsedAutoconfig, PartialServers } from "@/lib/mail/autoconfig-types"
 
 import { srvServers } from "@/lib/mail/autoconfig-srv"
 import { parseAutoconfig } from "@/lib/mail/autoconfig-xml"
 
 const requestTimeout = Duration.seconds(10)
+
+const retrySchedule = Schedule.exponential("500 millis").pipe(
+  Schedule.jittered,
+  Schedule.upTo({ times: 2 }),
+)
 
 const hasServers = (servers: PartialServers) =>
   servers.imap !== undefined || servers.smtp !== undefined
@@ -31,21 +35,42 @@ const fetchText = Effect.fn("Discovery.fetchText")(function* fetchDocument(
   url: string,
   attempts: string[],
 ): Effect.fn.Return<string | null> {
-  const exit = yield* Effect.exit(
-    Effect.gen(function* readDocument() {
-      const response = yield* client.get(url)
+  return yield* client.get(url).pipe(
+    Effect.flatMap((response) => {
       if (response.status !== 200) {
         attempts.push(`${url} returned HTTP ${response.status}`)
-        return null
+        return Effect.succeed(null)
       }
-      return yield* response.text
-    }).pipe(Effect.timeout(requestTimeout)),
+      return response.text
+    }),
+    Effect.timeout(requestTimeout),
+    Effect.catchTags({
+      HttpClientError: (error) => {
+        attempts.push(`${url} failed: ${describeError(error)}`)
+        return Effect.succeed(null)
+      },
+      TimeoutError: () => {
+        attempts.push(`${url} timed out after ${Duration.toSeconds(requestTimeout)}s`)
+        return Effect.succeed(null)
+      },
+    }),
   )
-  if (Exit.isSuccess(exit)) {
-    return exit.value
-  }
-  attempts.push(`${url} failed: ${describeError(Cause.squash(exit.cause))}`)
-  return null
+})
+
+// A null result means the document could not be parsed, undefined that it parsed but had no servers.
+const parseProvider = Effect.fn("Discovery.parseProvider")(function* parseProvider(
+  url: string,
+  text: string,
+  email: string,
+  domain: string,
+  attempts: string[],
+): Effect.fn.Return<ParsedAutoconfig | null | undefined> {
+  return yield* parseAutoconfig(text, email, domain).pipe(
+    Effect.catchTag("AutoconfigParseError", (error) => {
+      attempts.push(`${url}: ${error.message}`)
+      return Effect.succeed(null)
+    }),
+  )
 })
 
 const autoconfigServers = Effect.fn("Discovery.autoconfigServers")(function* detectAutoconfig(
@@ -64,18 +89,22 @@ const autoconfigServers = Effect.fn("Discovery.autoconfigServers")(function* det
     if (text === null) {
       continue
     }
-    const parsed = parseAutoconfig(text, email, domain)
+    const parsed = yield* parseProvider(url, text, email, domain, attempts)
+    if (parsed === null) {
+      continue
+    }
     if (parsed === undefined) {
       attempts.push(`${url}: unrecognized provider configuration`)
       continue
     }
     if (parsed.redirect !== undefined) {
       const redirected = yield* fetchText(client, parsed.redirect, attempts)
-      if (redirected !== null) {
-        const resolved = parseAutoconfig(redirected, email, domain)
-        if (resolved !== undefined && hasServers(resolved.servers)) {
-          return resolved.servers
-        }
+      if (redirected === null) {
+        continue
+      }
+      const resolved = yield* parseProvider(parsed.redirect, redirected, email, domain, attempts)
+      if (resolved !== null && resolved !== undefined && hasServers(resolved.servers)) {
+        return resolved.servers
       }
       continue
     }
@@ -141,7 +170,12 @@ class Discovery extends Context.Service<Discovery, DiscoveryShape>()(
   static readonly layer = Layer.effect(
     Discovery,
     Effect.gen(function* makeDiscovery() {
-      const client = yield* HttpClient.HttpClient
+      const client = (yield* HttpClient.HttpClient).pipe(
+        HttpClient.retryTransient({
+          retryOn: "errors-and-responses",
+          schedule: retrySchedule,
+        }),
+      )
       return Discovery.of({
         discover: (email: string) => discover(client, email),
       })

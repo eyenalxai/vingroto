@@ -3,7 +3,9 @@ import type { Uid } from "@vingroto/core/ids"
 
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import * as Schedule from "effect/Schedule"
 import { ImapFlow } from "imapflow"
 
 import type {
@@ -21,7 +23,14 @@ import { passwordReference, usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
 import { moveMessages, updateFlags } from "@/lib/mail/imap-actions"
 import { appendToMailbox } from "@/lib/mail/imap-append"
-import { commandTimeout, connectTimeout, guard, releaseClient } from "@/lib/mail/imap-command"
+import {
+  commandTimeout,
+  connectTimeout,
+  forceCloseClient,
+  guard,
+  guardRead,
+  releaseClient,
+} from "@/lib/mail/imap-command"
 import { fetchMailboxResult } from "@/lib/mail/imap-mailbox"
 import { toMailboxInfos } from "@/lib/mail/imap-mapping"
 import {
@@ -30,6 +39,11 @@ import {
   readMessageSource,
 } from "@/lib/mail/imap-message"
 import { fetchMailboxEnvelopes, searchMailbox } from "@/lib/mail/imap-search"
+
+const connectRetrySchedule = Schedule.exponential("500 millis").pipe(
+  Schedule.jittered,
+  Schedule.upTo({ times: 2 }),
+)
 
 interface ImapShape {
   readonly listMailboxes: (
@@ -80,6 +94,26 @@ interface ImapShape {
   ) => Effect.Effect<Uid | undefined, ImapServiceError>
 }
 
+// A failed or abandoned connect leaves the socket in an unknown state.
+// Each attempt gets a fresh client and the previous one is closed before retrying.
+const connectOnce = (account: AccountConfig, username: string, password: string) =>
+  Effect.suspend(() => {
+    const client = new ImapFlow({
+      host: account.imap.host,
+      port: account.imap.port,
+      secure: account.imap.security === "tls",
+      auth: { user: username, pass: password },
+      logger: false,
+      disableAutoIdle: true,
+    })
+    return guard(account, "connect", connectTimeout, async () => client.connect()).pipe(
+      Effect.onExit((exit) =>
+        Exit.isSuccess(exit) ? Effect.void : forceCloseClient(account, client),
+      ),
+      Effect.as(client),
+    )
+  })
+
 class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") {
   static readonly layer = Layer.effect(
     Imap,
@@ -96,16 +130,9 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
         )
         const username = yield* credential.get(usernameReference(account.id))
         const password = yield* credential.get(passwordReference(account.id))
-        const client = new ImapFlow({
-          host: account.imap.host,
-          port: account.imap.port,
-          secure: account.imap.security === "tls",
-          auth: { user: username, pass: password },
-          logger: false,
-          disableAutoIdle: true,
-        })
-        yield* guard(account, "connect", connectTimeout, async () => client.connect())
-        return client
+        return yield* connectOnce(account, username, password).pipe(
+          Effect.retry(connectRetrySchedule),
+        )
       })
 
       const withClient = <A, E, R>(
@@ -123,7 +150,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
           account: AccountConfig,
         ) {
           return yield* withClient(account, (client) =>
-            guard(account, "list mailboxes", commandTimeout, async () => client.list()).pipe(
+            guardRead(account, "list mailboxes", commandTimeout, async () => client.list()).pipe(
               Effect.map((entries) => toMailboxInfos(entries)),
             ),
           )

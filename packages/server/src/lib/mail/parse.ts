@@ -13,17 +13,18 @@ class BodyParseError extends Schema.TaggedError<BodyParseError>()("BodyParseErro
   message: Schema.String,
 }) {}
 
-const parseMessageSource = (source: Buffer): Effect.Effect<ParsedMessageSource, BodyParseError> =>
-  Effect.tryPromise({
-    try: async () => {
-      const parsed = await PostalMime.parse(source)
-      return {
-        text: parsed.text ?? null,
-        html: parsed.html ?? null,
-        attachments: parsed.attachments.length,
-      }
-    },
-    catch: (cause) => new BodyParseError({ message: describeError(cause) }),
+const parseMessageSource = Effect.fn("Message.parseSource")(function* parseSource(
+  source: Buffer,
+): Effect.fn.Return<ParsedMessageSource, BodyParseError> {
+  const parsed = yield* Effect.tryPromise({
+    try: async () => PostalMime.parse(source),
+    catch: (cause: unknown) => new BodyParseError({ message: describeError(cause) }),
   })
+  return {
+    text: parsed.text ?? null,
+    html: parsed.html ?? null,
+    attachments: parsed.attachments.length,
+  }
+})
 
 export { BodyParseError, parseMessageSource, type ParsedMessageSource }

@@ -2,7 +2,9 @@ import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { AccountId, MessageId, Uid } from "@vingroto/core/ids"
 
 import { describeError } from "@vingroto/core/errors"
+import * as Cache from "effect/Cache"
 import * as Context from "effect/Context"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
@@ -18,10 +20,15 @@ interface MessagePrefetchShape {
   readonly unread: (accounts: readonly AccountConfig[]) => Effect.Effect<void>
 }
 
-interface AccountOutcome {
-  readonly fetched: number
-  readonly failed: number
+interface PrefetchState {
+  readonly running: boolean
+  readonly queued: boolean
+  readonly owner: number | undefined
 }
+
+const prefetchChunkSize = 200
+const failureTimeToLive = Duration.minutes(10)
+const failureCapacity = 1024
 
 const prefetchKey = (value: { readonly mailboxPath: string; readonly uid: Uid }) =>
   `${value.mailboxPath}\u0000${value.uid}`
@@ -59,16 +66,26 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
     Effect.gen(function* makeMessagePrefetch() {
       const database = yield* Database
       const imap = yield* Imap
-      const state = yield* Ref.make({ running: false, queued: false })
-      const failed = yield* Ref.make<ReadonlySet<MessageId>>(new Set())
+      const state = yield* Ref.make<PrefetchState>({
+        running: false,
+        queued: false,
+        owner: undefined,
+      })
+      // Bodies that fail stay skipped until their entry expires, so a sync does not retry them forever.
+      const failed = yield* Cache.make<MessageId, true>({
+        capacity: failureCapacity,
+        lookup: () => Effect.succeed(true),
+        timeToLive: failureTimeToLive,
+      })
 
-      // Bodies that fail once stay skipped for this session so that every sync does not retry them.
+      const rememberFailure = (messageId: MessageId) => Cache.set(failed, messageId, true)
+
       const recordFailure = Effect.fn("MessagePrefetch.recordFailure")(function* recordFailure(
         target: PendingBody,
         accountId: AccountId,
         reason: string,
       ) {
-        yield* Ref.update(failed, (current) => new Set(current).add(target.messageId))
+        yield* rememberFailure(target.messageId)
         yield* Effect.logWarning("body prefetch failed").pipe(
           Effect.annotateLogs({
             account: accountId,
@@ -89,12 +106,18 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
             return { mailboxPath: target.mailboxPath, uid: target.uid }
           }),
         )
-        const targetsByKey = new Map(targets.map((target) => [prefetchKey(target), target]))
+        const resultsByKey = new Map(results.map((result) => [prefetchKey(result), result]))
         let fetched = 0
         let failedCount = 0
-        for (const result of results) {
-          const target = targetsByKey.get(prefetchKey(result))
-          if (target === undefined) {
+        for (const target of targets) {
+          const result = resultsByKey.get(prefetchKey(target))
+          if (result === undefined) {
+            failedCount += 1
+            yield* recordFailure(
+              target,
+              account.id,
+              "the server returned no result for this message",
+            )
             continue
           }
           if (result._tag === "error") {
@@ -117,17 +140,11 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
         return { fetched, failed: failedCount }
       })
 
-      const runPass = Effect.fn("MessagePrefetch.runPass")(function* runPass(
+      const runChunk = Effect.fn("MessagePrefetch.runChunk")(function* runChunk(
         accounts: readonly AccountConfig[],
+        targets: readonly PendingBody[],
       ) {
-        const pending = yield* listPendingBodies()
-        const skipped = yield* Ref.get(failed)
-        const targets = pending.filter((target) => !skipped.has(target.messageId))
-        if (targets.length === 0) {
-          yield* Effect.logDebug("no unread bodies to prefetch")
-          return
-        }
-        yield* Effect.logInfo("prefetching unread bodies").pipe(
+        yield* Effect.logDebug("prefetching unread bodies").pipe(
           Effect.annotateLogs({ messages: targets.length }),
         )
         let fetched = 0
@@ -138,14 +155,26 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
             yield* Effect.logDebug("skipping bodies of an unconfigured account").pipe(
               Effect.annotateLogs({ account: accountId, messages: rows.length }),
             )
+            for (const target of rows) {
+              yield* rememberFailure(target.messageId)
+            }
             continue
           }
           const outcome = yield* runAccount(account, rows).pipe(
             Effect.catch((error) =>
-              Effect.logWarning("body prefetch failed for an account").pipe(
-                Effect.annotateLogs({ account: accountId, reason: describeError(error) }),
-                Effect.as<AccountOutcome>({ fetched: 0, failed: 0 }),
-              ),
+              Effect.gen(function* failChunk() {
+                for (const target of rows) {
+                  yield* rememberFailure(target.messageId)
+                }
+                yield* Effect.logWarning("body prefetch failed for an account").pipe(
+                  Effect.annotateLogs({
+                    account: accountId,
+                    messages: rows.length,
+                    reason: describeError(error),
+                  }),
+                )
+                return { fetched: 0, failed: rows.length }
+              }),
             ),
           )
           fetched += outcome.fetched
@@ -156,12 +185,43 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
         )
       })
 
+      const runSnapshot = Effect.fn("MessagePrefetch.runSnapshot")(function* runSnapshot(
+        accounts: readonly AccountConfig[],
+      ) {
+        const pending = yield* listPendingBodies().pipe(
+          Effect.catch((error) =>
+            Effect.logWarning("body prefetch query failed").pipe(
+              Effect.annotateLogs({ reason: describeError(error) }),
+              Effect.as<readonly PendingBody[]>([]),
+            ),
+          ),
+        )
+        let index = 0
+        while (index < pending.length) {
+          const chunk: PendingBody[] = []
+          while (index < pending.length && chunk.length < prefetchChunkSize) {
+            const target = pending[index]
+            index += 1
+            if (target === undefined || (yield* Cache.has(failed, target.messageId))) {
+              continue
+            }
+            chunk.push(target)
+          }
+          if (chunk.length > 0) {
+            yield* runChunk(accounts, chunk)
+          }
+        }
+      })
+
       const unread = Effect.fn("MessagePrefetch.unread")(
         function* prefetchUnread(accounts: readonly AccountConfig[]) {
-          const alreadyRunning = yield* Ref.modify(state, (current) =>
-            current.running
-              ? [true, { running: true, queued: true }]
-              : [false, { running: true, queued: false }],
+          const owner = yield* Effect.fiberId
+          const alreadyRunning = yield* Ref.modify(
+            state,
+            (current): readonly [boolean, PrefetchState] =>
+              current.running
+                ? [true, { ...current, queued: true }]
+                : [false, { running: true, queued: false, owner }],
           )
           if (alreadyRunning) {
             return
@@ -169,19 +229,26 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
           yield* Effect.gen(function* drainPrefetch() {
             let again = true
             while (again) {
-              yield* runPass(accounts).pipe(
-                Effect.catch((error) =>
-                  Effect.logWarning("body prefetch query failed").pipe(
-                    Effect.annotateLogs({ reason: describeError(error) }),
-                  ),
-                ),
-              )
-              again = yield* Ref.modify(state, (current) => [
-                current.queued,
-                { running: current.queued, queued: false },
-              ])
+              yield* runSnapshot(accounts)
+              again = yield* Ref.modify(state, (current): readonly [boolean, PrefetchState] => {
+                if (current.owner !== owner) {
+                  return [false, current]
+                }
+                if (current.queued) {
+                  return [true, { running: true, queued: false, owner }]
+                }
+                return [false, { running: false, queued: false, owner: undefined }]
+              })
             }
-          }).pipe(Effect.ensuring(Ref.set(state, { running: false, queued: false })))
+          }).pipe(
+            Effect.ensuring(
+              Ref.update(state, (current) =>
+                current.owner === owner
+                  ? { running: false, queued: false, owner: undefined }
+                  : current,
+              ),
+            ),
+          )
         },
         Effect.provideService(Database, database),
       )
