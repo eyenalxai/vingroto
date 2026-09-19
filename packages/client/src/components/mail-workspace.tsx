@@ -4,6 +4,7 @@ import type { AccountId } from "@vingroto/core/ids"
 import type { Draft } from "@vingroto/core/protocol/outgoing"
 import type { Setter } from "solid-js"
 
+import { BunServices } from "@effect/platform-bun"
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { Effect } from "effect"
 import { Show, createMemo, createSignal } from "solid-js"
@@ -156,7 +157,8 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
         ),
       )
     })
-    runtime.runFork(program)
+    // The runtime keeps platform services private, so opening a browser brings its own Bun layer.
+    runtime.runFork(program.pipe(Effect.provide(BunServices.layer)))
   }
 
   return (

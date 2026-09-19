@@ -12,6 +12,7 @@ import type {
   FieldId,
   TextFieldId,
 } from "@/components/setup/form-model"
+import type { AppRuntimeError } from "@/lib/runtime"
 
 import { useRuntime } from "@/components/runtime-provider"
 import {
@@ -42,7 +43,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
   const [discovering, setDiscovering] = createSignal(false)
   const [source, setSource] = createSignal<string | undefined>()
   const [serversEdited, setServersEdited] = createSignal(false)
-  let discoveryFiber: Fiber.Fiber<unknown, unknown> | null = null
+  let discoveryFiber: Fiber.Fiber<void, AppRuntimeError> | null = null
 
   const report = (message: string, isError = false) => {
     setStatus(message)

@@ -1,15 +1,22 @@
+import type { HttpClientResponse } from "effect/unstable/http"
+import type { HttpMethod } from "effect/unstable/http/HttpMethod"
+
 import { describeError } from "@vingroto/core/errors"
 import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
+import { FetchHttpClient } from "effect/unstable/http"
+import * as HttpBody from "effect/unstable/http/HttpBody"
+import * as HttpClient from "effect/unstable/http/HttpClient"
+import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
+import { STATUS_CODES } from "node:http"
 import { EOL } from "node:os"
 
 interface ApiRequest {
-  readonly method: string
+  readonly method: HttpMethod
   readonly path: string
 }
-
-const newlineByte = 10
 
 const ResponseMessage = Schema.Struct({ message: Schema.String })
 
@@ -33,67 +40,75 @@ const responseMessage = (body: string) => {
   return Result.isSuccess(result) ? result.success.message : undefined
 }
 
-const streamBody = async (response: Response) => {
-  if (response.body === null) {
-    return
-  }
-  let last = -1
-  for await (const value of response.body) {
-    if (value.length === 0) {
-      continue
-    }
-    process.stdout.write(value)
-    last = value.at(-1) ?? last
-  }
-  if (last !== -1 && last !== newlineByte) {
-    process.stdout.write(EOL)
-  }
-}
-
 const sendRequest = (
   url: string,
   request: ApiRequest,
   headers: Headers,
   body: string | undefined,
 ) =>
-  Effect.tryPromise({
-    try: async () =>
-      fetch(new URL(request.path, url), {
-        body: body ?? null,
-        headers,
-        method: request.method,
-      }),
-    catch: (cause) =>
-      new DaemonUnreachable({
-        message: `could not reach the vingroto daemon at ${url}: ${describeError(cause)}`,
-      }),
-  })
+  HttpClient.execute(
+    HttpClientRequest.make(request.method)(new URL(request.path, url), {
+      headers,
+      ...(body === undefined
+        ? {}
+        : { body: HttpBody.text(body, headers.get("content-type") ?? "application/json") }),
+    }),
+  ).pipe(
+    Effect.provide(FetchHttpClient.layer),
+    Effect.mapError(
+      (cause) =>
+        new DaemonUnreachable({
+          message: `could not reach the vingroto daemon at ${url}: ${describeError(cause)}`,
+        }),
+    ),
+  )
 
-const streamResponse = (response: Response) =>
-  Effect.tryPromise({
-    try: async () => streamBody(response),
-    catch: (cause) =>
-      new DaemonUnreachable({
-        message: `could not read the response body: ${describeError(cause)}`,
-      }),
-  })
+const streamResponse = (response: HttpClientResponse.HttpClientResponse) =>
+  Effect.gen(function* streamResponseBody() {
+    let last = ""
+    yield* response.stream.pipe(
+      Stream.decodeText(),
+      Stream.runForEach((chunk) =>
+        Effect.sync(() => {
+          if (chunk.length === 0) {
+            return
+          }
+          process.stdout.write(chunk)
+          last = chunk
+        }),
+      ),
+    )
+    if (last.length > 0 && !last.endsWith(EOL)) {
+      process.stdout.write(EOL)
+    }
+  }).pipe(
+    Effect.mapError(
+      (cause) =>
+        new DaemonUnreachable({
+          message: `could not read the response body: ${describeError(cause)}`,
+        }),
+    ),
+  )
 
 const reportFailure = Effect.fnUntraced(function* reportFailure(
   request: ApiRequest,
-  response: Response,
+  response: HttpClientResponse.HttpClientResponse,
 ) {
-  const text = yield* Effect.tryPromise({
-    try: async () => response.text(),
-    catch: (cause) =>
-      new DaemonUnreachable({
-        message: `could not read the response body: ${describeError(cause)}`,
-      }),
-  })
+  const text = yield* response.text.pipe(
+    Effect.mapError(
+      (cause) =>
+        new DaemonUnreachable({
+          message: `could not read the response body: ${describeError(cause)}`,
+        }),
+    ),
+  )
   if (text.length > 0) {
     process.stdout.write(text.endsWith(EOL) ? text : `${text}${EOL}`)
   }
   const detail = responseMessage(text)
-  const status = `HTTP ${response.status}${response.statusText.length === 0 ? "" : ` ${response.statusText}`}`
+  // HttpClientResponse does not expose the reason phrase, so it comes from Node's standard table.
+  const statusText = STATUS_CODES[response.status] ?? ""
+  const status = `HTTP ${response.status}${statusText.length === 0 ? "" : ` ${statusText}`}`
   yield* errorLine(
     3,
     `${request.method} ${request.path} failed with ${status}${detail === undefined ? "" : `: ${detail}`}`,

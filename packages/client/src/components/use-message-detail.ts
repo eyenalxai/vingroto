@@ -2,6 +2,7 @@ import type { MessageId } from "@vingroto/core/ids"
 import type { MessageDetail } from "@vingroto/core/protocol/mail"
 
 import { Effect, Fiber } from "effect"
+import * as Option from "effect/Option"
 import { createEffect, createSignal, onCleanup } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
@@ -43,7 +44,7 @@ const useMessageDetail = (options: MessageDetailOptions) => {
         const value = yield* client.getMessage(messageId)
         yield* Effect.sync(() => {
           if (options.selectedMessageId() === messageId) {
-            setDetail(value ?? undefined)
+            setDetail(Option.getOrUndefined(value))
           }
         })
       }).pipe(

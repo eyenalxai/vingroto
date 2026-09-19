@@ -2,7 +2,6 @@ import type { AccountConfig, AppConfig } from "@vingroto/core/config/schema"
 import type { MailboxId } from "@vingroto/core/ids"
 
 import { useRenderer } from "@opentui/solid"
-import { Effect } from "effect"
 import { Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import type { Pane } from "@/components/pane-layout"
@@ -61,7 +60,7 @@ const App = () => {
     config: appConfig,
     connected: () => connected(),
     onConfigChanged: () => {
-      runtime.runFork(Effect.promise(async () => daemon.refresh()))
+      runtime.runFork(daemon.refresh)
     },
     onDisconnected: (message: string) => {
       daemon.retry(message)

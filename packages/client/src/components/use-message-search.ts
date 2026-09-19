@@ -1,10 +1,10 @@
 import type { ListScope, MessageListItem, MessageTarget } from "@vingroto/core/protocol/mail"
 
-import { Effect } from "effect"
+import { Duration, Effect, Fiber } from "effect"
 import { createSignal, onCleanup, untrack } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
-import type { AppRuntime } from "@/lib/runtime"
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
@@ -30,7 +30,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
   const [hasMore, setHasMore] = createSignal(false)
   const [windowSize, setWindowSize] = createSignal(searchWindowSize)
   let loadToken = 0
-  let remoteTimer: ReturnType<typeof setTimeout> | null = null
+  let remoteFiber: Fiber.Fiber<void, AppRuntimeError> | null = null
 
   const active = () => query().length > 0
 
@@ -51,15 +51,15 @@ const useMessageSearch = (options: MessageSearchOptions) => {
     options.onStatus(`${label} · ${failure.message}`)
   }
 
-  const clearRemoteTimer = () => {
-    if (remoteTimer !== null) {
-      clearTimeout(remoteTimer)
-      remoteTimer = null
+  const cancelRemote = () => {
+    if (remoteFiber !== null) {
+      options.runtime.runFork(Fiber.interrupt(remoteFiber))
+      remoteFiber = null
     }
   }
 
-  const runRemote = (scope: ListScope, value: string) => {
-    const program = Effect.gen(function* startRemoteSearch() {
+  const remoteSearch = (scope: ListScope, value: string): Effect.Effect<void, never, MailClient> =>
+    Effect.gen(function* startRemoteSearch() {
       const client = yield* MailClient
       yield* client.startSearch(scope, value)
     }).pipe(
@@ -71,18 +71,15 @@ const useMessageSearch = (options: MessageSearchOptions) => {
         onSuccess: () => Effect.void,
       }),
     )
-    options.runtime.runFork(program)
-  }
 
   const scheduleRemote = (scope: ListScope, value: string) => {
-    clearRemoteTimer()
+    cancelRemote()
     if (value.trim().length < minimumRemoteQueryLength || queryTerms(value).length === 0) {
       return
     }
-    remoteTimer = setTimeout(() => {
-      remoteTimer = null
-      runRemote(scope, value)
-    }, remoteSearchDelayMs)
+    remoteFiber = options.runtime.runFork(
+      remoteSearch(scope, value).pipe(Effect.delay(Duration.millis(remoteSearchDelayMs))),
+    )
   }
 
   const loadResults = (advance: boolean) => {
@@ -128,7 +125,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
     setWindowSize(searchWindowSize)
     setHasMore(false)
     options.onQueryChanged()
-    clearRemoteTimer()
+    cancelRemote()
     if (next.length === 0) {
       return
     }
@@ -148,7 +145,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
   }
 
   const cancel = () => {
-    clearRemoteTimer()
+    cancelRemote()
     setEditing(false)
     setQuery("")
     setWindowSize(searchWindowSize)
@@ -194,7 +191,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
     options.runtime.runFork(program)
   }
 
-  onCleanup(clearRemoteTimer)
+  onCleanup(cancelRemote)
 
   return {
     active,

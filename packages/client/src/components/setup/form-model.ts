@@ -2,6 +2,8 @@ import type { KeyEvent } from "@opentui/core"
 import type { ServerConfig } from "@vingroto/core/config/schema"
 import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
 
+import * as Data from "effect/Data"
+
 type Security = "tls" | "starttls" | "none"
 
 type TextFieldId =
@@ -42,13 +44,19 @@ interface AccountDraft {
   saveSent: boolean
 }
 
-type ValidationResult =
-  | { readonly _tag: "ok"; readonly value: NewAccount }
-  | { readonly _tag: "error"; readonly message: string }
+type ValidationResult = Data.TaggedEnum<{
+  ok: { readonly value: NewAccount }
+  error: { readonly message: string }
+}>
 
-type EditValidationResult =
-  | { readonly _tag: "ok"; readonly value: AccountSave }
-  | { readonly _tag: "error"; readonly message: string }
+const validationResult = Data.taggedEnum<ValidationResult>()
+
+type EditValidationResult = Data.TaggedEnum<{
+  ok: { readonly value: AccountSave }
+  error: { readonly message: string }
+}>
+
+const editValidationResult = Data.taggedEnum<EditValidationResult>()
 
 const credentialFields = [
   { id: "email", label: "Email", kind: "text", placeholder: "you@example.com" },
@@ -182,25 +190,27 @@ interface Profile {
   readonly smtp: ServerConfig
 }
 
-type ProfileResult =
-  | { readonly _tag: "ok"; readonly value: Profile }
-  | { readonly _tag: "error"; readonly message: string }
+type ProfileResult = Data.TaggedEnum<{
+  ok: { readonly value: Profile }
+  error: { readonly message: string }
+}>
+
+const profileResult = Data.taggedEnum<ProfileResult>()
 
 const validateProfile = (draft: AccountDraft): ProfileResult => {
   const imapPort = parsePort(draft.imapPort)
   if (draft.imapHost.trim().length === 0 || imapPort === undefined) {
-    return { _tag: "error", message: "enter a valid IMAP host and port" }
+    return profileResult.error({ message: "enter a valid IMAP host and port" })
   }
   const smtpPort = parsePort(draft.smtpPort)
   if (draft.smtpHost.trim().length === 0 || smtpPort === undefined) {
-    return { _tag: "error", message: "enter a valid SMTP host and port" }
+    return profileResult.error({ message: "enter a valid SMTP host and port" })
   }
   const email = draft.email.trim()
   const label = draft.label.trim()
   const name = draft.name.trim()
   const username = draft.username.trim().length === 0 ? email : draft.username.trim()
-  return {
-    _tag: "ok",
+  return profileResult.ok({
     value: {
       label: label.length === 0 ? email : label,
       ...(name.length === 0 ? {} : { name }),
@@ -216,40 +226,38 @@ const validateProfile = (draft: AccountDraft): ProfileResult => {
         security: draft.smtpSecurity,
       },
     },
-  }
+  })
 }
 
 const validateDraft = (draft: AccountDraft): ValidationResult => {
   const email = draft.email.trim()
   if (!emailPattern.test(email)) {
-    return { _tag: "error", message: "enter a valid email address" }
+    return validationResult.error({ message: "enter a valid email address" })
   }
   if (draft.password.length === 0) {
-    return { _tag: "error", message: "enter the account password" }
+    return validationResult.error({ message: "enter the account password" })
   }
   const profile = validateProfile(draft)
   if (profile._tag === "error") {
-    return profile
+    return validationResult.error({ message: profile.message })
   }
-  return {
-    _tag: "ok",
+  return validationResult.ok({
     value: { email, password: draft.password, ...profile.value, saveSent: draft.saveSent },
-  }
+  })
 }
 
 const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
   const profile = validateProfile(draft)
   if (profile._tag === "error") {
-    return profile
+    return editValidationResult.error({ message: profile.message })
   }
-  return {
-    _tag: "ok",
+  return editValidationResult.ok({
     value: {
       ...profile.value,
       saveSent: draft.saveSent,
       ...(draft.password.length === 0 ? {} : { password: draft.password }),
     },
-  }
+  })
 }
 
 export {

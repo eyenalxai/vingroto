@@ -1,6 +1,7 @@
 import type { Draft, OutboxEntry } from "@vingroto/core/protocol/outgoing"
 
 import { Effect } from "effect"
+import * as DateTime from "effect/DateTime"
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
@@ -30,7 +31,7 @@ const useOutboxView = (options: OutboxViewOptions) => {
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [loading, setLoading] = createSignal(false)
   const [armed, setArmed] = createSignal<ArmedAction | undefined>()
-  const [now, setNow] = createSignal(Date.now())
+  const [now, setNow] = createSignal(DateTime.nowUnsafe().epochMilliseconds)
   let armTimer: ReturnType<typeof setTimeout> | null = null
   let loadToken = 0
 
@@ -251,9 +252,9 @@ const useOutboxView = (options: OutboxViewOptions) => {
     }
     setSelectedIndex(0)
     disarm()
-    setNow(Date.now())
+    setNow(DateTime.nowUnsafe().epochMilliseconds)
     const timer = setInterval(() => {
-      setNow(Date.now())
+      setNow(DateTime.nowUnsafe().epochMilliseconds)
     }, 1000)
     onCleanup(() => {
       clearInterval(timer)

@@ -43,7 +43,7 @@ import type {
   OutgoingMessage,
   OutboxEntry,
 } from "@vingroto/core/protocol/outgoing"
-import type { Effect, Stream } from "effect"
+import type { Effect, Option, Stream } from "effect"
 import type { HttpClientError } from "effect/unstable/http"
 
 import * as Context from "effect/Context"
@@ -52,6 +52,7 @@ import * as Schema from "effect/Schema"
 import type { DaemonError } from "@/lib/daemon"
 
 class ClientDefect extends Schema.TaggedError<ClientDefect>()("ClientDefect", {
+  operation: Schema.String,
   message: Schema.String,
 }) {}
 
@@ -81,7 +82,9 @@ interface MailClientShape {
     scope: ListScope,
     limit: number,
   ) => Effect.Effect<readonly MessageListItem[], MailClientError>
-  readonly getMessage: (id: MessageId) => Effect.Effect<MessageDetail | null, MailClientError>
+  readonly getMessage: (
+    id: MessageId,
+  ) => Effect.Effect<Option.Option<MessageDetail>, MailClientError>
   readonly loadBody: (id: MessageId) => Effect.Effect<MessageBody, MailClientError>
   readonly setSeen: (
     ids: readonly MessageId[],
@@ -112,7 +115,7 @@ interface MailClientShape {
     id: AccountId,
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, MailClientError>
-  readonly accountUsername: (id: AccountId) => Effect.Effect<string | null, MailClientError>
+  readonly accountUsername: (id: AccountId) => Effect.Effect<Option.Option<string>, MailClientError>
   readonly reorderAccounts: (
     accountIds: readonly AccountId[],
   ) => Effect.Effect<void, MailClientError>

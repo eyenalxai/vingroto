@@ -16,7 +16,6 @@ import type { useMailboxMute } from "@/components/use-mailbox-mute"
 
 import { sendFields } from "@/components/settings/use-send-profile"
 import { syncFields } from "@/components/settings/use-sync-profile"
-import { describeSystemEditor } from "@/lib/external"
 
 interface MailboxSectionInput {
   readonly accounts: () => readonly AccountConfig[]
@@ -28,6 +27,7 @@ interface MailboxSectionInput {
 
 interface ComposerSectionInput {
   readonly editorSetting: ReturnType<typeof useEditorSetting>
+  readonly systemEditor: () => string
 }
 
 interface SendingSectionInput {
@@ -97,7 +97,6 @@ const buildMailboxSection = (input: MailboxSectionInput): SettingsSection => {
 }
 
 const buildComposerSection = (input: ComposerSectionInput): SettingsSection => {
-  const systemEditor = describeSystemEditor()
   return {
     key: "composer",
     title: "Composer",
@@ -109,7 +108,7 @@ const buildComposerSection = (input: ComposerSectionInput): SettingsSection => {
         key: "editor",
         label: "Editor",
         value: () =>
-          input.editorSetting.value() === "system" ? `system (${systemEditor})` : "builtin",
+          input.editorSetting.value() === "system" ? `system (${input.systemEditor()})` : "builtin",
         cycle: (delta) => {
           input.editorSetting.cycle(delta)
         },

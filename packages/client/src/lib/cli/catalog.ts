@@ -1,9 +1,25 @@
+import type { HttpMethod as RequestMethod } from "effect/unstable/http/HttpMethod"
+
 import { Api } from "@vingroto/core/protocol/api"
 import { OpenApi } from "effect/unstable/httpapi"
 
 const httpMethods = ["delete", "get", "head", "options", "patch", "post", "put"] as const
 
 type HttpMethod = (typeof httpMethods)[number]
+
+// Why: the catalog iterates the OpenAPI document with lowercase method names.
+// Effect requests carry the uppercase union, and this mapping keeps the two in sync at compile time.
+const requestMethodByCatalogMethod = {
+  delete: "DELETE",
+  get: "GET",
+  head: "HEAD",
+  options: "OPTIONS",
+  patch: "PATCH",
+  post: "POST",
+  put: "PUT",
+} as const satisfies Record<HttpMethod, RequestMethod>
+
+const requestMethod = (method: HttpMethod): RequestMethod => requestMethodByCatalogMethod[method]
 
 interface CatalogParameter {
   readonly name: string
@@ -15,7 +31,7 @@ interface CatalogParameter {
 
 interface CatalogOperation {
   readonly operationId: string
-  readonly method: string
+  readonly method: RequestMethod
   readonly path: string
   readonly summary: string | undefined
   readonly description: string | undefined
@@ -62,7 +78,7 @@ const buildCatalog = (): readonly CatalogOperation[] => {
         bodyRequired: operation.requestBody?.required === true,
         description: operation.description,
         fragment: operation,
-        method: method.toUpperCase(),
+        method: requestMethod(method),
         operationId: operation.operationId,
         parameters: operation.parameters.map((parameter) => {
           return {
@@ -143,6 +159,7 @@ export {
   paramCompletions,
   paths,
   placeholderFor,
+  requestMethod,
   requiredParameters,
   usageOf,
   type CatalogOperation,

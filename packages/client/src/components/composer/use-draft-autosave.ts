@@ -8,7 +8,7 @@ import type { PersistOutcome, RecipientParse } from "@/components/composer/compo
 import type { ComposerTexts } from "@/components/composer/composer-fields"
 import type { MailClientError } from "@/lib/api"
 import type { ComposerSeed } from "@/lib/mail/compose"
-import type { AppRuntime } from "@/lib/runtime"
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
 import { saveDraft } from "@/components/composer/composer-draft"
 
@@ -26,7 +26,7 @@ interface DraftAutosaveOptions {
 const autosaveDelay = "1 seconds"
 
 const useDraftAutosave = (options: DraftAutosaveOptions) => {
-  let autosave: Fiber.Fiber<void, unknown> | null = null
+  let autosave: Fiber.Fiber<void, AppRuntimeError> | null = null
 
   const cancel = () => {
     if (autosave !== null) {
@@ -66,9 +66,7 @@ const useDraftAutosave = (options: DraftAutosaveOptions) => {
 
   const schedule = () => {
     cancel()
-    autosave = options.runtime.runFork(
-      Effect.sleep(autosaveDelay).pipe(Effect.andThen(autosaveDraft)),
-    )
+    autosave = options.runtime.runFork(autosaveDraft.pipe(Effect.delay(autosaveDelay)))
   }
 
   onCleanup(cancel)

@@ -1,10 +1,10 @@
+import type { AppPathsShape } from "@vingroto/core/app-paths"
+import type * as FileSystem from "effect/FileSystem"
 import type { PlatformError } from "effect/PlatformError"
 
-import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
 import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
@@ -65,6 +65,11 @@ interface DaemonTarget {
   readonly token: string
 }
 
+interface DaemonEnvironment {
+  readonly paths: AppPathsShape
+  readonly fs: FileSystem.FileSystem
+}
+
 interface ResolveDaemonOptions {
   readonly server?: string | undefined
   readonly token?: string | undefined
@@ -114,16 +119,16 @@ const readEnvironment = Effect.fnUntraced(function* readEnvironment(name: string
 })
 
 const resolveDaemon = Effect.fn("Daemon.resolve")(function* resolveDaemon(
+  environment: DaemonEnvironment,
   options: ResolveDaemonOptions,
 ) {
-  const paths = yield* AppPaths
-  const fs = yield* FileSystem.FileSystem
   const envServer = yield* readEnvironment("VINGROTO_SERVER")
   const envToken = yield* readEnvironment("VINGROTO_TOKEN")
   const server = options.server ?? Option.getOrUndefined(envServer)
   const token = options.token ?? Option.getOrUndefined(envToken)
-  const url = server ?? (yield* readRegistration(fs, paths.registration)).url
-  const value = token ?? (yield* readToken(fs, paths.token))
+  const url =
+    server ?? (yield* readRegistration(environment.fs, environment.paths.registration)).url
+  const value = token ?? (yield* readToken(environment.fs, environment.paths.token))
   return { url, token: value }
 })
 
