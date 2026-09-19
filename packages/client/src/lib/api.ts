@@ -1,4 +1,4 @@
-import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
 import type {
   AccountSave,
@@ -86,6 +86,9 @@ interface MailClientShape {
   ) => Effect.Effect<AccountConfig, MailClientError>
   readonly accountUsername: (id: AccountId) => Effect.Effect<string | null, MailClientError>
   readonly saveSyncSettings: (settings: SyncConfig) => Effect.Effect<void, MailClientError>
+  readonly saveNotifications: (
+    settings: NotificationsConfig,
+  ) => Effect.Effect<void, MailClientError>
   readonly events: Stream.Stream<ServerEvent, MailClientError>
 }
 

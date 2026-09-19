@@ -1,5 +1,5 @@
 import type { KeyEvent } from "@opentui/core"
-import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
@@ -16,20 +16,24 @@ import {
 } from "@/components/settings/settings-entries"
 import { SettingsNav } from "@/components/settings/settings-nav"
 import { useAccountProfile } from "@/components/settings/use-account-profile"
-import { useMailboxMute } from "@/components/settings/use-mailbox-mute"
+import { useNotificationsSetting } from "@/components/settings/use-notifications-setting"
+import { useSettingsSelection } from "@/components/settings/use-settings-selection"
 import { useSyncProfile } from "@/components/settings/use-sync-profile"
 import { useTheme } from "@/components/theme-provider"
+import { useMailboxMute } from "@/components/use-mailbox-mute"
 
 interface SettingsScreenProps {
   readonly accounts: readonly AccountConfig[]
   readonly mailboxes: readonly Mailbox[]
   readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly sync: SyncConfig
+  readonly notifications: NotificationsConfig
   readonly onAddAccount: () => void
   readonly onClose: () => void
   readonly onAccountSaved: (account: AccountConfig) => void
   readonly onMailboxChanged: () => void
   readonly onSyncSaved: () => void
+  readonly onNotificationsSaved: () => void
   readonly onDisconnected: (message: string) => void
 }
 
@@ -49,6 +53,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       accounts: props.accounts,
       mailboxes: props.mailboxes,
       sync: props.sync,
+      notifications: props.notifications,
     }),
   )
   const visible = createMemo(() => visibleSettingsEntries(entries(), collapsedMailboxes()))
@@ -77,33 +82,10 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     }
   })
 
-  const selectedAccount = createMemo(() => {
-    const entry = selectedEntry()
-    return entry?.kind === "account"
-      ? props.accounts.find((account) => account.id === entry.accountId)
-      : undefined
-  })
-
-  const selectedMailboxEntry = createMemo(() => {
-    const entry = selectedEntry()
-    return entry?.kind === "mailbox" ? entry : undefined
-  })
-
-  const selectedMailbox = createMemo(() => {
-    const entry = selectedMailboxEntry()
-    return entry === undefined
-      ? undefined
-      : props.mailboxes.find((mailbox) => mailbox.id === entry.mailboxId)
-  })
-
-  const selectedAccountLabel = createMemo(() => {
-    const entry = selectedMailboxEntry()
-    if (entry === undefined) {
-      return ""
-    }
-    return (
-      props.accounts.find((account) => account.id === entry.accountId)?.label ?? entry.accountId
-    )
+  const { selectedAccount, selectedAccountLabel, selectedMailbox } = useSettingsSelection({
+    entry: selectedEntry,
+    accounts: () => props.accounts,
+    mailboxes: () => props.mailboxes,
   })
 
   const accountProfile = useAccountProfile({
@@ -126,6 +108,15 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       setStatus("sync settings saved")
       props.onSyncSaved()
     },
+    onDisconnected: props.onDisconnected,
+  })
+
+  const notificationsSetting = useNotificationsSetting({
+    runtime,
+    onStatus: (message) => {
+      setStatus(message)
+    },
+    onSaved: props.onNotificationsSaved,
     onDisconnected: props.onDisconnected,
   })
 
@@ -229,6 +220,13 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       }
       return true
     }
+    if (entry?.kind === "notifications") {
+      if (event.name === "return" || event.name === "space") {
+        event.preventDefault()
+        notificationsSetting.toggle(!props.notifications.enabled)
+      }
+      return true
+    }
     return false
   }
 
@@ -269,6 +267,8 @@ const SettingsScreen = (props: SettingsScreenProps) => {
           accountProfile={accountProfile}
           syncProfile={syncProfile}
           mutingIds={mailboxMute.mutingIds()}
+          notifications={props.notifications}
+          notificationsSaving={notificationsSetting.saving()}
         />
       </box>
       <box flexShrink={0} paddingLeft={2} paddingRight={2}>

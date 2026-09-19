@@ -12,6 +12,7 @@ import type { MailClientError } from "@/lib/api"
 import type { MailboxTreeRow } from "@/lib/mail/mailbox-tree"
 import type { AppRuntime } from "@/lib/runtime"
 
+import { useMailboxMute } from "@/components/use-mailbox-mute"
 import { useMessageActions } from "@/components/use-message-actions"
 import { useMessagePane } from "@/components/use-message-pane"
 import { useServerEvents } from "@/components/use-server-events"
@@ -32,6 +33,7 @@ interface MailStoreOptions {
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
   readonly onConfigChanged: () => void
+  readonly onNewMail: (mailbox: Mailbox) => void
 }
 
 const withoutId = (current: ReadonlySet<MailboxId>, id: MailboxId) =>
@@ -44,7 +46,6 @@ const useMailStore = (options: MailStoreOptions) => {
   const [selectedListKey, setSelectedListKey] = createSignal<string | undefined>()
   const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<AccountId>>(new Set())
   const [loadingMailboxes, setLoadingMailboxes] = createSignal(false)
-  const [mutingMailboxIds, setMutingMailboxIds] = createSignal<ReadonlySet<MailboxId>>(new Set())
   const [syncingMailboxIds, setSyncingMailboxIds] = createSignal<ReadonlySet<MailboxId>>(new Set())
   let mailboxLoadToken = 0
 
@@ -152,37 +153,20 @@ const useMailStore = (options: MailStoreOptions) => {
     markedMessages: messagePane.markedMessages,
   })
 
+  const mailboxMute = useMailboxMute({
+    runtime: options.runtime,
+    onStatus: options.onStatus,
+    onChanged: loadMailboxData,
+    onDisconnected: options.onDisconnected,
+  })
+
   const toggleMailboxMuted = () => {
     const mailbox = selectedMailbox()
     if (mailbox === undefined) {
       options.onStatus("select a mailbox to mute")
       return
     }
-    const muted = !mailbox.muted
-    setMutingMailboxIds((current) => new Set(current).add(mailbox.id))
-    const program = Effect.gen(function* muteMailbox() {
-      const client = yield* MailClient
-      yield* client.setMailboxMuted(mailbox.id, muted).pipe(
-        Effect.tap(() =>
-          Effect.sync(() => {
-            options.onStatus(muted ? `${mailbox.name} muted` : `${mailbox.name} unmuted`)
-            loadMailboxData()
-          }),
-        ),
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            reportFailure("could not update the mailbox", error)
-          }),
-        ),
-      )
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          setMutingMailboxIds((current) => withoutId(current, mailbox.id))
-        }),
-      ),
-    )
-    options.runtime.runFork(program)
+    mailboxMute.toggleMute(mailbox.id, mailbox.name, mailbox.muted)
   }
 
   const moveRowSelection = (delta: number) => {
@@ -224,6 +208,14 @@ const useMailStore = (options: MailStoreOptions) => {
       } else {
         const id = mailboxIdFor(event.accountId, event.path)
         setSyncingMailboxIds((current) => (id === undefined ? current : withoutId(current, id)))
+      }
+      if (event._tag === "mailbox-done" && event.stored > 0) {
+        const mailbox = mailboxes().find(
+          (row) => row.account_id === event.accountId && row.path === event.path,
+        )
+        if (mailbox !== undefined) {
+          options.onNewMail(mailbox)
+        }
       }
       loadMailboxData()
       const target = parseListKey(selectedListKey())
@@ -282,7 +274,7 @@ const useMailStore = (options: MailStoreOptions) => {
     mailboxTreeRows,
     loadingMailboxes,
     mailboxes,
-    mutingMailboxIds,
+    mutingMailboxIds: mailboxMute.mutingIds,
     selectedListKey,
     selectedMailboxTreeRow,
     selectedMailbox,

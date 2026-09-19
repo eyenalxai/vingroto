@@ -176,6 +176,8 @@ const ClientLayer = Layer.unwrap(
       loadBody: (id) => guard(api.messages["message.body"]({ params: { messageId: id } })),
       moveMessages: (ids, targetMailboxId) =>
         guard(api.messages["message.move"]({ payload: { ids, targetMailboxId } })),
+      saveNotifications: (settings) =>
+        guard(api.settings["settings.saveNotifications"]({ payload: settings })),
       saveSyncSettings: (settings) =>
         guard(api.settings["settings.saveSyncSettings"]({ payload: settings })),
       setMailboxMuted: (mailboxId, muted) =>

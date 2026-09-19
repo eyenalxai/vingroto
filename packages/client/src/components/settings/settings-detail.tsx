@@ -1,4 +1,4 @@
-import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, NotificationsConfig } from "@vingroto/core/config/schema"
 import type { MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
@@ -11,6 +11,7 @@ import type { useSyncProfile } from "@/components/settings/use-sync-profile"
 import { MailboxDetail } from "@/components/settings/mailbox-detail"
 import { SettingsForm } from "@/components/settings/settings-form"
 import { syncFields } from "@/components/settings/use-sync-profile"
+import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 
 interface SettingsDetailProps {
@@ -23,6 +24,8 @@ interface SettingsDetailProps {
   readonly accountProfile: ReturnType<typeof useAccountProfile>
   readonly syncProfile: ReturnType<typeof useSyncProfile>
   readonly mutingIds: ReadonlySet<MailboxId>
+  readonly notifications: NotificationsConfig | undefined
+  readonly notificationsSaving: boolean
 }
 
 const SettingsDetail = (props: SettingsDetailProps) => {
@@ -84,6 +87,36 @@ const SettingsDetail = (props: SettingsDetailProps) => {
             muting={props.mutingIds.has(mailbox().id)}
           />
         )}
+      </Show>
+      <Show when={props.entry?.kind === "notifications"}>
+        <box
+          flexGrow={1}
+          flexDirection="column"
+          gap={1}
+          paddingLeft={2}
+          paddingRight={2}
+          paddingTop={1}
+        >
+          <box flexDirection="row" gap={1}>
+            <box width={15} flexShrink={0}>
+              <text fg={theme.muted}>Enabled</text>
+            </box>
+            <Show
+              when={props.notificationsSaving}
+              fallback={
+                <Show
+                  when={props.notifications?.enabled === true}
+                  fallback={<text fg={theme.muted}>no</text>}
+                >
+                  <text fg={theme.unread}>yes</text>
+                </Show>
+              }
+            >
+              <Spinner />
+            </Show>
+          </box>
+          <text fg={theme.muted}>⏎ toggle · esc back</text>
+        </box>
       </Show>
       <Show when={props.entry?.kind === "mailbox-group"}>
         <box

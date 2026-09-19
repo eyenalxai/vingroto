@@ -1,8 +1,8 @@
-import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
-type SettingsSection = "Accounts" | "Mailboxes" | "Sync"
+type SettingsSection = "Accounts" | "Mailboxes" | "Sync" | "Notifications"
 
 interface SettingsEntryBase {
   readonly key: string
@@ -25,6 +25,7 @@ type SettingsEntry =
       readonly muted: boolean
     })
   | (SettingsEntryBase & { readonly kind: "sync" })
+  | (SettingsEntryBase & { readonly kind: "notifications" })
 
 interface SettingsGroup {
   readonly section: SettingsSection
@@ -35,9 +36,10 @@ interface SettingsEntriesInput {
   readonly accounts: readonly AccountConfig[]
   readonly mailboxes: readonly Mailbox[]
   readonly sync: SyncConfig
+  readonly notifications: NotificationsConfig
 }
 
-const sectionOrder: readonly SettingsSection[] = ["Accounts", "Mailboxes", "Sync"]
+const sectionOrder: readonly SettingsSection[] = ["Accounts", "Mailboxes", "Sync", "Notifications"]
 
 const mailboxGroupKey = (accountId: AccountId) => `mailboxes:${accountId}`
 
@@ -90,13 +92,22 @@ const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEnt
       })
     }
   }
-  entries.push({
-    kind: "sync",
-    key: "sync",
-    section: "Sync",
-    title: "Sync settings",
-    subtitle: `${input.sync.initialDays} days back · every ${input.sync.intervalMinutes} min`,
-  })
+  entries.push(
+    {
+      kind: "sync",
+      key: "sync",
+      section: "Sync",
+      title: "Sync settings",
+      subtitle: `${input.sync.initialDays} days back · every ${input.sync.intervalMinutes} min`,
+    },
+    {
+      kind: "notifications",
+      key: "notifications",
+      section: "Notifications",
+      title: "Notifications",
+      subtitle: input.notifications.enabled ? "enabled" : "disabled",
+    },
+  )
   return entries
 }
 

@@ -1,9 +1,9 @@
 import type { AccountConfig, AppConfig } from "@vingroto/core/config/schema"
-import type { AccountId, MailboxId } from "@vingroto/core/ids"
+import type { MailboxId } from "@vingroto/core/ids"
 
 import { useRenderer } from "@opentui/solid"
 import { Effect } from "effect"
-import { Show, createEffect, createMemo, createSignal, untrack } from "solid-js"
+import { Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import type { Pane } from "@/components/pane-layout"
 import type { MoveTargetsResult } from "@/lib/mail/move"
@@ -16,8 +16,8 @@ import { AccountSetup } from "@/components/setup/account-setup"
 import { StartupScreen } from "@/components/startup-screen"
 import { useDaemonStatus } from "@/components/use-daemon-status"
 import { useMailStore } from "@/components/use-mail-store"
-import { MailClient } from "@/lib/api"
-import { describeClientFailure } from "@/lib/failure"
+import { useMailSyncWindow } from "@/components/use-mail-sync"
+import { useNewMailNotifications } from "@/components/use-new-mail-notifications"
 import { resolveMoveTargets } from "@/lib/mail/move"
 import { clearSelection, isCollapsedSelection } from "@/lib/selection"
 
@@ -28,7 +28,6 @@ const App = () => {
   const renderer = useRenderer()
   const daemon = useDaemonStatus(runtime)
   const [status, setStatus] = createSignal("ready")
-  const [syncing, setSyncing] = createSignal(false)
   const [addingAccount, setAddingAccount] = createSignal(false)
   const [settingsOpen, setSettingsOpen] = createSignal(false)
   const [moving, setMoving] = createSignal<MoveTargets | undefined>()
@@ -40,6 +39,12 @@ const App = () => {
   })
 
   const accounts = createMemo<readonly AccountConfig[]>(() => appConfig()?.accounts ?? [])
+
+  const notifications = useNewMailNotifications({
+    runtime,
+    accounts,
+    enabled: () => appConfig()?.notifications.enabled ?? false,
+  })
 
   const configError = createMemo((): string | undefined => {
     const value = daemon.status()
@@ -77,80 +82,24 @@ const App = () => {
     onDisconnected: (message: string) => {
       daemon.retry(message)
     },
+    onNewMail: notifications.notify,
     onStatus: (value: string) => {
       setStatus(value)
     },
     runtime,
   })
 
-  const syncWindow = (paths?: readonly string[], accountId?: AccountId) => {
-    untrack(() => {
-      const config = appConfig()
-      if (config === undefined || syncing()) {
-        return
-      }
-      const accountsToSync =
-        accountId === undefined
-          ? config.accounts
-          : config.accounts.filter((account) => account.id === accountId)
-      if (accountsToSync.length === 0) {
-        return
-      }
-      setSyncing(true)
-      setStatus(paths === undefined ? "syncing all mailboxes" : `syncing ${paths.join(", ")}`)
-      const program = Effect.gen(function* runSync() {
-        const syncRequest = { paths: paths?.join(",") ?? "all", account: accountId ?? "all" }
-        yield* Effect.logInfo("sync requested").pipe(Effect.annotateLogs(syncRequest))
-        const client = yield* MailClient
-        const request = {
-          ...(accountId === undefined ? {} : { accountId }),
-          ...(paths === undefined ? {} : { paths }),
-        }
-        const result = yield* client.sync(request).pipe(Effect.result)
-        if (result._tag === "Failure") {
-          yield* Effect.sync(() => {
-            const failure = describeClientFailure(result.failure)
-            if (failure._tag === "connection") {
-              daemon.retry(failure.message)
-              return
-            }
-            setStatus(`sync failed · ${failure.message}`)
-          })
-          return
-        }
-        const errors: string[] = []
-        let stored = 0
-        for (const report of result.success) {
-          stored += report.stored
-          for (const message of report.errors) {
-            errors.push(message)
-          }
-        }
-        const failure = errors[0]
-        const message =
-          failure === undefined
-            ? stored === 0
-              ? "up to date"
-              : `synced · ${stored} new`
-            : errors.length > 1
-              ? `sync failed · ${failure} (+${errors.length - 1} more)`
-              : `sync failed · ${failure}`
-        yield* Effect.sync(() => setStatus(message))
-        const failureMessage = errors.join(" · ")
-        yield* errors.length > 0
-          ? Effect.logWarning("sync failed").pipe(Effect.annotateLogs({ errors: failureMessage }))
-          : Effect.logInfo("sync finished").pipe(Effect.annotateLogs({ stored }))
-      }).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            setSyncing(false)
-            store.loadMailboxData()
-          }),
-        ),
-      )
-      runtime.runFork(program)
-    })
-  }
+  const sync = useMailSyncWindow({
+    runtime,
+    config: appConfig,
+    onStatus: (value: string) => {
+      setStatus(value)
+    },
+    onDisconnected: (message: string) => {
+      daemon.retry(message)
+    },
+    onFinished: store.loadMailboxData,
+  })
 
   const refreshConfig = async () => {
     await daemon.refresh()
@@ -161,7 +110,9 @@ const App = () => {
     setAddingAccount(false)
     setStatus(`account ${account.label} saved · syncing`)
     runtime.runFork(
-      Effect.promise(async () => daemon.refresh()).pipe(Effect.andThen(Effect.sync(syncWindow))),
+      Effect.promise(async () => daemon.refresh()).pipe(
+        Effect.andThen(Effect.sync(sync.syncWindow)),
+      ),
     )
   }
 
@@ -172,6 +123,11 @@ const App = () => {
 
   const handleSyncSaved = () => {
     setStatus("sync settings saved")
+    runtime.runFork(Effect.promise(refreshConfig))
+  }
+
+  const handleNotificationsSaved = () => {
+    setStatus("notification settings saved")
     runtime.runFork(Effect.promise(refreshConfig))
   }
 
@@ -199,11 +155,11 @@ const App = () => {
     if (mailbox === undefined || mailbox.synced_at !== null) {
       return
     }
-    if (autoSyncedMailboxes.has(mailbox.id) || syncing()) {
+    if (autoSyncedMailboxes.has(mailbox.id) || sync.syncing()) {
       return
     }
     autoSyncedMailboxes.add(mailbox.id)
-    syncWindow([mailbox.path], mailbox.account_id)
+    sync.syncWindow([mailbox.path], mailbox.account_id)
   })
 
   return (
@@ -228,12 +184,12 @@ const App = () => {
         <MailWorkspace
           store={store}
           accounts={accounts()}
-          syncing={syncing()}
+          syncing={sync.syncing()}
           pane={pane()}
           onPaneChange={setPane}
           connection={daemon.failure()}
           status={status()}
-          syncWindow={syncWindow}
+          syncWindow={sync.syncWindow}
           onStatus={(value) => {
             setStatus(value)
           }}
@@ -266,6 +222,7 @@ const App = () => {
               mailboxes={store.visibleMailboxes()}
               counts={store.counts()}
               sync={config().sync}
+              notifications={config().notifications}
               onAddAccount={beginAddAccount}
               onClose={() => {
                 setSettingsOpen(false)
@@ -273,6 +230,7 @@ const App = () => {
               onAccountSaved={handleAccountUpdated}
               onMailboxChanged={store.loadMailboxData}
               onSyncSaved={handleSyncSaved}
+              onNotificationsSaved={handleNotificationsSaved}
               onDisconnected={daemon.retry}
             />
           )}
