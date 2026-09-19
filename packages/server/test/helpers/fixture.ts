@@ -7,6 +7,7 @@ import { AppPaths } from "@vingroto/core/app-paths"
 import { Uid } from "@vingroto/core/ids"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Logger from "effect/Logger"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -79,7 +80,10 @@ const makeFixture = async (): Promise<Fixture> => {
     token: path.join(runtimeDir, "token"),
     lock: path.join(runtimeDir, "server.lock"),
   })
-  const platform = Layer.merge(Layer.succeed(AppPaths, paths), BunServices.layer)
+  const platform = Layer.merge(
+    Layer.merge(Layer.succeed(AppPaths, paths), BunServices.layer),
+    Logger.layer([]),
+  )
   const layers: Layer.Layer<FixtureServices, FixtureError> = Layer.merge(
     platform,
     Database.layer.pipe(Layer.provide(platform)),
