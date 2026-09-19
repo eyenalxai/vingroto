@@ -172,7 +172,7 @@ The window splits into three panes: mailboxes, the message list and the reader. 
 | 64 - 109 | mailboxes plus the focused pane (list or reader) |
 | < 64     | only the focused pane                            |
 
-The mailbox pane starts with two virtual views, **All emails** and **All unread**, computed from the cached messages of every account, then the **Outbox** and **Drafts** rows with the number of pending messages and saved drafts (a count of zero has no badge). A virtual view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen lists the same mailboxes per account as mute toggles, with the unread count beside each row.
+The mailbox pane groups its rows with blank lines: the two virtual views, **All emails** and **All unread**, computed from the cached messages of every account; then the **Outbox** and **Drafts** rows with the number of pending messages and saved drafts (a count of zero has no badge); then a rule and the accounts. A virtual view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once. Each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups the same mailboxes per account, expanding into mute toggles with the unread count beside each row.
 
 The Outbox and Drafts are views of the workspace, not screens: selecting one shows its entries in the list pane and a read-only preview of the selected entry in the reader pane. Pending rows tick every second towards their send time (`sends in 42s`, `sending…` once it is due, and `retry in 42s · N attempts · failed: …` after a failure); draft rows show when they were last updated. In the Outbox `enter` reads the message in the reader and `s` twice releases it to send now, `x` cancels it into drafts; in Drafts `enter` reopens the draft in the composer and `d` twice deletes it. `escape` steps back to the mailbox pane, and the mail-only keys (`/`, `m`, `space`, `ctrl+a`, `r`, `u`, the read `s`) do not act in these views.
 
@@ -218,7 +218,7 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 
 `c` opens a full-screen composer from any mail pane. The first field is **From**, defaulting to the first account in the config file; `left`/`right` (or `up`/`down`) cycle between accounts. `To`, `Cc` and `Bcc` take addresses separated by commas or semicolons, each optionally as `Name <address>`; an address that does not parse is refused with an inline error instead of being sent. `tab` and `shift+tab` move between fields and `enter` moves on from a header field. The body follows the **Editor** setting in settings: with `builtin` (the default) it is a textarea that wraps, scrolls and accepts pasted text, and `enter` inserts a newline; with `system` the body row reads `enter to edit in <editor>` and `enter` opens `$VISUAL`, then `$EDITOR`, then `vi`, with the TUI suspended, and puts the saved text back into the body. `ctrl+s` queues the message and the footer reports `queued · sends in 60s` from the daemon's answer; `escape` closes the composer once the draft is saved, unless the message is already queued; `ctrl+c` quits.
 
-`r` replies to the selected message and `R` replies to all of them, from the list or the reader. The composer prefills the sender, reply-all adds the original recipients minus your own address and duplicates, the subject gains `Re:` when it does not have one, the `In-Reply-To` and `References` headers are carried over, and the body quotes the original after an attribution line with the cursor at the top.
+`r` replies to the selected message and `shift+r` replies to all of them, from the list or the reader. The composer prefills the sender, reply-all adds the original recipients minus your own address and duplicates, the subject gains `Re:` when it does not have one, the `In-Reply-To` and `References` headers are carried over, and the body quotes the original after an attribution line with the cursor at the top.
 
 The composer autosaves a draft a second after the last change; an empty message is not saved, a draft that becomes empty is deleted, and a draft can be saved without recipients. The composer's drafts and the daemon's outbox are listed in the workspace: `ctrl+x o` selects the **Outbox** view and `ctrl+x d` the **Drafts** view, each in the message list pane beside the mail. Both views reload on every daemon change and their rows tick every second, so a message the worker has sent disappears on its own and one that becomes due turns into `sending…`.
 
@@ -236,7 +236,7 @@ The composer autosaves a draft a second after the last change; an empty message 
 | `enter` (composer body)                       | open the body in the system editor when the Editor setting is `system`                               |
 | `space`                                       | mailboxes: collapse the account · settings: fold a group or cycle the row · list: select the message |
 | `r`                                           | list, reader: reply                                                                                  |
-| `R`                                           | list, reader: reply all                                                                              |
+| `shift+r`                                     | list, reader: reply all                                                                              |
 | `s`                                           | list, reader: mark read · outbox: send now (press twice)                                             |
 | `u`                                           | list, reader: mark unread                                                                            |
 | `m`                                           | list: move to another mailbox                                                                        |
@@ -253,7 +253,7 @@ The composer autosaves a draft a second after the last change; an empty message 
 | `ctrl+x` `s`                                  | settings                                                                                             |
 | `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                                                            |
 
-`ctrl+x` is the leader: press it, then the action key. The secondary bindings are listed in the status bar while it waits.
+`ctrl+x` is the leader: press it, then the action key. The secondary bindings are listed in the status bar while it waits. `ctrl+c` quits from every screen; while a text selection is active it copies the selection to the terminal clipboard instead.
 
 ## Commands
 

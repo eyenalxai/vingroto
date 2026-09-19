@@ -33,7 +33,7 @@ The mailbox pane groups its virtual views the way they are used: **All emails** 
 
 Every full-screen view ends with the shared `StatusBar`: the first row reserves a two-column spinner slot and carries the status message, further rows carry the key hints. The message uses `theme.text`, or `theme.error` with `error` when the status is a failure; the spinner appears only while something is in flight, and hints wrap instead of truncating. Hints are lowercase, separate bindings with `·`, and spell keys as `⏎`, `esc`, `ctrl+s`, `shift+↑↓`.
 
-Hints that pair an `esc` close with the quit say `ctrl+c quit app`, never a bare `ctrl+c quit`, so closing a screen is never confused with quitting. `ctrl+c` quits the TUI immediately from every screen and never closes the current screen (ADR-0021).
+Hints that pair an `esc` close with the quit say `ctrl+c quit app`, never a bare `ctrl+c quit`, so closing a screen is never confused with quitting. `ctrl+c` quits the TUI immediately from every screen and never closes the current screen; while a text selection is active it copies that selection to the terminal clipboard instead (ADR-0021).
 
 ## Empty, loading and narrow states
 
