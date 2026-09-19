@@ -1,10 +1,11 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { OutgoingMessage } from "@vingroto/core/protocol/outgoing"
-import type { SendMailOptions } from "nodemailer"
+import type { Mail, SendMailOptions } from "nodemailer"
 
 import { describeError } from "@vingroto/core/errors"
 import { AccountId } from "@vingroto/core/ids"
 import * as Context from "effect/Context"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -32,6 +33,9 @@ interface MailerShape {
   ) => Effect.Effect<Buffer, SmtpError>
 }
 
+const sendDeadline = Duration.minutes(2)
+const compileDeadline = Duration.seconds(30)
+
 const buildMessage = (account: AccountConfig, message: OutgoingMessage): SendMailOptions => {
   const recipients = [...message.to, ...message.cc, ...message.bcc].map((entry) => entry.address)
   return {
@@ -53,6 +57,40 @@ const buildMessage = (account: AccountConfig, message: OutgoingMessage): SendMai
 const toSmtpError = (account: AccountConfig, cause: unknown) =>
   new SmtpError({ accountId: account.id, message: describeError(cause), cause })
 
+const deadlineError = (account: AccountConfig, operation: string, deadline: Duration.Duration) =>
+  new SmtpError({
+    accountId: account.id,
+    message: `${operation} timed out after ${Duration.toSeconds(deadline)}s`,
+    cause: undefined,
+  })
+
+// Nodemailer has no AbortSignal support, so closing the transport is how an interrupted send is stopped.
+const withTransport = <T>(
+  account: AccountConfig,
+  operation: string,
+  deadline: Duration.Duration,
+  transport: Mail<T>,
+  message: SendMailOptions,
+): Effect.Effect<T, SmtpError> =>
+  Effect.tryPromise({
+    try: async (signal) => {
+      const close = () => {
+        transport.close()
+      }
+      signal.addEventListener("abort", close, { once: true })
+      try {
+        return await transport.sendMail(message)
+      } finally {
+        signal.removeEventListener("abort", close)
+        transport.close()
+      }
+    },
+    catch: (cause: unknown) => toSmtpError(account, cause),
+  }).pipe(
+    Effect.timeout(deadline),
+    Effect.catchTag("TimeoutError", () => Effect.fail(deadlineError(account, operation, deadline))),
+  )
+
 class Mailer extends Context.Service<Mailer, MailerShape>()("vingroto/lib/mail/Mailer") {
   static readonly layer = Layer.effect(
     Mailer,
@@ -72,12 +110,13 @@ class Mailer extends Context.Service<Mailer, MailerShape>()("vingroto/lib/mail/M
           requireTLS: account.smtp.security === "starttls",
           auth: { user: username, pass: password },
         })
-        yield* Effect.tryPromise({
-          try: async () => {
-            await transport.sendMail(buildMessage(account, message))
-          },
-          catch: (cause: unknown) => toSmtpError(account, cause),
-        })
+        yield* withTransport(
+          account,
+          "sending the message",
+          sendDeadline,
+          transport,
+          buildMessage(account, message),
+        )
       })
 
       const compile = Effect.fn("Mailer.compile")(function* compileMessage(
@@ -85,10 +124,13 @@ class Mailer extends Context.Service<Mailer, MailerShape>()("vingroto/lib/mail/M
         message: OutgoingMessage,
       ) {
         const transport = createTransport({ streamTransport: true, buffer: true })
-        const output = yield* Effect.tryPromise({
-          try: async () => transport.sendMail(buildMessage(account, message)),
-          catch: (cause: unknown) => toSmtpError(account, cause),
-        })
+        const output = yield* withTransport(
+          account,
+          "compiling the message",
+          compileDeadline,
+          transport,
+          buildMessage(account, message),
+        )
         if (!Buffer.isBuffer(output.message)) {
           return yield* new SmtpError({
             accountId: account.id,

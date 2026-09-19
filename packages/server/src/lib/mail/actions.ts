@@ -12,6 +12,9 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
+import type { KeyringError } from "@/lib/credential/keyring"
+import type { CredentialNotFound } from "@/lib/credential/service"
+import type { ImapError } from "@/lib/mail/imap-types"
 import type { MessageActionTarget } from "@/lib/store/message-action-targets"
 
 import { loadConfig } from "@/lib/config/load"
@@ -78,6 +81,32 @@ const groupByAccount = (requests: readonly MessageActionTarget[]) => {
   return groups
 }
 
+const imapFailureHandlers = (account: AccountConfig, mailboxPath: string, errors: string[]) => {
+  return {
+    ImapError: (error: ImapError) =>
+      Effect.sync(() => {
+        errors.push(
+          `account ${account.id} mailbox ${mailboxPath}: ${error.operation} failed: ${error.message}`,
+        )
+      }),
+    KeyringError: (error: KeyringError) =>
+      Effect.sync(() => {
+        errors.push(
+          `account ${account.id} mailbox ${mailboxPath}: credential ${error.operation} failed: ${error.message}`,
+        )
+      }),
+    CredentialNotFound: (error: CredentialNotFound) =>
+      Effect.sync(() => {
+        errors.push(`account ${account.id} mailbox ${mailboxPath}: ${error.message}`)
+      }),
+  }
+}
+
+const cacheFailure = (account: AccountConfig, error: unknown, errors: string[]) =>
+  Effect.sync(() => {
+    errors.push(`account ${account.id}: could not update the local cache · ${describeError(error)}`)
+  })
+
 class MailActions extends Context.Service<MailActions, MailActionsShape>()(
   "vingroto/lib/mail/MailActions",
 ) {
@@ -114,14 +143,14 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
                   }
                 }),
               ),
-              Effect.catch((error) =>
-                Effect.sync(() => {
-                  errors.push(`${group.mailboxPath}: ${describeError(error)}`)
-                }),
-              ),
+              Effect.catchTags(imapFailureHandlers(account, group.mailboxPath, errors)),
             )
         }
-        yield* setMessagesSeen(updated, seen)
+        yield* setMessagesSeen(updated, seen).pipe(
+          Effect.catchTag("EffectDrizzleQueryError", (error) =>
+            cacheFailure(account, error, errors),
+          ),
+        )
         return { errors, updated }
       })
 
@@ -149,14 +178,14 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
                   }
                 }),
               ),
-              Effect.catch((error) =>
-                Effect.sync(() => {
-                  errors.push(`${group.mailboxPath}: ${describeError(error)}`)
-                }),
-              ),
+              Effect.catchTags(imapFailureHandlers(account, group.mailboxPath, errors)),
             )
         }
-        yield* deleteMessages(moved)
+        yield* deleteMessages(moved).pipe(
+          Effect.catchTag("EffectDrizzleQueryError", (error) =>
+            cacheFailure(account, error, errors),
+          ),
+        )
         return { moved: moved.length, skipped: requests.length - eligible.length, errors }
       })
 
@@ -174,14 +203,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
               errors.push(`account ${accountId} is not configured`)
               continue
             }
-            const outcome = yield* setSeen(account, group, seen).pipe(
-              Effect.catch((error) =>
-                Effect.succeed({
-                  errors: [`could not update the local cache · ${describeError(error)}`],
-                  updated: [],
-                }),
-              ),
-            )
+            const outcome = yield* setSeen(account, group, seen)
             for (const messageId of outcome.updated) {
               if (requestedIds.has(messageId)) {
                 affected += 1
@@ -208,13 +230,13 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
           const target = mailboxes.find((row) => row.id === targetMailboxId)
           if (target === undefined) {
             return yield* new MessageActionError({
-              message: `mailbox ${targetMailboxId} was not found`,
+              message: `moving messages: mailbox ${targetMailboxId} was not found`,
             })
           }
           const accountIds = new Set(targets.map((entry) => entry.accountId))
           if (accountIds.size > 1) {
             return yield* new MessageActionError({
-              message: "messages from several accounts cannot be moved in one request",
+              message: `moving messages: copies belong to ${accountIds.size} accounts, which cannot be moved in one request`,
             })
           }
           const sourceAccountId = accountIds.values().next().value
@@ -225,18 +247,10 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
           const account = config.accounts.find((entry) => entry.id === sourceAccountId)
           if (account === undefined) {
             return yield* new MessageActionError({
-              message: `account ${sourceAccountId} is not configured`,
+              message: `moving messages: account ${sourceAccountId} is not configured`,
             })
           }
-          const outcome = yield* move(account, targets, target.path).pipe(
-            Effect.catch((error) =>
-              Effect.succeed({
-                moved: 0,
-                skipped: 0,
-                errors: [`could not update the local cache · ${describeError(error)}`],
-              }),
-            ),
-          )
+          const outcome = yield* move(account, targets, target.path)
           yield* events.publish({ _tag: "data-changed" })
           return outcome
         },

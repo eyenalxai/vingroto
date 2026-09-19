@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect"
 
 import type { ImapError, MessageEnvelope } from "@/lib/mail/imap-types"
 
-import { commandTimeout, guard, withMailboxLock } from "@/lib/mail/imap-command"
+import { commandTimeout, guardRead, withMailboxLock } from "@/lib/mail/imap-command"
 import { fetchEnvelopes } from "@/lib/mail/imap-mailbox"
 
 const searchMailbox = Effect.fn("Imap.searchMailbox")(function* searchMailboxUids(
@@ -27,7 +27,7 @@ const searchMailbox = Effect.fn("Imap.searchMailbox")(function* searchMailboxUid
     Effect.gen(function* searchInsideMailbox() {
       const found = yield* Effect.all(
         terms.map((term) =>
-          guard(account, `search ${mailboxPath}`, commandTimeout, async () =>
+          guardRead(account, `search ${mailboxPath}`, commandTimeout, async () =>
             client.search(
               {
                 text: term,

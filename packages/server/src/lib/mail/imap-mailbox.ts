@@ -12,7 +12,7 @@ import type {
   MessageEnvelope,
 } from "@/lib/mail/imap-types"
 
-import { commandTimeout, guard, withMailboxLock } from "@/lib/mail/imap-command"
+import { commandTimeout, guardRead, withMailboxLock } from "@/lib/mail/imap-command"
 import { toMessageEnvelope } from "@/lib/mail/imap-mapping"
 import { ImapError, mailboxWindowResult } from "@/lib/mail/imap-types"
 
@@ -37,7 +37,7 @@ const collectUids = Effect.fn("Imap.collectUids")(function* collectMailboxUids(
     if (fromUid >= uidNext) {
       return []
     }
-    const found = yield* guard(account, `search ${request.path}`, commandTimeout, async () =>
+    const found = yield* guardRead(account, `search ${request.path}`, commandTimeout, async () =>
       client.search({ uid: `${fromUid}:*` }, { uid: true }),
     )
     const uids = found === false || found === undefined ? [] : found
@@ -47,7 +47,7 @@ const collectUids = Effect.fn("Imap.collectUids")(function* collectMailboxUids(
   if (since === undefined) {
     return []
   }
-  const found = yield* guard(account, `search ${request.path}`, commandTimeout, async () =>
+  const found = yield* guardRead(account, `search ${request.path}`, commandTimeout, async () =>
     client.search({ since: DateTime.toDateUtc(since) }, { uid: true }),
   )
   return found === false || found === undefined ? [] : found.map((uid) => Uid.make(uid))
@@ -61,7 +61,7 @@ const fetchEnvelopes = Effect.fn("Imap.fetchEnvelopes")(function* fetchMessageEn
   const messages: MessageEnvelope[] = []
   for (let index = 0; index < uids.length; index += fetchBatchSize) {
     const batch = uids.slice(index, index + fetchBatchSize)
-    const fetched = yield* guard(account, "fetch envelopes", commandTimeout, async () => {
+    const fetched = yield* guardRead(account, "fetch envelopes", commandTimeout, async () => {
       const collected: FetchMessageObject[] = []
       for await (const message of client.fetch(batch, envelopeQuery, { uid: true })) {
         collected.push(message)
