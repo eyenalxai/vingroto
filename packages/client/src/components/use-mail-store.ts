@@ -43,6 +43,7 @@ const useMailStore = (options: MailStoreOptions) => {
   const [mailboxes, setMailboxes] = createSignal<readonly Mailbox[]>([])
   const [counts, setCounts] = createSignal<ReadonlyMap<MailboxId, MailboxCounts>>(new Map())
   const [unread, setUnread] = createSignal(0)
+  const [accountUnread, setAccountUnread] = createSignal<ReadonlyMap<AccountId, number>>(new Map())
   const [selectedListKey, setSelectedListKey] = createSignal<string | undefined>()
   const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<AccountId>>(new Set())
   const [loadingMailboxes, setLoadingMailboxes] = createSignal(false)
@@ -57,6 +58,7 @@ const useMailStore = (options: MailStoreOptions) => {
         previous,
         buildMailboxTreeRows({
           accounts: options.config()?.accounts ?? [],
+          accountUnread: accountUnread(),
           mailboxes: visibleMailboxes(),
           counts: counts(),
           unread: unread(),
@@ -116,6 +118,11 @@ const useMailStore = (options: MailStoreOptions) => {
               next.set(entry.mailboxId, entry.counts)
             }
             setCounts(next)
+            const nextAccountUnread = new Map<AccountId, number>()
+            for (const entry of snapshot.accountUnread) {
+              nextAccountUnread.set(entry.accountId, entry.unread)
+            }
+            setAccountUnread(nextAccountUnread)
             setUnread(snapshot.unread)
             selectInitialRow()
           })

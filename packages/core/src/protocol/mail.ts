@@ -45,6 +45,12 @@ const MailboxSnapshot = Schema.Struct({
     }),
   ),
   unread: Schema.Int,
+  accountUnread: Schema.Array(
+    Schema.Struct({
+      accountId: AccountId,
+      unread: Schema.Int,
+    }),
+  ),
 })
 
 type MailboxSnapshot = Schema.Schema.Type<typeof MailboxSnapshot>

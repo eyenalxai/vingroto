@@ -1,5 +1,5 @@
 import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
-import type { ListScope, MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
+import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
 import { and, count, desc, eq, inArray } from "drizzle-orm"
@@ -32,10 +32,6 @@ interface MessageStoreOutcome {
   readonly inserted: number
   readonly updated: number
 }
-
-type VirtualListScope =
-  | { readonly kind: "all" }
-  | { readonly kind: "unread"; readonly accountId: AccountId | undefined }
 
 const listColumns = {
   id: MessageTable.id,
@@ -139,43 +135,6 @@ const listMessages = Effect.fn("Message.list")(function* list(
     .limit(limit)
 })
 
-const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtual(
-  scope: VirtualListScope,
-  limit: number,
-): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
-  const database = yield* Database
-  const filters =
-    scope.kind === "unread"
-      ? scope.accountId === undefined
-        ? [eq(MessageTable.seen, false), eq(MailboxTable.muted, false)]
-        : [
-            eq(MessageTable.seen, false),
-            eq(MessageTable.account_id, scope.accountId),
-            eq(MailboxTable.muted, false),
-          ]
-      : []
-  return yield* database.client
-    .select(listColumns)
-    .from(MessageTable)
-    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
-    .where(filters.length === 0 ? undefined : and(...filters))
-    .orderBy(desc(MessageTable.date), desc(MessageTable.uid))
-    .limit(limit)
-})
-
-const listMessagesForScope = Effect.fn("Message.listForScope")(function* listForScope(
-  scope: ListScope,
-  limit: number,
-): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
-  if (scope.kind === "mailbox") {
-    return yield* listMessages(scope.mailboxId, limit)
-  }
-  if (scope.kind === "unread") {
-    return yield* listVirtualMessages({ accountId: scope.accountId, kind: "unread" }, limit)
-  }
-  return yield* listVirtualMessages({ kind: "all" }, limit)
-})
-
 const getMessage = Effect.fn("Message.get")(function* get(
   messageId: MessageId,
 ): Effect.fn.Return<MessageDetail | undefined, EffectDrizzleQueryError, Database> {
@@ -240,16 +199,6 @@ const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes()
   return result
 })
 
-const unreadMessageCount = Effect.fn("Message.unreadCount")(function* countUnread() {
-  const database = yield* Database
-  const rows = yield* database.client
-    .select({ value: count() })
-    .from(MessageTable)
-    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
-    .where(and(eq(MessageTable.seen, false), eq(MailboxTable.muted, false)))
-  return rows[0]?.value ?? 0
-})
-
 const setMessagesSeen = Effect.fn("Message.setSeen")(function* setSeen(
   messageIds: readonly MessageId[],
   seen: boolean,
@@ -279,16 +228,13 @@ export {
   deleteMailboxMessages,
   deleteMessages,
   getMessage,
+  listColumns,
   listMessageActionTargets,
   listMessages,
-  listMessagesForScope,
-  listVirtualMessages,
   messageCounts,
   setMessagesSeen,
   storeMessages,
-  unreadMessageCount,
   type MailboxCounts,
   type MessageActionTarget,
   type MessageStoreOutcome,
-  type VirtualListScope,
 }

@@ -26,6 +26,7 @@ type ListTarget = ListScope
 
 interface MailboxTreeInput {
   readonly accounts: readonly AccountConfig[]
+  readonly accountUnread: ReadonlyMap<AccountId, number>
   readonly mailboxes: readonly Mailbox[]
   readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly unread: number
@@ -91,12 +92,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
   for (const account of input.accounts) {
     const siblings = input.mailboxes.filter((row) => row.account_id === account.id)
     const folded = input.collapsed.has(account.id)
-    let unread = 0
-    for (const row of siblings) {
-      if (!row.muted) {
-        unread += input.counts.get(row.id)?.unread ?? 0
-      }
-    }
+    const unread = input.accountUnread.get(account.id) ?? 0
     rows.push({
       key: `account:${account.id}`,
       kind: "account",

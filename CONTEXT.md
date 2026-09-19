@@ -13,7 +13,7 @@ An IMAP mailbox on a server, cached locally with its path, delimiter, special-us
 _Avoid_: Folder
 
 **View**:
-A virtual list of messages that is not a mailbox: All emails and All unread, globally or for one account.
+A virtual list of messages that is not a mailbox: All emails and All unread, globally or for one account. A view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once.
 _Avoid_: Virtual folder
 
 **List scope**:

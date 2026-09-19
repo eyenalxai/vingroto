@@ -4,18 +4,22 @@ import * as Effect from "effect/Effect"
 
 import { ServerEvents } from "@/lib/events"
 import { listMailboxes, setMailboxMuted } from "@/lib/store/mailboxes"
-import { messageCounts, unreadMessageCount } from "@/lib/store/messages"
+import { unreadMessageCounts } from "@/lib/store/message-views"
+import { messageCounts } from "@/lib/store/messages"
 
 const readMailboxSnapshot = Effect.fn("Mailbox.snapshot")(function* readMailboxSnapshot() {
   const mailboxes = yield* listMailboxes()
   const counts = yield* messageCounts()
-  const unread = yield* unreadMessageCount()
+  const { total, byAccount } = yield* unreadMessageCounts()
   return {
     mailboxes,
     counts: Array.from(counts, ([mailboxId, mailboxCounts]) => {
       return { mailboxId, counts: mailboxCounts }
     }),
-    unread,
+    unread: total,
+    accountUnread: Array.from(byAccount, ([accountId, accountUnread]) => {
+      return { accountId, unread: accountUnread }
+    }),
   }
 })
 

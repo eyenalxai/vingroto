@@ -15,7 +15,8 @@ import { ServerApi } from "@/lib/api/api"
 import { MailActions } from "@/lib/mail/actions"
 import { MessageBodies } from "@/lib/mail/bodies"
 import { getMailbox } from "@/lib/store/mailboxes"
-import { getMessage, listMessagesForScope } from "@/lib/store/messages"
+import { listMessagesForScope } from "@/lib/store/message-views"
+import { getMessage } from "@/lib/store/messages"
 
 interface MessageListQuery {
   readonly scope: "all" | "unread" | "mailbox"
