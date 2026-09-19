@@ -31,7 +31,7 @@ interface AppKeysOptions {
   readonly onSearchBackspace: () => void
   readonly enabled: () => boolean
 }
-
+const isSearchPane = (pane: Pane) => pane === "list" || pane === "mailbox"
 const useAppKeys = (options: AppKeysOptions) => {
   const focusNextPane = () => {
     const index = paneOrder.indexOf(options.pane())
@@ -169,12 +169,13 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   const handleListActionKey = (key: KeyEvent): boolean => {
-    if (options.pane() !== "list") {
-      return false
-    }
-    if (key.name === "/" && !key.ctrl && !key.meta && !key.option) {
+    if (key.name === "/" && !key.ctrl && !key.meta && !key.option && isSearchPane(options.pane())) {
+      options.setPane("list")
       options.onSearchBegin()
       return true
+    }
+    if (options.pane() !== "list") {
+      return false
     }
     if (key.name === "r" && !key.ctrl) {
       options.store.markRead()

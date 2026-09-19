@@ -9,7 +9,7 @@ const wideMailboxPaneWidth = 30
 const mediumMailboxPaneWidth = 26
 
 const hints = {
-  mailbox: "↑↓ move · ⏎ open · space fold · i mute · tab next pane · ctrl+x · q quit",
+  mailbox: "↑↓ move · ⏎ open · space fold · i mute · / search · tab next pane · ctrl+x · q quit",
   list: "↑↓ move · / search · space mark · r read · u unread · m move · esc back · ctrl+x · q quit",
   reader: "↑↓ scroll · pgup/pgdn · esc back · ctrl+x · q quit",
 } as const
