@@ -22,7 +22,10 @@ const scopeQuery = {
 const messages = HttpApiEndpoint.get("search.messages", "/api/search/messages", {
   query: {
     ...scopeQuery,
-    limit: withQueryDefault(Schema.Int, 100),
+    limit: withQueryDefault(
+      Schema.Int.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(1000)),
+      100,
+    ),
   },
   success: SearchOutcome,
   error: [InvalidRequestError, InternalError],

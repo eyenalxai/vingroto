@@ -11,34 +11,8 @@ class SyncSettingsInvalid extends Schema.TaggedError<SyncSettingsInvalid>()("Syn
   message: Schema.String,
 }) {}
 
-const maxInitialDays = 3650
-const maxIntervalMinutes = 1440
-
-const initialDaysSchema = Schema.Int.check(
-  Schema.isBetween({ minimum: 1, maximum: maxInitialDays }),
-)
-const intervalMinutesSchema = Schema.Int.check(
-  Schema.isBetween({ minimum: 1, maximum: maxIntervalMinutes }),
-)
-
 const makeUpdateSyncSettings = (configPath: string, fs: FileSystem.FileSystem) =>
   Effect.fn("Config.updateSyncSettings")(function* persistSyncSettings(input: SyncConfig) {
-    yield* Schema.decodeUnknownEffect(initialDaysSchema)(input.initialDays).pipe(
-      Effect.mapError(
-        () =>
-          new SyncSettingsInvalid({
-            message: `initial days must be a whole number between 1 and ${maxInitialDays}`,
-          }),
-      ),
-    )
-    yield* Schema.decodeUnknownEffect(intervalMinutesSchema)(input.intervalMinutes).pipe(
-      Effect.mapError(
-        () =>
-          new SyncSettingsInvalid({
-            message: `the interval must be a whole number between 1 and ${maxIntervalMinutes} minutes`,
-          }),
-      ),
-    )
     const config = yield* loadConfigFile(configPath, fs)
     yield* saveConfigFile(configPath, fs, { ...config, sync: { ...input } })
     yield* Effect.logInfo("sync settings saved").pipe(Effect.annotateLogs({ ...input }))

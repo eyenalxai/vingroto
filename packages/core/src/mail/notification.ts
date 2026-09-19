@@ -1,3 +1,5 @@
+import * as Array from "effect/Array"
+
 const escapeCode = 27
 const bellCode = 7
 const csiIntroducer = 91
@@ -10,17 +12,9 @@ const messageLimit = 240
 
 const isControlCode = (code: number) => code <= 31 || (code >= 127 && code <= 159)
 
-const codePoints = (value: string): readonly string[] => {
-  const chars: string[] = []
-  for (const char of value) {
-    chars.push(char)
-  }
-  return chars
-}
-
 // Why: the payload can be written into a terminal escape sequence or a notification bus message, so text must never smuggle escapes or control characters into a parser.
 const stripEscapes = (value: string): string => {
-  const chars = codePoints(value)
+  const chars = Array.fromIterable(value)
   const codeAt = (index: number) => chars[index]?.codePointAt(0) ?? -1
   let result = ""
   let index = 0
@@ -64,19 +58,6 @@ const stripEscapes = (value: string): string => {
 
 const sanitize = (value: string): string => stripEscapes(value).replaceAll(/\s+/gu, " ").trim()
 
-const cap = (value: string, limit: number): string => {
-  let result = ""
-  let count = 0
-  for (const char of value) {
-    if (count >= limit) {
-      break
-    }
-    result += char
-    count += 1
-  }
-  return result
-}
-
 interface NewMailNotificationInput {
   readonly mailboxName: string
   readonly accountLabel: string | undefined
@@ -88,18 +69,17 @@ interface NewMailNotificationInput {
 const formatNewMailNotification = (
   input: NewMailNotificationInput,
 ): { readonly title: string; readonly message: string } => {
-  const title = cap(
-    sanitize(
-      input.accountLabel === undefined
-        ? input.mailboxName
-        : `${input.mailboxName} · ${input.accountLabel}`,
-    ),
-    titleLimit,
+  const label = sanitize(
+    input.accountLabel === undefined
+      ? input.mailboxName
+      : `${input.mailboxName} · ${input.accountLabel}`,
   )
+  const title = Array.fromIterable(label).slice(0, titleLimit).join("")
   const sender =
     sanitize(input.fromName ?? "") || sanitize(input.fromAddress ?? "") || "unknown sender"
   const subject = sanitize(input.subject ?? "") || "(no subject)"
-  return { message: cap(`${sender} — ${subject}`, messageLimit), title }
+  const message = Array.fromIterable(`${sender} — ${subject}`).slice(0, messageLimit).join("")
+  return { message, title }
 }
 
 export { formatNewMailNotification, type NewMailNotificationInput }

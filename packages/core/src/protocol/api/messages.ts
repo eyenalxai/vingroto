@@ -18,7 +18,10 @@ const list = HttpApiEndpoint.get("message.list", "/api/messages", {
     scope: withQueryDefault(ListScope, "all"),
     accountId: Schema.optionalKey(AccountId),
     mailboxId: Schema.optionalKey(MailboxId),
-    limit: withQueryDefault(Schema.Int, 100),
+    limit: withQueryDefault(
+      Schema.Int.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(1000)),
+      100,
+    ),
   },
   success: Schema.Array(MessageListItem),
   error: [InvalidRequestError, InternalError],

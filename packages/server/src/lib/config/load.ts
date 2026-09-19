@@ -1,22 +1,26 @@
-import type { AppConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AppConfig } from "@vingroto/core/config/schema"
 import type { PlatformError } from "effect/PlatformError"
 
 import { AppPaths } from "@vingroto/core/app-paths"
-import { AppConfigFile } from "@vingroto/core/config/schema"
+import {
+  AppConfigFile,
+  defaultEditor,
+  defaultNotifications,
+  defaultSend,
+  syncDefaults,
+} from "@vingroto/core/config/schema"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 
-const defaultSync: SyncConfig = { initialDays: 30, intervalMinutes: 5 }
-
-const defaultNotifications: NotificationsConfig = { enabled: true }
-
-const emptyConfig: AppConfig = {
-  accounts: [],
-  sync: defaultSync,
-  notifications: defaultNotifications,
-  send: { delaySeconds: 60 },
-  editor: "builtin",
+const emptyConfig = (): AppConfig => {
+  return {
+    accounts: [],
+    sync: syncDefaults(),
+    notifications: defaultNotifications(),
+    send: defaultSend(),
+    editor: defaultEditor(),
+  }
 }
 
 class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", {
@@ -29,6 +33,15 @@ class ConfigUnreadable extends Schema.TaggedError<ConfigUnreadable>()("ConfigUnr
   message: Schema.String,
 }) {}
 
+const observedFiles = new Map<string, string | null>()
+
+// Why: loadConfigFile runs on every scheduler tick, request and watch poll, so the state log fires only when a read observes the file appearing, changing or disappearing.
+const fileStateChanged = (configPath: string, content: string | null): boolean => {
+  const changed = !observedFiles.has(configPath) || observedFiles.get(configPath) !== content
+  observedFiles.set(configPath, content)
+  return changed
+}
+
 const loadConfigFile = Effect.fnUntraced(function* loadFile(
   configPath: string,
   fs: FileSystem.FileSystem,
@@ -39,27 +52,24 @@ const loadConfigFile = Effect.fnUntraced(function* loadFile(
     .exists(configPath)
     .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(unreadable(error))))
   if (!exists) {
-    yield* Effect.logInfo("no configuration file yet, starting with an empty configuration").pipe(
-      Effect.annotateLogs({ path: configPath }),
-    )
-    return emptyConfig
+    if (fileStateChanged(configPath, null)) {
+      yield* Effect.logInfo("no configuration file yet, starting with an empty configuration").pipe(
+        Effect.annotateLogs({ path: configPath }),
+      )
+    }
+    return emptyConfig()
   }
   const raw = yield* fs
     .readFileString(configPath)
     .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(unreadable(error))))
-  const decoded = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AppConfigFile))(raw).pipe(
+  const config = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AppConfigFile))(raw).pipe(
     Effect.mapError((cause) => new ConfigInvalid({ path: configPath, cause })),
   )
-  const config: AppConfig = {
-    accounts: decoded.accounts,
-    sync: decoded.sync ?? defaultSync,
-    notifications: decoded.notifications ?? defaultNotifications,
-    send: decoded.send,
-    editor: decoded.editor,
+  if (fileStateChanged(configPath, raw)) {
+    yield* Effect.logInfo("configuration loaded").pipe(
+      Effect.annotateLogs({ accounts: config.accounts.length, path: configPath }),
+    )
   }
-  yield* Effect.logInfo("configuration loaded").pipe(
-    Effect.annotateLogs({ accounts: config.accounts.length, path: configPath }),
-  )
   return config
 })
 

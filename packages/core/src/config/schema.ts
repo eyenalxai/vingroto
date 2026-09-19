@@ -5,7 +5,7 @@ import { AccountId } from "../ids"
 
 const ServerConfig = Schema.Struct({
   host: Schema.String,
-  port: Schema.Int,
+  port: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65_535 })),
   security: Schema.Literals(["tls", "starttls", "none"]),
 })
 
@@ -24,11 +24,15 @@ const AccountConfig = Schema.Struct({
 type AccountConfig = Schema.Schema.Type<typeof AccountConfig>
 
 const SyncConfig = Schema.Struct({
-  initialDays: Schema.Int,
-  intervalMinutes: Schema.Int,
+  initialDays: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 3650 })),
+  intervalMinutes: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 1440 })),
 })
 
 type SyncConfig = Schema.Schema.Type<typeof SyncConfig>
+
+const syncDefaults = (): SyncConfig => {
+  return { initialDays: 30, intervalMinutes: 5 }
+}
 
 const NotificationsConfig = Schema.Struct({
   enabled: Schema.Boolean,
@@ -36,8 +40,12 @@ const NotificationsConfig = Schema.Struct({
 
 type NotificationsConfig = Schema.Schema.Type<typeof NotificationsConfig>
 
+const defaultNotifications = (): NotificationsConfig => {
+  return { enabled: true }
+}
+
 const SendConfig = Schema.Struct({
-  delaySeconds: Schema.Int,
+  delaySeconds: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 })
 
 type SendConfig = Schema.Schema.Type<typeof SendConfig>
@@ -54,19 +62,18 @@ const defaultEditor = (): EditorConfig => "builtin"
 
 const AppConfig = Schema.Struct({
   accounts: Schema.Array(AccountConfig),
-  sync: SyncConfig,
-  notifications: NotificationsConfig,
+  sync: SyncConfig.pipe(Schema.withDecodingDefaultTypeKey(Effect.sync(syncDefaults))),
+  notifications: NotificationsConfig.pipe(
+    Schema.withDecodingDefaultTypeKey(Effect.sync(defaultNotifications)),
+  ),
   send: SendConfig.pipe(Schema.withDecodingDefaultTypeKey(Effect.sync(defaultSend))),
   editor: EditorConfig.pipe(Schema.withDecodingDefaultTypeKey(Effect.sync(defaultEditor))),
 })
 
 type AppConfig = Schema.Schema.Type<typeof AppConfig>
 
-const AppConfigFile = Schema.Struct({
-  ...AppConfig.fields,
-  sync: Schema.optionalKey(SyncConfig),
-  notifications: Schema.optionalKey(NotificationsConfig),
-})
+// Why: every default is decoded into AppConfig, so the on-disk file contract is the app config contract.
+const AppConfigFile = AppConfig
 
 type AppConfigFile = Schema.Schema.Type<typeof AppConfigFile>
 
@@ -74,9 +81,13 @@ export {
   AccountConfig,
   AppConfig,
   AppConfigFile,
+  defaultEditor,
+  defaultNotifications,
+  defaultSend,
   EditorConfig,
   NotificationsConfig,
   SendConfig,
   ServerConfig,
   SyncConfig,
+  syncDefaults,
 }

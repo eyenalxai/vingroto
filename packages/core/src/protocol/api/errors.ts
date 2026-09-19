@@ -76,6 +76,7 @@ class UpstreamError extends Schema.TaggedError<UpstreamError>()(
   "UpstreamError",
   {
     message: Schema.String,
+    cause: Schema.optionalKey(Schema.String),
   },
   { httpApiStatus: 502 },
 ) {}
@@ -84,6 +85,7 @@ class InternalError extends Schema.TaggedError<InternalError>()(
   "InternalError",
   {
     message: Schema.String,
+    cause: Schema.optionalKey(Schema.String),
   },
   { httpApiStatus: 500 },
 ) {}

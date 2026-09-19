@@ -27,7 +27,7 @@ interface AppPathsShape {
 }
 
 class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
-  "vingroto/lib/app-paths/AppPaths",
+  "@vingroto/core/app-paths/AppPaths",
 ) {
   static readonly layer = Layer.effect(
     AppPaths,
@@ -37,19 +37,19 @@ class AppPaths extends Context.Service<AppPaths, AppPathsShape>()(
         Config.withDefault(isStandaloneExecutable ? "installed" : "development"),
       )
       const appName = profile === "installed" ? "vingroto" : "vingroto-dev"
-      const dataHome = yield* Config.String("XDG_DATA_HOME").pipe(
+      const dataHome = yield* Config.NonEmptyString("XDG_DATA_HOME").pipe(
         Config.withDefault(path.join(homedir(), ".local", "share")),
       )
-      const configHome = yield* Config.String("XDG_CONFIG_HOME").pipe(
+      const configHome = yield* Config.NonEmptyString("XDG_CONFIG_HOME").pipe(
         Config.withDefault(path.join(homedir(), ".config")),
       )
-      const stateHome = yield* Config.String("XDG_STATE_HOME").pipe(
+      const stateHome = yield* Config.NonEmptyString("XDG_STATE_HOME").pipe(
         Config.withDefault(path.join(homedir(), ".local", "state")),
       )
       const dataDir = path.join(dataHome, appName)
       const configDir = path.join(configHome, appName)
       const logsDir = path.join(stateHome, appName)
-      const runtimeDir = yield* Config.String("XDG_RUNTIME_DIR").pipe(
+      const runtimeDir = yield* Config.NonEmptyString("XDG_RUNTIME_DIR").pipe(
         Config.map((runtimeHome) => path.join(runtimeHome, appName)),
         Config.withDefault(path.join(dataDir, "run")),
       )
