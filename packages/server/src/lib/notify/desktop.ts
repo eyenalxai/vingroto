@@ -1,5 +1,6 @@
 import { describeError } from "@vingroto/core/errors"
 import * as dbus from "dbus-next"
+import * as Config from "effect/Config"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -38,6 +39,19 @@ interface NotificationConnection {
   readonly proxy: NotificationsInterface
 }
 
+// Why: dbus-next would otherwise fall back to X11 window-selection discovery, while a wayland session always exposes the bus in the environment or at $XDG_RUNTIME_DIR/bus.
+const sessionBusAddress = Effect.gen(function* resolveSessionBusAddress() {
+  const configured = yield* Config.String("DBUS_SESSION_BUS_ADDRESS").pipe(Config.option)
+  if (Option.isSome(configured) && configured.value !== "") {
+    return configured.value
+  }
+  const runtimeDir = yield* Config.String("XDG_RUNTIME_DIR").pipe(Config.option)
+  if (Option.isSome(runtimeDir) && runtimeDir.value !== "") {
+    return `unix:path=${runtimeDir.value}/bus`
+  }
+  return null
+})
+
 class DesktopNotifications extends Context.Service<DesktopNotifications, DesktopShape>()(
   "vingroto/lib/notify/DesktopNotifications",
 ) {
@@ -55,17 +69,24 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
           }
         }),
       )
-      const connect = Effect.tryPromise({
-        try: async () => {
-          const bus = dbus.sessionBus()
-          bus.on("error", () => {
-            // An unreachable session bus must not crash the daemon through an unhandled emitter error; the calls below fail and the layer stays silent.
-          })
-          const object = await bus.getProxyObject(notificationsName, notificationsPath)
-          const proxy = object.getInterface<NotificationsInterface>(notificationsInterface)
-          return { bus, proxy }
-        },
-        catch: (cause) => cause,
+      const connect = Effect.gen(function* connectToNotifications() {
+        const busAddress = yield* sessionBusAddress
+        if (busAddress === null) {
+          return yield* Effect.fail(new Error("no wayland session bus address"))
+        }
+        const bus = dbus.sessionBus({ busAddress })
+        bus.on("error", () => {
+          // An unreachable session bus must not crash the daemon through an unhandled emitter error; the calls below fail and the layer stays silent.
+        })
+        const object = yield* Effect.tryPromise({
+          try: async () => {
+            const proxyObject = await bus.getProxyObject(notificationsName, notificationsPath)
+            return proxyObject
+          },
+          catch: (cause) => cause,
+        })
+        const proxy = object.getInterface<NotificationsInterface>(notificationsInterface)
+        return { bus, proxy }
       })
       const notify = Effect.fn("DesktopNotifications.notify")(function* sendNotification(
         notification: DesktopNotification,
