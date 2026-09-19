@@ -17,7 +17,13 @@ import { useMessagePane } from "@/components/use-message-pane"
 import { useServerEvents } from "@/components/use-server-events"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
-import { buildMailboxTreeRows, parseListKey } from "@/lib/mail/mailbox-tree"
+import {
+  buildMailboxTreeRows,
+  createInitialRowKeySelector,
+  parseListKey,
+  reconcileMailboxTreeRows,
+  rowKeyAfterMove,
+} from "@/lib/mail/mailbox-tree"
 
 interface MailStoreOptions {
   readonly runtime: AppRuntime
@@ -44,14 +50,19 @@ const useMailStore = (options: MailStoreOptions) => {
 
   const visibleMailboxes = createMemo(() => mailboxes().filter((row) => row.selectable))
 
-  const mailboxTreeRows = createMemo<readonly MailboxTreeRow[]>(() =>
-    buildMailboxTreeRows({
-      accounts: options.config()?.accounts ?? [],
-      mailboxes: visibleMailboxes(),
-      counts: counts(),
-      unread: unread(),
-      collapsed: collapsedAccounts(),
-    }),
+  const mailboxTreeRows = createMemo<readonly MailboxTreeRow[]>(
+    (previous) =>
+      reconcileMailboxTreeRows(
+        previous,
+        buildMailboxTreeRows({
+          accounts: options.config()?.accounts ?? [],
+          mailboxes: visibleMailboxes(),
+          counts: counts(),
+          unread: unread(),
+          collapsed: collapsedAccounts(),
+        }),
+      ),
+    [],
   )
 
   const selectedMailboxTreeRow = createMemo(() =>
@@ -82,17 +93,10 @@ const useMailStore = (options: MailStoreOptions) => {
     runtime: options.runtime,
   })
 
+  const selectInitialKey = createInitialRowKeySelector()
+
   const selectInitialRow = () => {
-    untrack(() => {
-      const rows = mailboxTreeRows()
-      const current = selectedListKey()
-      if (current !== undefined && rows.some((row) => row.key === current)) {
-        return
-      }
-      const mailboxRows = rows.filter((row) => row.kind === "mailbox")
-      const inbox = mailboxRows.find((row) => row.label.toLowerCase() === "inbox")
-      setSelectedListKey((inbox ?? mailboxRows[0] ?? rows[0])?.key)
-    })
+    setSelectedListKey(selectInitialKey(mailboxTreeRows(), selectedListKey()))
   }
 
   const loadMailboxData = () => {
@@ -182,12 +186,9 @@ const useMailStore = (options: MailStoreOptions) => {
   }
 
   const moveRowSelection = (delta: number) => {
-    const rows = mailboxTreeRows()
-    const index = rows.findIndex((row) => row.key === selectedListKey())
-    const clamped = Math.min(Math.max(index === -1 ? 0 : index + delta, 0), rows.length - 1)
-    const next = rows[clamped]
-    if (next !== undefined) {
-      setSelectedListKey(next.key)
+    const key = rowKeyAfterMove(mailboxTreeRows(), selectedListKey(), delta)
+    if (key !== undefined) {
+      setSelectedListKey(key)
     }
   }
 

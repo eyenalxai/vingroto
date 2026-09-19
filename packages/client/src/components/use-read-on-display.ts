@@ -10,6 +10,7 @@ import type { AppRuntime } from "@/lib/runtime"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
 import { parseListKey } from "@/lib/mail/mailbox-tree"
+import { reconcileMessageRows } from "@/lib/mail/message-rows"
 
 const compareMessageRows = (left: MessageListItem, right: MessageListItem): number => {
   if (left.date !== right.date) {
@@ -67,15 +68,19 @@ const useReadOnDisplay = (options: ReadOnDisplayOptions) => {
   }
 
   const applyMessageRows = (rows: readonly MessageListItem[]) => {
+    const previous = options.messages()
     const merged = mergeRows(rows)
-    options.setMessages(merged)
+    options.setMessages(reconcileMessageRows(previous, merged))
     const current = options.selectedMessageId()
     if (current !== undefined && pendingReadIds.has(current)) {
       return
     }
-    if (current === undefined || !merged.some((row) => row.id === current)) {
-      options.setSelectedMessageId(merged[0]?.id)
+    if (merged.some((row) => row.id === current)) {
+      return
     }
+    const previousIndex = previous.findIndex((row) => row.id === current)
+    const index = Math.min(Math.max(previousIndex, 0), merged.length - 1)
+    options.setSelectedMessageId(merged[index]?.id)
   }
 
   const applyReadOnDisplay = (messageId: MessageId) => {

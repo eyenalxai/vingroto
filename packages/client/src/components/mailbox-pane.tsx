@@ -13,12 +13,13 @@ interface MailboxPaneProps {
   readonly rows: readonly MailboxTreeRow[]
   readonly selectedKey: string | undefined
   readonly focused: boolean
-  readonly loading: boolean
   readonly syncingIds: ReadonlySet<MailboxId>
   readonly mutingIds: ReadonlySet<MailboxId>
 }
 
 const rowId = (key: string) => `mailbox-row-${key.replaceAll(":", "-")}`
+
+const countSlotWidth = 3
 
 const badgeLabel = (count: number | undefined) => {
   if (count === undefined || count === 0) {
@@ -86,9 +87,6 @@ const MailboxPane = (props: MailboxPaneProps) => {
         paddingLeft={1}
         paddingRight={1}
       >
-        <Show when={props.loading}>
-          <Spinner label="loading mailboxes…" />
-        </Show>
         <For each={virtualRows()}>
           {(row) => {
             const isSelected = () => row.key === props.selectedKey
@@ -104,7 +102,9 @@ const MailboxPane = (props: MailboxPaneProps) => {
                     {truncate(row.label, 24)}
                   </text>
                 </box>
-                <text fg={badgeColor(row, isSelected())}>{badgeLabel(row.count)}</text>
+                <box width={countSlotWidth} flexDirection="row" justifyContent="flex-end">
+                  <text fg={badgeColor(row, isSelected())}>{badgeLabel(row.count)}</text>
+                </box>
               </box>
             )
           }}
@@ -123,29 +123,31 @@ const MailboxPane = (props: MailboxPaneProps) => {
                 paddingLeft={row.indented ? 2 : 0}
                 backgroundColor={isSelected() ? theme.selectionBackground : "transparent"}
               >
-                <box flexGrow={1} flexDirection="row" gap={1}>
+                <box width={1} flexShrink={0}>
                   <Show
                     when={mailboxBusy(row)}
-                    fallback={
-                      <Show when={row.marker !== ""}>
-                        <text fg={textColor(row, isSelected())}>{row.marker}</text>
-                      </Show>
-                    }
+                    fallback={<text fg={textColor(row, isSelected())}>{row.marker}</text>}
                   >
                     <Spinner color={isSelected() ? theme.selectionForeground : theme.accent} />
                   </Show>
+                </box>
+                <box flexGrow={1}>
                   <text fg={textColor(row, isSelected())}>{truncate(row.label, 20)}</text>
                 </box>
-                <Show
-                  when={
-                    row.kind === "account" &&
-                    row.accountId !== undefined &&
-                    accountBusy(row.accountId)
-                  }
-                  fallback={<text fg={badgeColor(row, isSelected())}>{badgeLabel(row.count)}</text>}
-                >
-                  <Spinner color={badgeColor(row, isSelected())} />
-                </Show>
+                <box width={countSlotWidth} flexDirection="row" justifyContent="flex-end">
+                  <Show
+                    when={
+                      row.kind === "account" &&
+                      row.accountId !== undefined &&
+                      accountBusy(row.accountId)
+                    }
+                    fallback={
+                      <text fg={badgeColor(row, isSelected())}>{badgeLabel(row.count)}</text>
+                    }
+                  >
+                    <Spinner color={badgeColor(row, isSelected())} />
+                  </Show>
+                </box>
               </box>
             )
           }}

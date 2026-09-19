@@ -63,7 +63,6 @@ const useDaemonStatus = (runtime: AppRuntime) => {
         ),
         Effect.tapError((error) =>
           Effect.sync(() => {
-            setStatus(undefined)
             setFailure(describeClientFailure(error).message)
           }),
         ),
@@ -78,7 +77,6 @@ const useDaemonStatus = (runtime: AppRuntime) => {
   })
 
   const retry = (message: string) => {
-    setStatus(undefined)
     setFailure(message)
     setGeneration((value) => value + 1)
   }
@@ -93,7 +91,6 @@ const useDaemonStatus = (runtime: AppRuntime) => {
           setFailure(undefined)
           return
         }
-        setStatus(undefined)
         setFailure(describeClientFailure(result.failure).message)
       }),
     )

@@ -1,10 +1,12 @@
 import type { AccountConfig, AppConfig } from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId } from "@vingroto/core/ids"
-import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { useRenderer } from "@opentui/solid"
 import { Effect } from "effect"
 import { Show, createEffect, createMemo, createSignal, untrack } from "solid-js"
+
+import type { Pane } from "@/components/pane-layout"
+import type { MoveTargetsResult } from "@/lib/mail/move"
 
 import { MailWorkspace } from "@/components/mail-workspace"
 import { MovePicker } from "@/components/move-picker"
@@ -19,28 +21,22 @@ import { describeClientFailure } from "@/lib/failure"
 import { resolveMoveTargets } from "@/lib/mail/move"
 import { clearSelection, isCollapsedSelection } from "@/lib/selection"
 
-interface MoveTargets {
-  readonly accountLabel: string
-  readonly mailboxes: readonly Mailbox[]
-}
+type MoveTargets = Extract<MoveTargetsResult, { _tag: "ok" }>
 
 const App = () => {
   const runtime = useRuntime()
   const renderer = useRenderer()
   const daemon = useDaemonStatus(runtime)
-  const endpoint = daemon.endpoint
   const [status, setStatus] = createSignal("ready")
   const [syncing, setSyncing] = createSignal(false)
   const [addingAccount, setAddingAccount] = createSignal(false)
   const [settingsOpen, setSettingsOpen] = createSignal(false)
   const [moving, setMoving] = createSignal<MoveTargets | undefined>()
+  const [pane, setPane] = createSignal<Pane>("mailbox")
 
   const appConfig = createMemo((): AppConfig | undefined => {
     const value = daemon.status()
-    if (value === undefined || value.config._tag !== "ok") {
-      return undefined
-    }
-    return value.config.config
+    return value !== undefined && value.config._tag === "ok" ? value.config.config : undefined
   })
 
   const accounts = createMemo<readonly AccountConfig[]>(() => appConfig()?.accounts ?? [])
@@ -51,7 +47,7 @@ const App = () => {
   })
 
   const needsSetup = createMemo(() => daemon.status()?.config._tag === "empty")
-  const connected = createMemo(() => daemon.status() !== undefined)
+  const connected = createMemo((prior: boolean) => prior || daemon.status() !== undefined, false)
   const mainVisible = createMemo(
     () =>
       connected() &&
@@ -71,7 +67,6 @@ const App = () => {
   const settingsVisible = createMemo(
     () => settingsOpen() && appConfig() !== undefined && !addingAccount(),
   )
-  const screenMessage = createMemo(() => (connected() ? configError() : daemon.failure()))
 
   const store = useMailStore({
     config: appConfig,
@@ -194,7 +189,7 @@ const App = () => {
       setStatus(result.message)
       return
     }
-    setMoving({ accountLabel: result.accountLabel, mailboxes: result.mailboxes })
+    setMoving(result)
   }
 
   const autoSyncedMailboxes = new Set<MailboxId>()
@@ -222,14 +217,21 @@ const App = () => {
         }
       }}
     >
-      <Show when={!connected() || configError() !== undefined}>
-        <StartupScreen endpoint={endpoint()} failure={screenMessage()} retrying={!connected()} />
+      <Show when={daemon.status() === undefined || configError() !== undefined}>
+        <StartupScreen
+          endpoint={daemon.endpoint()}
+          failure={connected() ? configError() : daemon.failure()}
+          retrying={!connected()}
+        />
       </Show>
       <Show when={mainVisible()}>
         <MailWorkspace
           store={store}
           accounts={accounts()}
           syncing={syncing()}
+          pane={pane()}
+          onPaneChange={setPane}
+          connection={daemon.failure()}
           status={status()}
           syncWindow={syncWindow}
           onStatus={(value) => {

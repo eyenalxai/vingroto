@@ -145,9 +145,72 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
   return rows
 }
 
+const shallowEqualRow = <T extends object>(left: T, right: T): boolean => {
+  const leftKeys = Object.keys(left)
+  if (leftKeys.length !== Object.keys(right).length) {
+    return false
+  }
+  for (const key in left) {
+    if (left[key] !== right[key]) {
+      return false
+    }
+  }
+  return true
+}
+
+const reconcileMailboxTreeRows = (
+  previous: readonly MailboxTreeRow[],
+  next: readonly MailboxTreeRow[],
+): readonly MailboxTreeRow[] => {
+  const byKey = new Map(previous.map((row) => [row.key, row]))
+  let identical = previous.length === next.length
+  const reconciled = next.map((row, index) => {
+    const candidate = byKey.get(row.key)
+    const reused = candidate !== undefined && shallowEqualRow(candidate, row) ? candidate : row
+    if (reused !== previous[index]) {
+      identical = false
+    }
+    return reused
+  })
+  return identical ? previous : reconciled
+}
+
+const rowKeyAfterMove = (
+  rows: readonly MailboxTreeRow[],
+  current: string | undefined,
+  delta: number,
+): string | undefined => {
+  const index = rows.findIndex((row) => row.key === current)
+  const clamped = Math.min(Math.max(index === -1 ? 0 : index + delta, 0), rows.length - 1)
+  return rows[clamped]?.key
+}
+
+const createInitialRowKeySelector = () => {
+  let previousRows: readonly MailboxTreeRow[] = []
+
+  return (rows: readonly MailboxTreeRow[], current: string | undefined): string | undefined => {
+    const previous = previousRows
+    previousRows = rows
+    if (current !== undefined && rows.some((row) => row.key === current)) {
+      return current
+    }
+    if (current === undefined) {
+      const mailboxRows = rows.filter((row) => row.kind === "mailbox")
+      const inbox = mailboxRows.find((row) => row.label.toLowerCase() === "inbox")
+      return (inbox ?? mailboxRows[0] ?? rows[0])?.key
+    }
+    const previousIndex = previous.findIndex((row) => row.key === current)
+    const index = Math.min(Math.max(previousIndex, 0), rows.length - 1)
+    return (rows[index] ?? rows[0])?.key
+  }
+}
+
 export {
   buildMailboxTreeRows,
+  createInitialRowKeySelector,
   parseListKey,
+  reconcileMailboxTreeRows,
+  rowKeyAfterMove,
   type CountTone,
   type MailboxTreeRow,
   type MailboxTreeRowKind,

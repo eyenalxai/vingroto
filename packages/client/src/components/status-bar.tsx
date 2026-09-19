@@ -19,18 +19,14 @@ const StatusBar = (props: StatusBarProps) => {
 
   return (
     <box flexDirection="row" gap={1} paddingLeft={1} paddingRight={1} flexShrink={0}>
-      <Show
-        when={props.busy}
-        fallback={
-          <text fg={theme.text} flexBasis={0} flexGrow={1} wrapMode="none" truncate>
-            {props.message}
-          </text>
-        }
-      >
-        <box flexBasis={0} flexGrow={1} flexDirection="row" overflow="hidden">
-          <Spinner label={props.message} color={theme.accent} />
-        </box>
-      </Show>
+      <box width={2} flexShrink={0} height={1}>
+        <Show when={props.busy}>
+          <Spinner color={theme.accent} />
+        </Show>
+      </box>
+      <text fg={theme.text} flexBasis={0} flexGrow={1} wrapMode="none" truncate>
+        {props.message}
+      </text>
       <Show when={hintVisible()}>
         <text fg={theme.muted} flexShrink={0} wrapMode="none" truncate>
           {props.hint}

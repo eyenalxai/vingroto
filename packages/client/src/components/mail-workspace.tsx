@@ -1,6 +1,7 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { AccountId } from "@vingroto/core/ids"
+import type { Setter } from "solid-js"
 
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { Effect } from "effect"
@@ -30,6 +31,9 @@ interface MailWorkspaceProps {
   readonly accounts: readonly AccountConfig[]
   readonly syncing: boolean
   readonly status: string
+  readonly connection: string | undefined
+  readonly pane: Pane
+  readonly onPaneChange: Setter<Pane>
   readonly syncWindow: (paths: readonly string[] | undefined, accountId?: AccountId) => void
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
@@ -41,11 +45,10 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const runtime = useRuntime()
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
-  const [pane, setPane] = createSignal<Pane>("mailbox")
   const [readerScroll, setReaderScroll] = createSignal<ScrollBoxRenderable>()
 
   const layout = createMemo(() => resolveLayoutMode(dimensions().width))
-  const visiblePanes = createMemo(() => visiblePanesFor(layout(), pane()))
+  const visiblePanes = createMemo(() => visiblePanesFor(layout(), props.pane))
   const showPane = (target: Pane) => visiblePanes().includes(target)
 
   const accountLabels = createMemo<ReadonlyMap<AccountId, string>>(
@@ -55,10 +58,8 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const keys = useAppKeys({
     renderer,
     store: props.store,
-    pane,
-    setPane: (value: Pane) => {
-      setPane(value)
-    },
+    pane: () => props.pane,
+    setPane: props.onPaneChange,
     readerScroll,
     syncWindow: props.syncWindow,
     onStatus: props.onStatus,
@@ -82,21 +83,20 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     if (keys.leaderActive()) {
       return describeLeaderHint()
     }
-    if (pane() === "list" && props.store.markedMessages().length > 0) {
+    if (props.pane === "list" && props.store.markedMessages().length > 0) {
       return markedHint
     }
-    return describePaneHint(pane())
+    return describePaneHint(props.pane)
   })
 
   const busy = createMemo(
     () =>
       props.syncing ||
-      props.store.loadingMailboxes() ||
-      props.store.loadingMessages() ||
-      props.store.loadingDetail() ||
       props.store.pendingMessageIds().size > 0 ||
       props.store.mutingMailboxIds().size > 0 ||
-      props.store.syncingMailboxIds().size > 0,
+      props.store.syncingMailboxIds().size > 0 ||
+      props.store.loadingDetail() ||
+      (props.store.mailboxes().length === 0 && props.store.loadingMailboxes()),
   )
 
   const openLink = (url: string) => {
@@ -120,8 +120,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
             <MailboxPane
               rows={props.store.mailboxTreeRows()}
               selectedKey={props.store.selectedListKey()}
-              focused={pane() === "mailbox"}
-              loading={props.store.loadingMailboxes()}
+              focused={props.pane === "mailbox"}
               syncingIds={props.store.syncingMailboxIds()}
               mutingIds={props.store.mutingMailboxIds()}
             />
@@ -135,8 +134,8 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
               selectedId={props.store.selectedMessageId()}
               marked={props.store.markedIds()}
               pending={props.store.pendingMessageIds()}
-              loading={props.store.loadingMessages()}
-              focused={pane() === "list"}
+              loading={props.store.messages().length === 0 && props.store.loadingMessages()}
+              focused={props.pane === "list"}
             />
           </box>
         </Show>
@@ -146,7 +145,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
               detail={props.store.detail()}
               body={props.store.body()}
               loadingDetail={props.store.loadingDetail()}
-              focused={pane() === "reader"}
+              focused={props.pane === "reader"}
               accountLabels={accountLabels()}
               onOpenLink={openLink}
               onBodyDisplayed={(messageId) => {
@@ -159,7 +158,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
           </box>
         </Show>
       </box>
-      <StatusBar message={props.status} busy={busy()} hint={statusHint()} />
+      <StatusBar message={props.connection ?? props.status} busy={busy()} hint={statusHint()} />
     </box>
   )
 }
