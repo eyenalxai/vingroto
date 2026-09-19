@@ -83,7 +83,10 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
       ),
     )
     .handle("account.username", ({ params }) =>
-      Accounts.pipe(Effect.flatMap((accounts) => accounts.username(params.accountId))),
+      Accounts.pipe(
+        Effect.flatMap((accounts) => accounts.username(params.accountId)),
+        Effect.catchTags({ KeyringError: internalFailure }, internalFailure),
+      ),
     ),
 )
 
