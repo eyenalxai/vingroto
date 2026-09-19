@@ -40,7 +40,11 @@ A message's parsed text and HTML parts. Fetched from the server on demand and ca
 The daemon's background fetching of bodies for unread messages in unmuted mailboxes. A body that fails once is skipped for the rest of the session.
 
 **Mute**:
-A mailbox marked to be excluded from the Unread views, from account and global unread totals and from prefetching, while still showing its own unread count and staying listed and readable.
+A mailbox marked to be excluded from the Unread views, from account and global unread totals, from prefetching and from notifications, while still showing its own unread count and staying listed and readable.
+
+**Notification**:
+A desktop alert about new mail. The TUI raises one when a sync stores messages in an unmuted mailbox while the terminal is unfocused; sound is never part of a notification.
+_Avoid_: Alert, attention
 
 **Count tone**:
 Whether a mailbox-pane count draws attention (unread) or is quiet.
