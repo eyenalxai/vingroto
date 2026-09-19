@@ -9,12 +9,12 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 
-import type { AccountNotFound } from "@/lib/config/accounts"
+import type { AccountNotFound, AccountOrderInvalid } from "@/lib/config/accounts"
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
 import type { ConfigWriteError } from "@/lib/config/save"
 import type { CredentialError } from "@/lib/credential/service"
 
-import { makeSubmitAccount, makeUpdateAccount } from "@/lib/config/accounts"
+import { makeReorderAccounts, makeSubmitAccount, makeUpdateAccount } from "@/lib/config/accounts"
 import { usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
 import { ServerEvents } from "@/lib/events"
@@ -28,6 +28,9 @@ interface AccountsShape {
     id: AccountId,
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, AccountWriteError | AccountNotFound>
+  readonly reorder: (
+    accountIds: readonly AccountId[],
+  ) => Effect.Effect<void, AccountWriteError | AccountOrderInvalid>
   readonly username: (id: AccountId) => Effect.Effect<string | null>
 }
 
@@ -43,6 +46,7 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
 
       const submit = makeSubmitAccount({ configPath: paths.config, credential, fs })
       const persistUpdate = makeUpdateAccount({ configPath: paths.config, credential, fs })
+      const persistOrder = makeReorderAccounts(paths.config, fs)
 
       const create = Effect.fn("Accounts.create")(function* createAccount(input: NewAccount) {
         const account = yield* submit(input)
@@ -67,13 +71,20 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
         return account
       })
 
+      const reorder = Effect.fn("Accounts.reorder")(function* reorderConfiguredAccounts(
+        accountIds: readonly AccountId[],
+      ) {
+        yield* persistOrder(accountIds)
+        yield* events.publish({ _tag: "config-changed" })
+      })
+
       const username = Effect.fn("Accounts.username")(function* accountUsername(id: AccountId) {
         return yield* credential
           .get(usernameReference(id))
           .pipe(Effect.orElseSucceed((): string | null => null))
       })
 
-      return Accounts.of({ create, update, username })
+      return Accounts.of({ create, reorder, update, username })
     }),
   )
 }

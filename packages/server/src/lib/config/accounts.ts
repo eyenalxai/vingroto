@@ -17,6 +17,10 @@ class AccountNotFound extends Schema.TaggedError<AccountNotFound>()("AccountNotF
   message: Schema.String,
 }) {}
 
+class AccountOrderInvalid extends Schema.TaggedError<AccountOrderInvalid>()("AccountOrderInvalid", {
+  message: Schema.String,
+}) {}
+
 interface AccountWriteDeps {
   readonly configPath: string
   readonly credential: Credential["Service"]
@@ -56,6 +60,7 @@ const makeSubmitAccount = (deps: AccountWriteDeps) =>
       id,
       label: input.label,
       email: input.email,
+      saveSent: input.saveSent,
       imap: input.imap,
       smtp: input.smtp,
       ...(input.name === undefined ? {} : { name: input.name }),
@@ -79,6 +84,7 @@ const makeUpdateAccount = (deps: AccountWriteDeps) =>
       id: existing.id,
       label: input.label,
       email: existing.email,
+      saveSent: input.saveSent,
       imap: input.imap,
       smtp: input.smtp,
       ...(input.name === undefined ? {} : { name: input.name }),
@@ -91,4 +97,43 @@ const makeUpdateAccount = (deps: AccountWriteDeps) =>
     return account
   })
 
-export { AccountNotFound, makeSubmitAccount, makeUpdateAccount }
+const makeReorderAccounts = (configPath: string, fs: FileSystem.FileSystem) =>
+  Effect.fn("Config.reorderAccounts")(function* reorderConfiguredAccounts(
+    accountIds: readonly AccountId[],
+  ) {
+    const config = yield* loadConfigFile(configPath, fs)
+    const accounts = yield* Effect.gen(function* resolveOrder() {
+      const requested = new Set(accountIds)
+      if (requested.size !== accountIds.length) {
+        return yield* new AccountOrderInvalid({
+          message: "accountIds lists an account more than once",
+        })
+      }
+      if (accountIds.length !== config.accounts.length) {
+        return yield* new AccountOrderInvalid({
+          message: `accountIds must list all ${String(config.accounts.length)} configured accounts`,
+        })
+      }
+      const byId = new Map(config.accounts.map((account) => [account.id, account]))
+      const unknown = accountIds.find((id) => !byId.has(id))
+      if (unknown !== undefined) {
+        return yield* new AccountOrderInvalid({ message: `account ${unknown} is not configured` })
+      }
+      return accountIds.flatMap((id) => {
+        const account = byId.get(id)
+        return account === undefined ? [] : [account]
+      })
+    })
+    yield* saveConfigFile(configPath, fs, { ...config, accounts })
+    yield* Effect.logInfo("account order saved").pipe(
+      Effect.annotateLogs({ accounts: accounts.length }),
+    )
+  })
+
+export {
+  AccountNotFound,
+  AccountOrderInvalid,
+  makeReorderAccounts,
+  makeSubmitAccount,
+  makeUpdateAccount,
+}

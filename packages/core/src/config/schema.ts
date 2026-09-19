@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { AccountId } from "../ids"
@@ -15,6 +16,7 @@ const AccountConfig = Schema.Struct({
   label: Schema.String,
   name: Schema.optionalKey(Schema.String),
   email: Schema.String,
+  saveSent: Schema.Boolean.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(true))),
   imap: ServerConfig,
   smtp: ServerConfig,
 })
@@ -34,10 +36,21 @@ const NotificationsConfig = Schema.Struct({
 
 type NotificationsConfig = Schema.Schema.Type<typeof NotificationsConfig>
 
+const SendConfig = Schema.Struct({
+  delaySeconds: Schema.Int,
+})
+
+type SendConfig = Schema.Schema.Type<typeof SendConfig>
+
+const defaultSend = (): SendConfig => {
+  return { delaySeconds: 60 }
+}
+
 const AppConfig = Schema.Struct({
   accounts: Schema.Array(AccountConfig),
   sync: SyncConfig,
   notifications: NotificationsConfig,
+  send: SendConfig.pipe(Schema.withDecodingDefaultTypeKey(Effect.sync(defaultSend))),
 })
 
 type AppConfig = Schema.Schema.Type<typeof AppConfig>
@@ -50,4 +63,12 @@ const AppConfigFile = Schema.Struct({
 
 type AppConfigFile = Schema.Schema.Type<typeof AppConfigFile>
 
-export { AccountConfig, AppConfig, AppConfigFile, NotificationsConfig, ServerConfig, SyncConfig }
+export {
+  AccountConfig,
+  AppConfig,
+  AppConfigFile,
+  NotificationsConfig,
+  SendConfig,
+  ServerConfig,
+  SyncConfig,
+}

@@ -15,9 +15,10 @@ type TextFieldId =
   | "smtpPort"
 type SecurityFieldId = "imapSecurity" | "smtpSecurity"
 type SecretFieldId = "password"
-type FieldId = TextFieldId | SecurityFieldId | SecretFieldId
+type BooleanFieldId = "saveSent"
+type FieldId = TextFieldId | SecurityFieldId | SecretFieldId | BooleanFieldId
 
-type FieldKind = "text" | "secret" | "security"
+type FieldKind = "text" | "secret" | "security" | "boolean"
 
 interface FieldDescriptor<Id extends string = FieldId> {
   readonly id: Id
@@ -38,6 +39,7 @@ interface AccountDraft {
   smtpHost: string
   smtpPort: string
   smtpSecurity: Security
+  saveSent: boolean
 }
 
 type ValidationResult =
@@ -77,6 +79,7 @@ const editFields = [
   ...profileFields,
   { id: "password", label: "Password", kind: "secret", placeholder: "unchanged" },
   ...connectionFields,
+  { id: "saveSent", label: "Save sent copy", kind: "boolean" },
 ] as const satisfies readonly FieldDescriptor[]
 
 const securityOrder: readonly Security[] = ["tls", "starttls", "none"]
@@ -96,6 +99,7 @@ const emptyDraft = (): AccountDraft => {
     smtpHost: "",
     smtpPort: "",
     smtpSecurity: "tls",
+    saveSent: true,
   }
 }
 
@@ -222,7 +226,10 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
   if (profile._tag === "error") {
     return profile
   }
-  return { _tag: "ok", value: { email, password: draft.password, ...profile.value } }
+  return {
+    _tag: "ok",
+    value: { email, password: draft.password, ...profile.value, saveSent: draft.saveSent },
+  }
 }
 
 const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
@@ -234,6 +241,7 @@ const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
     _tag: "ok",
     value: {
       ...profile.value,
+      saveSent: draft.saveSent,
       ...(draft.password.length === 0 ? {} : { password: draft.password }),
     },
   }
@@ -253,6 +261,7 @@ export {
   validateDraft,
   validateEditDraft,
   type AccountDraft,
+  type BooleanFieldId,
   type EditValidationResult,
   type FieldDescriptor,
   type FieldId,

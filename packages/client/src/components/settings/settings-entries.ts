@@ -1,8 +1,13 @@
-import type { AccountConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type {
+  AccountConfig,
+  NotificationsConfig,
+  SendConfig,
+  SyncConfig,
+} from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
-type SettingsSection = "Accounts" | "Mailboxes" | "Sync" | "Notifications"
+type SettingsSection = "Accounts" | "Mailboxes" | "Sync" | "Sending" | "Notifications"
 
 interface SettingsEntryBase {
   readonly key: string
@@ -25,6 +30,7 @@ type SettingsEntry =
       readonly muted: boolean
     })
   | (SettingsEntryBase & { readonly kind: "sync" })
+  | (SettingsEntryBase & { readonly kind: "send" })
   | (SettingsEntryBase & { readonly kind: "notifications" })
 
 interface SettingsGroup {
@@ -36,10 +42,17 @@ interface SettingsEntriesInput {
   readonly accounts: readonly AccountConfig[]
   readonly mailboxes: readonly Mailbox[]
   readonly sync: SyncConfig
+  readonly send: SendConfig
   readonly notifications: NotificationsConfig
 }
 
-const sectionOrder: readonly SettingsSection[] = ["Accounts", "Mailboxes", "Sync", "Notifications"]
+const sectionOrder: readonly SettingsSection[] = [
+  "Accounts",
+  "Mailboxes",
+  "Sync",
+  "Sending",
+  "Notifications",
+]
 
 const mailboxGroupKey = (accountId: AccountId) => `mailboxes:${accountId}`
 
@@ -99,6 +112,16 @@ const buildSettingsEntries = (input: SettingsEntriesInput): readonly SettingsEnt
       section: "Sync",
       title: "Sync settings",
       subtitle: `${input.sync.initialDays} days back · every ${input.sync.intervalMinutes} min`,
+    },
+    {
+      kind: "send",
+      key: "send",
+      section: "Sending",
+      title: "Sending",
+      subtitle:
+        input.send.delaySeconds === 0
+          ? "send immediately"
+          : `send after ${String(input.send.delaySeconds)}s`,
     },
     {
       kind: "notifications",

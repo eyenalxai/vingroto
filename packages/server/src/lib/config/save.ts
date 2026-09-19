@@ -22,6 +22,7 @@ const saveConfigFile = Effect.fnUntraced(function* saveFile(
     accounts: [...config.accounts],
     sync: config.sync,
     notifications: config.notifications,
+    send: config.send,
   }
   const encoded = yield* Schema.encodeEffect(Schema.fromJsonString(AppConfigFile, { space: 2 }))(
     file,

@@ -6,10 +6,12 @@ import { Show } from "solid-js"
 
 import type { SettingsEntry } from "@/components/settings/settings-entries"
 import type { useAccountProfile } from "@/components/settings/use-account-profile"
+import type { useSendProfile } from "@/components/settings/use-send-profile"
 import type { useSyncProfile } from "@/components/settings/use-sync-profile"
 
 import { MailboxDetail } from "@/components/settings/mailbox-detail"
 import { SettingsForm } from "@/components/settings/settings-form"
+import { sendFields } from "@/components/settings/use-send-profile"
 import { syncFields } from "@/components/settings/use-sync-profile"
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
@@ -23,6 +25,7 @@ interface SettingsDetailProps {
   readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly accountProfile: ReturnType<typeof useAccountProfile>
   readonly syncProfile: ReturnType<typeof useSyncProfile>
+  readonly sendProfile: ReturnType<typeof useSendProfile>
   readonly mutingIds: ReadonlySet<MailboxId>
   readonly notifications: NotificationsConfig | undefined
   readonly notificationsSaving: boolean
@@ -76,6 +79,19 @@ const SettingsDetail = (props: SettingsDetailProps) => {
           status={props.syncProfile.busy() ? "saving…" : props.syncProfile.status()}
           statusError={props.syncProfile.statusError()}
           hint="tab field · ⏎ next · ctrl+s save · esc back"
+        />
+      </Show>
+      <Show when={props.entry?.kind === "send"}>
+        <SettingsForm
+          fields={sendFields}
+          focusedId={props.sendProfile.focusedField()?.id}
+          active={props.zone === "detail"}
+          valueOf={props.sendProfile.fieldValue}
+          onInput={props.sendProfile.input}
+          pending={props.sendProfile.busy()}
+          status={props.sendProfile.busy() ? "saving…" : props.sendProfile.status()}
+          statusError={props.sendProfile.statusError()}
+          hint="tab field · ⏎ save · ctrl+s save · esc back"
         />
       </Show>
       <Show when={props.mailbox}>

@@ -44,6 +44,7 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
             accounts: [...loaded.accounts],
             sync: loaded.sync,
             notifications: loaded.notifications,
+            send: loaded.send,
           },
         }
       }),

@@ -1,4 +1,4 @@
-import type { NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { NotificationsConfig, SendConfig, SyncConfig } from "@vingroto/core/config/schema"
 
 import { AppPaths } from "@vingroto/core/app-paths"
 import * as Context from "effect/Context"
@@ -11,6 +11,7 @@ import type { ConfigWriteError } from "@/lib/config/save"
 import type { SyncSettingsInvalid } from "@/lib/config/sync"
 
 import { makeUpdateNotifications } from "@/lib/config/notifications"
+import { makeUpdateSendSettings } from "@/lib/config/send"
 import { makeUpdateSyncSettings } from "@/lib/config/sync"
 import { ServerEvents } from "@/lib/events"
 
@@ -24,6 +25,9 @@ interface SettingsShape {
   readonly saveNotifications: (
     settings: NotificationsConfig,
   ) => Effect.Effect<void, ConfigInvalid | ConfigUnreadable | ConfigWriteError>
+  readonly saveSendSettings: (
+    settings: SendConfig,
+  ) => Effect.Effect<void, ConfigInvalid | ConfigUnreadable | ConfigWriteError>
 }
 
 class Settings extends Context.Service<Settings, SettingsShape>()("vingroto/lib/server/Settings") {
@@ -36,6 +40,7 @@ class Settings extends Context.Service<Settings, SettingsShape>()("vingroto/lib/
 
       const persistSyncSettings = makeUpdateSyncSettings(paths.config, fs)
       const persistNotifications = makeUpdateNotifications(paths.config, fs)
+      const persistSendSettings = makeUpdateSendSettings(paths.config, fs)
 
       const saveSyncSettings = Effect.fn("Settings.saveSyncSettings")(function* persistSettings(
         settings: SyncConfig,
@@ -51,7 +56,14 @@ class Settings extends Context.Service<Settings, SettingsShape>()("vingroto/lib/
         yield* events.publish({ _tag: "config-changed" })
       })
 
-      return Settings.of({ saveSyncSettings, saveNotifications })
+      const saveSendSettings = Effect.fn("Settings.saveSendSettings")(function* persistSettings(
+        settings: SendConfig,
+      ) {
+        yield* persistSendSettings(settings)
+        yield* events.publish({ _tag: "config-changed" })
+      })
+
+      return Settings.of({ saveNotifications, saveSendSettings, saveSyncSettings })
     }),
   )
 }

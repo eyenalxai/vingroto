@@ -61,6 +61,9 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     if (id === "smtpSecurity") {
       return draft.smtpSecurity
     }
+    if (id === "saveSent") {
+      return draft.saveSent ? "yes" : "no"
+    }
     return draft[id]
   }
 
@@ -214,7 +217,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
   }
 
   const input = (id: FieldId, value: string) => {
-    if (id === "imapSecurity" || id === "smtpSecurity" || id === "password") {
+    if (id === "imapSecurity" || id === "smtpSecurity" || id === "password" || id === "saveSent") {
       return
     }
     setDraft(id, value)

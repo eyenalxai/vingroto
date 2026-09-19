@@ -1,5 +1,9 @@
-import type { KeyEvent } from "@opentui/core"
-import type { AccountConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type {
+  AccountConfig,
+  NotificationsConfig,
+  SendConfig,
+  SyncConfig,
+} from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
@@ -15,8 +19,11 @@ import {
   visibleSettingsEntries,
 } from "@/components/settings/settings-entries"
 import { SettingsNav } from "@/components/settings/settings-nav"
+import { useAccountOrder } from "@/components/settings/use-account-order"
 import { useAccountProfile } from "@/components/settings/use-account-profile"
 import { useNotificationsSetting } from "@/components/settings/use-notifications-setting"
+import { useSendProfile } from "@/components/settings/use-send-profile"
+import { useSettingsKeys } from "@/components/settings/use-settings-keys"
 import { useSettingsSelection } from "@/components/settings/use-settings-selection"
 import { useSyncProfile } from "@/components/settings/use-sync-profile"
 import { useTheme } from "@/components/theme-provider"
@@ -27,12 +34,14 @@ interface SettingsScreenProps {
   readonly mailboxes: readonly Mailbox[]
   readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly sync: SyncConfig
+  readonly send: SendConfig
   readonly notifications: NotificationsConfig
   readonly onAddAccount: () => void
   readonly onClose: () => void
   readonly onAccountSaved: (account: AccountConfig) => void
   readonly onMailboxChanged: () => void
   readonly onSyncSaved: () => void
+  readonly onSendSaved: () => void
   readonly onNotificationsSaved: () => void
   readonly onDisconnected: (message: string) => void
 }
@@ -48,11 +57,21 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     props.accounts[0] === undefined ? "add-account" : `account:${props.accounts[0].id}`,
   )
 
+  const accountOrder = useAccountOrder({
+    runtime,
+    accounts: () => props.accounts,
+    onStatus: (message) => {
+      setStatus(message)
+    },
+    onDisconnected: props.onDisconnected,
+  })
+  const orderedAccounts = accountOrder.accounts
   const entries = createMemo(() =>
     buildSettingsEntries({
-      accounts: props.accounts,
+      accounts: orderedAccounts(),
       mailboxes: props.mailboxes,
       sync: props.sync,
+      send: props.send,
       notifications: props.notifications,
     }),
   )
@@ -84,7 +103,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
 
   const { selectedAccount, selectedAccountLabel, selectedMailbox } = useSettingsSelection({
     entry: selectedEntry,
-    accounts: () => props.accounts,
+    accounts: orderedAccounts,
     mailboxes: () => props.mailboxes,
   })
 
@@ -111,6 +130,16 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     onDisconnected: props.onDisconnected,
   })
 
+  const sendProfile = useSendProfile({
+    runtime,
+    send: () => props.send,
+    onSaved: () => {
+      setStatus("sending settings saved")
+      props.onSendSaved()
+    },
+    onDisconnected: props.onDisconnected,
+  })
+
   const notificationsSetting = useNotificationsSetting({
     runtime,
     onStatus: (message) => {
@@ -132,103 +161,24 @@ const SettingsScreen = (props: SettingsScreenProps) => {
     })
   }
 
-  const moveSelection = (delta: number) => {
-    const rows = visible()
-    const index = rows.findIndex((entry) => entry.key === selectedKey())
-    const clamped = Math.min(Math.max(index === -1 ? 0 : index + delta, 0), rows.length - 1)
-    const next = rows[clamped]
-    if (next !== undefined) {
-      setSelectedKey(next.key)
-    }
-  }
-
-  const activateEntry = (key: string) => {
-    setSelectedKey(key)
-    const entry = visible().find((candidate) => candidate.key === key)
-    if (entry === undefined) {
-      return
-    }
-    if (entry.kind === "add-account") {
-      props.onAddAccount()
-      return
-    }
-    if (entry.kind === "mailbox-group") {
-      toggleGroup(entry.accountId)
-      return
-    }
-    if (entry.kind === "mailbox") {
-      mailboxMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
-      return
-    }
-    setZone("detail")
-  }
-
-  const handleNavKey = (event: KeyEvent): boolean => {
-    if (event.name === "down") {
-      event.preventDefault()
-      moveSelection(1)
-      return true
-    }
-    if (event.name === "up") {
-      event.preventDefault()
-      moveSelection(-1)
-      return true
-    }
-    if (event.name === "space") {
-      const entry = selectedEntry()
-      if (entry?.kind === "mailbox-group") {
-        event.preventDefault()
-        toggleGroup(entry.accountId)
-      } else if (entry?.kind === "mailbox") {
-        event.preventDefault()
-        mailboxMute.toggleMute(entry.mailboxId, entry.name, entry.muted)
-      }
-      return true
-    }
-    if (event.name === "tab" || event.name === "return") {
-      event.preventDefault()
-      const entry = selectedEntry()
-      if (entry !== undefined && (event.name === "return" || entry.kind !== "add-account")) {
-        activateEntry(entry.key)
-      }
-      return true
-    }
-    if (event.name === "escape") {
-      event.preventDefault()
-      props.onClose()
-      return true
-    }
-    return false
-  }
-
-  const handleDetailKey = (event: KeyEvent): boolean => {
-    if (event.name === "escape" || (event.name === "tab" && event.shift)) {
-      event.preventDefault()
-      setZone("nav")
-      return true
-    }
-    const entry = selectedEntry()
-    if (entry?.kind === "account") {
-      if (accountProfile.handleKey(event)) {
-        event.preventDefault()
-      }
-      return true
-    }
-    if (entry?.kind === "sync") {
-      if (syncProfile.handleKey(event)) {
-        event.preventDefault()
-      }
-      return true
-    }
-    if (entry?.kind === "notifications") {
-      if (event.name === "return" || event.name === "space") {
-        event.preventDefault()
-        notificationsSetting.toggle(!props.notifications.enabled)
-      }
-      return true
-    }
-    return false
-  }
+  const settingsKeys = useSettingsKeys({
+    visible,
+    selectedEntry,
+    selectedKey,
+    setSelectedKey,
+    zone,
+    setZone,
+    accountOrder,
+    accountProfile,
+    syncProfile,
+    sendProfile,
+    notificationsSetting,
+    mailboxMute,
+    notifications: () => props.notifications,
+    onToggleGroup: toggleGroup,
+    onAddAccount: props.onAddAccount,
+    onClose: props.onClose,
+  })
 
   useKeyboard((event) => {
     if (event.ctrl && event.name === "c") {
@@ -236,11 +186,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       renderer.destroy()
       return
     }
-    if (zone() === "nav") {
-      handleNavKey(event)
-      return
-    }
-    handleDetailKey(event)
+    settingsKeys.handleKey(event)
   })
 
   return (
@@ -255,7 +201,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
           onSelect={(key) => {
             setSelectedKey(key)
           }}
-          onActivate={activateEntry}
+          onActivate={settingsKeys.activateEntry}
         />
         <SettingsDetail
           entry={selectedEntry()}
@@ -266,6 +212,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
           counts={props.counts}
           accountProfile={accountProfile}
           syncProfile={syncProfile}
+          sendProfile={sendProfile}
           mutingIds={mailboxMute.mutingIds()}
           notifications={props.notifications}
           notificationsSaving={notificationsSetting.saving()}

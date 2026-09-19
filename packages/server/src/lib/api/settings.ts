@@ -40,6 +40,27 @@ const SettingsHandlers = HttpApiBuilder.group(ServerApi, "settings", (handlers) 
         )
       }),
     )
+    .handle("settings.saveSend", ({ payload }) => {
+      if (payload.delaySeconds < 0) {
+        return Effect.fail(
+          new InvalidRequestError({
+            field: "delaySeconds",
+            message: "delaySeconds must be at least 0",
+          }),
+        )
+      }
+      return Settings.pipe(
+        Effect.flatMap((settings) => settings.saveSendSettings(payload)),
+        Effect.mapError((error): InvalidRequestError | InternalError => {
+          if (error._tag === "ConfigInvalid") {
+            return new InvalidRequestError({
+              message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
+            })
+          }
+          return toInternal(error)
+        }),
+      )
+    })
     .handle("settings.saveNotifications", ({ payload }) =>
       Settings.pipe(
         Effect.flatMap((settings) => settings.saveNotifications(payload)),

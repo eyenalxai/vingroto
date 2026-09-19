@@ -8,6 +8,13 @@ A terminal mail client: clients talk to a long-running daemon over a local HTTP 
 A configured mail identity: label, optional sender name, email, IMAP and SMTP servers. Accounts are matched by email address, and an account's id is that address.
 _Avoid_: Profile, login
 
+**Sent copy**:
+The copy of an outgoing message that is kept in the account's Sent mailbox after sending. Each account decides whether it is kept.
+_Avoid_: Outbox
+
+**Send delay**:
+How long an outgoing message waits before it is sent. Zero sends immediately.
+
 **Mailbox**:
 An IMAP mailbox on a server, cached locally with its path, delimiter, special-use flags, UID validity and read state.
 _Avoid_: Folder

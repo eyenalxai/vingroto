@@ -1,4 +1,9 @@
-import type { AccountConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type {
+  AccountConfig,
+  NotificationsConfig,
+  SendConfig,
+  SyncConfig,
+} from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
 import type {
   AccountSave,
@@ -97,10 +102,14 @@ interface MailClientShape {
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, MailClientError>
   readonly accountUsername: (id: AccountId) => Effect.Effect<string | null, MailClientError>
+  readonly reorderAccounts: (
+    accountIds: readonly AccountId[],
+  ) => Effect.Effect<void, MailClientError>
   readonly saveSyncSettings: (settings: SyncConfig) => Effect.Effect<void, MailClientError>
   readonly saveNotifications: (
     settings: NotificationsConfig,
   ) => Effect.Effect<void, MailClientError>
+  readonly saveSendSettings: (settings: SendConfig) => Effect.Effect<void, MailClientError>
   readonly events: Stream.Stream<ServerEvent, MailClientError>
 }
 

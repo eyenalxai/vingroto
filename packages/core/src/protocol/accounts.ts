@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { AppConfig, ServerConfig } from "../config/schema"
@@ -5,6 +6,7 @@ import { AppConfig, ServerConfig } from "../config/schema"
 const AccountSave = Schema.Struct({
   label: Schema.String,
   name: Schema.optionalKey(Schema.String),
+  saveSent: Schema.Boolean.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(true))),
   imap: ServerConfig,
   smtp: ServerConfig,
   username: Schema.String,

@@ -48,6 +48,18 @@ const update = HttpApiEndpoint.put("account.update", "/api/accounts/:accountId",
   }),
 )
 
+const reorder = HttpApiEndpoint.post("account.reorder", "/api/accounts/order", {
+  payload: Schema.Struct({ accountIds: Schema.Array(AccountId) }),
+  success: Schema.Void,
+  error: [InvalidRequestError, InternalError],
+}).annotateMerge(
+  OpenApi.annotations({
+    identifier: "account.reorder",
+    summary: "Reorder accounts",
+    description: "Rearrange the configured accounts into the given order.",
+  }),
+)
+
 const username = HttpApiEndpoint.get("account.username", "/api/accounts/:accountId/username", {
   params: { accountId: AccountId },
   success: Schema.NullOr(Schema.String),
@@ -60,6 +72,6 @@ const username = HttpApiEndpoint.get("account.username", "/api/accounts/:account
   }),
 )
 
-const AccountGroup = HttpApiGroup.make("accounts").add(discover, create, update, username)
+const AccountGroup = HttpApiGroup.make("accounts").add(discover, create, update, reorder, username)
 
 export { AccountGroup }

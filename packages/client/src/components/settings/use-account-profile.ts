@@ -27,6 +27,16 @@ interface UseAccountProfileOptions {
   readonly onDisconnected: (message: string) => void
 }
 
+const cycleDirection = (event: KeyEvent): number | undefined => {
+  if (event.name === "left" || event.name === "h") {
+    return -1
+  }
+  if (event.name === "right" || event.name === "l" || event.name === "space") {
+    return 1
+  }
+  return undefined
+}
+
 const draftFromAccount = (account: AccountConfig): AccountDraft => {
   return {
     ...emptyDraft(),
@@ -40,6 +50,7 @@ const draftFromAccount = (account: AccountConfig): AccountDraft => {
     smtpHost: account.smtp.host,
     smtpPort: String(account.smtp.port),
     smtpSecurity: account.smtp.security,
+    saveSent: account.saveSent,
   }
 }
 
@@ -123,6 +134,9 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
     if (id === "smtpSecurity") {
       return draft.smtpSecurity
     }
+    if (id === "saveSent") {
+      return draft.saveSent ? "yes" : "no"
+    }
     return draft[id]
   }
 
@@ -142,7 +156,7 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
   }
 
   const input = (id: FieldId, value: string) => {
-    if (id === "imapSecurity" || id === "smtpSecurity" || id === "password") {
+    if (id === "imapSecurity" || id === "smtpSecurity" || id === "password" || id === "saveSent") {
       return
     }
     setDraft(id, value)
@@ -234,13 +248,19 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
       return true
     }
     if (active.kind === "security") {
-      const backward = event.name === "left" || event.name === "h"
-      const forward = event.name === "right" || event.name === "l" || event.name === "space"
-      if (backward || forward) {
-        cycleField(active.id, backward ? -1 : 1)
-        return true
+      const direction = cycleDirection(event)
+      if (direction === undefined) {
+        return false
       }
-      return false
+      cycleField(active.id, direction)
+      return true
+    }
+    if (active.kind === "boolean" && active.id === "saveSent") {
+      if (cycleDirection(event) === undefined) {
+        return false
+      }
+      setDraft("saveSent", (current) => !current)
+      return true
     }
     return false
   }

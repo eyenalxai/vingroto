@@ -126,6 +126,11 @@ const App = () => {
     runtime.runFork(Effect.promise(refreshConfig))
   }
 
+  const handleSendSaved = () => {
+    setStatus("sending settings saved")
+    runtime.runFork(Effect.promise(refreshConfig))
+  }
+
   const handleNotificationsSaved = () => {
     setStatus("notification settings saved")
     runtime.runFork(Effect.promise(refreshConfig))
@@ -219,6 +224,7 @@ const App = () => {
               mailboxes={store.visibleMailboxes()}
               counts={store.counts()}
               sync={config().sync}
+              send={config().send}
               notifications={config().notifications}
               onAddAccount={beginAddAccount}
               onClose={() => {
@@ -227,6 +233,7 @@ const App = () => {
               onAccountSaved={handleAccountUpdated}
               onMailboxChanged={store.loadMailboxData}
               onSyncSaved={handleSyncSaved}
+              onSendSaved={handleSendSaved}
               onNotificationsSaved={handleNotificationsSaved}
               onDisconnected={daemon.retry}
             />

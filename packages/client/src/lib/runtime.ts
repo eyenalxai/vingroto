@@ -192,8 +192,12 @@ const ClientLayer = Layer.unwrap(
         guard(api.search["search.marks"]({ query: { ...scopeFields(scope), query } })),
       startSearch: (scope, query) =>
         guard(api.search["search.start"]({ payload: { ...scopeFields(scope), query } })),
+      reorderAccounts: (accountIds) =>
+        guard(api.accounts["account.reorder"]({ payload: { accountIds } })),
       saveNotifications: (settings) =>
         guard(api.settings["settings.saveNotifications"]({ payload: settings })),
+      saveSendSettings: (settings) =>
+        guard(api.settings["settings.saveSend"]({ payload: settings })),
       saveSyncSettings: (settings) =>
         guard(api.settings["settings.saveSyncSettings"]({ payload: settings })),
       setMailboxMuted: (mailboxId, muted) =>

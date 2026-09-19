@@ -61,6 +61,25 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
         ),
       ),
     )
+    .handle("account.reorder", ({ payload }) =>
+      Accounts.pipe(
+        Effect.flatMap((accounts) => accounts.reorder(payload.accountIds)),
+        Effect.mapError((error): InvalidRequestError | InternalError => {
+          if (error._tag === "AccountOrderInvalid") {
+            return new InvalidRequestError({
+              field: "body.accountIds",
+              message: error.message,
+            })
+          }
+          if (error._tag === "ConfigInvalid") {
+            return new InvalidRequestError({
+              message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
+            })
+          }
+          return toInternal(error)
+        }),
+      ),
+    )
     .handle("account.username", ({ params }) =>
       Accounts.pipe(
         Effect.flatMap((accounts) => accounts.username(params.accountId)),

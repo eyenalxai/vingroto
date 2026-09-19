@@ -117,6 +117,12 @@ const SettingsNav = (props: SettingsNavProps) => {
     return "edit"
   }
 
+  const footerHint = () => {
+    const entry = selectedEntry()
+    const reorder = entry?.kind === "account" ? " · ⇧↑↓ reorder" : ""
+    return `↑↓ move · ⏎ ${activationHint()}${reorder} · esc close`
+  }
+
   createEffect(() => {
     const box = scrollBox()
     const selected = props.selectedKey
@@ -170,7 +176,7 @@ const SettingsNav = (props: SettingsNavProps) => {
       </scrollbox>
       <box paddingLeft={1} paddingRight={1} flexShrink={0}>
         <text fg={theme.muted} wrapMode="none" truncate>
-          {`↑↓ move · ⏎ ${activationHint()} · esc close`}
+          {footerHint()}
         </text>
       </box>
     </box>

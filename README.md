@@ -180,12 +180,13 @@ Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox i
 
 `ctrl+x s` opens a full-screen settings screen: a sidebar on the left, the selected editor on the right.
 
-- **Accounts** — edit the mailbox name, sender name, username, IMAP and SMTP servers. The email address is fixed; a new password can be entered, otherwise the stored one is kept.
+- **Accounts** — edit the mailbox name, sender name, username, IMAP and SMTP servers, and whether a copy of sent mail is saved (`saveSent`). The email address is fixed; a new password can be entered, otherwise the stored one is kept.
 - **Mailboxes** — mute or unmute any synced mailbox. Mailboxes are grouped by account; `enter` or `space` collapses a group, and on a mailbox toggles its mute in place.
 - **Sync** — how far back the first sync goes (`initialDays`) and how often `INBOX` is refreshed (`intervalMinutes`).
+- **Sending** — how long a message waits before it is sent (`delaySeconds`); `0` sends immediately.
 - **+ Add account** — closes settings and starts the account wizard.
 
-`enter` on an account or the sync settings opens its editor, `tab` moves between the sidebar and the editor, `esc` climbs back one step and closes the screen at the top.
+The account order is the order of the config file. `shift+up` and `shift+down` move the selected account, so the first account is the compose default. `enter` on an account, the sync settings or the sending settings opens its editor, `tab` moves between the sidebar and the editor, `esc` climbs back one step and closes the screen at the top.
 
 ## Syncing
 
@@ -218,6 +219,7 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 | `m`                                           | list: move to another mailbox                              |
 | `ctrl+a`                                      | list: select every loaded message / clear                  |
 | `i`                                           | mailboxes: mute or unmute the mailbox                      |
+| `shift+up`, `shift+down`                      | settings: move the selected account up or down             |
 | `escape`                                      | list: clear the selection · otherwise step back            |
 | `ctrl+x` `a`                                  | add an account                                             |
 | `ctrl+x` `s`                                  | settings                                                   |

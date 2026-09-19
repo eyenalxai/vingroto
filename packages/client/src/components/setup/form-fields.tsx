@@ -57,6 +57,22 @@ const FieldRow = <Id extends string>(props: FieldRowProps<Id>) => {
       </box>
     )
   }
+  if (props.field.kind === "boolean") {
+    return (
+      <box flexDirection="row" gap={1}>
+        <box width={labelWidth} flexShrink={0}>
+          <text fg={labelColor()} wrapMode="none" truncate>
+            {props.field.label}
+          </text>
+        </box>
+        <box flexGrow={1} flexDirection="row">
+          <text fg={valueColor()} wrapMode="none" truncate>
+            {props.value}
+          </text>
+        </box>
+      </box>
+    )
+  }
   return (
     <box flexDirection="row" gap={1}>
       <box width={labelWidth} flexShrink={0}>
