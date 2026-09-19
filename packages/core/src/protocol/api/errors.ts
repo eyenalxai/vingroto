@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { AccountId, MailboxId, MessageId } from "../../ids"
+import { AccountId, DraftId, MailboxId, MessageId, OutboxId } from "../../ids"
 
 class InvalidRequestError extends Schema.TaggedError<InvalidRequestError>()(
   "InvalidRequestError",
@@ -32,6 +32,24 @@ class MailboxNotFoundError extends Schema.TaggedError<MailboxNotFoundError>()(
   "MailboxNotFoundError",
   {
     mailboxId: MailboxId,
+    message: Schema.String,
+  },
+  { httpApiStatus: 404 },
+) {}
+
+class OutboxNotFoundError extends Schema.TaggedError<OutboxNotFoundError>()(
+  "OutboxNotFoundError",
+  {
+    outboxId: OutboxId,
+    message: Schema.String,
+  },
+  { httpApiStatus: 404 },
+) {}
+
+class DraftNotFoundError extends Schema.TaggedError<DraftNotFoundError>()(
+  "DraftNotFoundError",
+  {
+    draftId: DraftId,
     message: Schema.String,
   },
   { httpApiStatus: 404 },
@@ -81,11 +99,13 @@ class NotFoundError extends Schema.TaggedError<NotFoundError>()(
 export {
   AccountNotFoundError,
   CredentialsError,
+  DraftNotFoundError,
   InternalError,
   InvalidRequestError,
   MailboxNotFoundError,
   MessageNotFoundError,
   NotFoundError,
+  OutboxNotFoundError,
   UnauthorizedError,
   UpstreamError,
 }

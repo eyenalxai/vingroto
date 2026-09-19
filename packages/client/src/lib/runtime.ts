@@ -142,8 +142,11 @@ const ClientLayer = Layer.unwrap(
             Effect.catchTag("AccountNotFoundError", () => Effect.succeed(null)),
           ),
         ),
+      cancelOutbox: (outboxId) => guard(api.outbox["outbox.cancel"]({ params: { outboxId } })),
       createAccount: (input) => guard(api.accounts["account.create"]({ payload: input })),
+      deleteDraft: (draftId) => guard(api.drafts["draft.delete"]({ params: { draftId } })),
       discover: (email) => guard(api.accounts["account.discover"]({ payload: { email } })),
+      enqueueMessage: (message) => guard(api.outbox["outbox.enqueue"]({ payload: message })),
       events: Stream.unwrap(
         api.events["event.subscribe"]().pipe(
           Effect.mapError((error): MailClientError =>
@@ -181,11 +184,14 @@ const ClientLayer = Layer.unwrap(
             Effect.catchTag("MessageNotFoundError", () => Effect.succeed(null)),
           ),
         ),
+      listDrafts: () => guard(api.drafts["draft.list"]()),
       listMessages: (scope, limit) =>
         guard(api.messages["message.list"]({ query: listQuery(scope, limit) })),
+      listOutbox: () => guard(api.outbox["outbox.list"]()),
       loadBody: (id) => guard(api.messages["message.body"]({ params: { messageId: id } })),
       moveMessages: (ids, targetMailboxId) =>
         guard(api.messages["message.move"]({ payload: { ids, targetMailboxId } })),
+      releaseOutbox: (outboxId) => guard(api.outbox["outbox.release"]({ params: { outboxId } })),
       searchMessages: (scope, query, limit) =>
         guard(api.search["search.messages"]({ query: { ...scopeFields(scope), query, limit } })),
       searchMarks: (scope, query) =>
@@ -194,6 +200,7 @@ const ClientLayer = Layer.unwrap(
         guard(api.search["search.start"]({ payload: { ...scopeFields(scope), query } })),
       reorderAccounts: (accountIds) =>
         guard(api.accounts["account.reorder"]({ payload: { accountIds } })),
+      saveDraft: (draft) => guard(api.drafts["draft.save"]({ payload: draft })),
       saveNotifications: (settings) =>
         guard(api.settings["settings.saveNotifications"]({ payload: settings })),
       saveSendSettings: (settings) =>

@@ -4,7 +4,7 @@ import type {
   SendConfig,
   SyncConfig,
 } from "@vingroto/core/config/schema"
-import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
+import type { AccountId, DraftId, MailboxId, MessageId, OutboxId } from "@vingroto/core/ids"
 import type {
   AccountSave,
   DiscoveryResult,
@@ -14,10 +14,12 @@ import type {
 import type {
   AccountNotFoundError,
   CredentialsError,
+  DraftNotFoundError,
   InternalError,
   InvalidRequestError,
   MailboxNotFoundError,
   MessageNotFoundError,
+  OutboxNotFoundError,
   UnauthorizedError,
   UpstreamError,
 } from "@vingroto/core/protocol/api/errors"
@@ -34,6 +36,12 @@ import type {
   SeenOutcome,
   SyncReport,
 } from "@vingroto/core/protocol/mail"
+import type {
+  Draft,
+  DraftSave,
+  OutgoingMessage,
+  OutboxEntry,
+} from "@vingroto/core/protocol/outgoing"
 import type { Effect, Stream } from "effect"
 import type { HttpClientError } from "effect/unstable/http"
 
@@ -49,10 +57,12 @@ class ClientDefect extends Schema.TaggedError<ClientDefect>()("ClientDefect", {
 type ContractError =
   | AccountNotFoundError
   | CredentialsError
+  | DraftNotFoundError
   | InternalError
   | InvalidRequestError
   | MailboxNotFoundError
   | MessageNotFoundError
+  | OutboxNotFoundError
   | UnauthorizedError
   | UpstreamError
 
@@ -110,6 +120,15 @@ interface MailClientShape {
     settings: NotificationsConfig,
   ) => Effect.Effect<void, MailClientError>
   readonly saveSendSettings: (settings: SendConfig) => Effect.Effect<void, MailClientError>
+  readonly enqueueMessage: (
+    message: OutgoingMessage & { readonly draftId?: DraftId },
+  ) => Effect.Effect<OutboxEntry, MailClientError>
+  readonly listOutbox: () => Effect.Effect<readonly OutboxEntry[], MailClientError>
+  readonly cancelOutbox: (outboxId: OutboxId) => Effect.Effect<void, MailClientError>
+  readonly releaseOutbox: (outboxId: OutboxId) => Effect.Effect<OutboxEntry, MailClientError>
+  readonly listDrafts: () => Effect.Effect<readonly Draft[], MailClientError>
+  readonly saveDraft: (draft: DraftSave) => Effect.Effect<Draft, MailClientError>
+  readonly deleteDraft: (draftId: DraftId) => Effect.Effect<void, MailClientError>
   readonly events: Stream.Stream<ServerEvent, MailClientError>
 }
 

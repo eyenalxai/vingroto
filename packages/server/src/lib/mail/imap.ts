@@ -20,6 +20,7 @@ import type {
 import { passwordReference, usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
 import { moveMessages, updateFlags } from "@/lib/mail/imap-actions"
+import { appendToMailbox } from "@/lib/mail/imap-append"
 import { commandTimeout, connectTimeout, guard, releaseClient } from "@/lib/mail/imap-command"
 import { fetchMailboxResult } from "@/lib/mail/imap-mailbox"
 import { toMailboxInfos } from "@/lib/mail/imap-mapping"
@@ -71,6 +72,12 @@ interface ImapShape {
     mailboxPath: string,
     uids: readonly Uid[],
   ) => Effect.Effect<readonly MessageEnvelope[], ImapServiceError>
+  readonly appendMessage: (
+    account: AccountConfig,
+    mailboxPath: string,
+    source: Buffer,
+    flags: readonly string[],
+  ) => Effect.Effect<Uid | undefined, ImapServiceError>
 }
 
 class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") {
@@ -196,6 +203,16 @@ class Imap extends Context.Service<Imap, ImapShape>()("vingroto/lib/mail/Imap") 
         ) {
           return yield* withClient(account, (client) =>
             fetchMailboxEnvelopes(client, account, mailboxPath, uids),
+          )
+        }),
+        appendMessage: Effect.fn("Imap.appendMessage")(function* appendMessageForAccount(
+          account: AccountConfig,
+          mailboxPath: string,
+          source: Buffer,
+          flags: readonly string[],
+        ) {
+          return yield* withClient(account, (client) =>
+            appendToMailbox(client, account, mailboxPath, source, flags),
           )
         }),
       })

@@ -17,6 +17,7 @@
     "./protocol/api/errors": "./src/protocol/api/errors.ts",
     "./protocol/events": "./src/protocol/events.ts",
     "./protocol/mail": "./src/protocol/mail.ts",
+    "./protocol/outgoing": "./src/protocol/outgoing.ts",
     "./standalone": "./src/standalone.ts"
   },
   "scripts": {

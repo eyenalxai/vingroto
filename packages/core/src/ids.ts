@@ -16,4 +16,12 @@ const Uid = Schema.Int.pipe(Schema.brand("Uid"))
 
 type Uid = Schema.Schema.Type<typeof Uid>
 
-export { AccountId, MailboxId, MessageId, Uid }
+const OutboxId = Schema.Int.pipe(Schema.brand("OutboxId"))
+
+type OutboxId = Schema.Schema.Type<typeof OutboxId>
+
+const DraftId = Schema.Int.pipe(Schema.brand("DraftId"))
+
+type DraftId = Schema.Schema.Type<typeof DraftId>
+
+export { AccountId, DraftId, MailboxId, MessageId, OutboxId, Uid }

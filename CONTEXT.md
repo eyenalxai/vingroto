@@ -15,6 +15,18 @@ _Avoid_: Outbox
 **Send delay**:
 How long an outgoing message waits before it is sent. Zero sends immediately.
 
+**Outbox**:
+Messages the daemon has accepted but has not sent yet: each waits out its send delay or retry backoff, and can be cancelled into a draft.
+_Avoid_: Queue
+
+**Pending message**:
+One message in the outbox.
+_Avoid_: Queued message, job
+
+**Draft**:
+A message stored by the daemon rather than on a mail server, so it survives client restarts and can be reopened in the composer.
+_Avoid_: Drafts folder
+
 **Mailbox**:
 An IMAP mailbox on a server, cached locally with its path, delimiter, special-use flags, UID validity and read state.
 _Avoid_: Folder

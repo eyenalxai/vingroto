@@ -1,4 +1,4 @@
-import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
+import type { AccountId, DraftId, MailboxId, MessageId, OutboxId, Uid } from "@vingroto/core/ids"
 import type { MailAddress } from "@vingroto/core/mail/address"
 
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core"
@@ -112,4 +112,34 @@ const AttachmentTable = sqliteTable(
   (table) => [index("attachment_message_id_index").on(table.message_id)],
 )
 
-export { AttachmentTable, MailboxTable, MessageBodyTable, MessageTable }
+const OutboxTable = sqliteTable("outbox", {
+  id: integer().primaryKey({ autoIncrement: true }).$type<OutboxId>(),
+  account_id: text().notNull().$type<AccountId>(),
+  to: text({ mode: "json" }).notNull().$type<readonly MailAddress[]>(),
+  cc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
+  bcc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
+  subject: text().notNull().default(""),
+  body: text().notNull().default(""),
+  in_reply_to: text(),
+  references: text({ mode: "json" }).notNull().default([]).$type<readonly string[]>(),
+  send_at: integer().notNull(),
+  attempts: integer().notNull().default(0),
+  state: text().notNull().default("pending").$type<"pending" | "failed">(),
+  last_error: text(),
+  ...timestamps,
+})
+
+const DraftTable = sqliteTable("draft", {
+  id: integer().primaryKey({ autoIncrement: true }).$type<DraftId>(),
+  account_id: text().notNull().$type<AccountId>(),
+  to: text({ mode: "json" }).notNull().$type<readonly MailAddress[]>(),
+  cc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
+  bcc: text({ mode: "json" }).notNull().default([]).$type<readonly MailAddress[]>(),
+  subject: text().notNull().default(""),
+  body: text().notNull().default(""),
+  in_reply_to: text(),
+  references: text({ mode: "json" }).notNull().default([]).$type<readonly string[]>(),
+  ...timestamps,
+})
+
+export { AttachmentTable, DraftTable, MailboxTable, MessageBodyTable, MessageTable, OutboxTable }

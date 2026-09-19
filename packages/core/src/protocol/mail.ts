@@ -79,6 +79,7 @@ const MessageDetail = Schema.Struct({
   mailboxName: Schema.String,
   messageId: Schema.NullOr(Schema.String),
   inReplyTo: Schema.NullOr(Schema.String),
+  references: Schema.NullOr(Schema.Array(Schema.String)),
   to: Schema.NullOr(Schema.Array(MailAddress)),
   cc: Schema.NullOr(Schema.Array(MailAddress)),
   answered: Schema.Boolean,

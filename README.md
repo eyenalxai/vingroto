@@ -198,6 +198,10 @@ Mailboxes are never mirrored in full. Each mailbox is fetched window by window: 
 
 The daemon keeps the database in `$XDG_DATA_HOME/<app>/vingroto.db` (with `<app>` being `vingroto` when installed and `vingroto-dev` from a checkout) and writes structured JSON logs to `$XDG_STATE_HOME/<app>/server.log` (default `~/.local/state/<app>/server.log`), mirroring the same records to stderr as plain single-line entries for journald. The client keeps its own JSON log at `$XDG_STATE_HOME/<app>/client.log` and never writes to the terminal. `VINGROTO_LOG_LEVEL=Debug` adds connection, cache and credential detail.
 
+## Sending
+
+A composed message goes to the daemon's outbox, not straight to SMTP. It waits out the send delay — the **Sending** editor in settings, `send.delaySeconds`, 60 seconds by default — before the daemon's worker sends it, so it can still be cancelled; cancelling moves it into drafts. A send that fails is retried with a growing backoff of 5, 10, 20, 40, 80, 160 and 320 seconds for up to seven attempts and then stays in the outbox as failed until it is released by hand, which resets its attempts and sends it on the next worker pass. Drafts and outbox entries live in the daemon's database, so they survive client and daemon restarts and are reopened in the composer. When the account's save-sent setting is on, a successful send is also appended to the account's Sent mailbox.
+
 ## Reading
 
 Headers are synced, bodies are not. The reader shows a message straight from the local cache when it has one; `enter` asks the daemon to fetch the full source over IMAP, parse the text and HTML parts and store them, so the next open is instant.

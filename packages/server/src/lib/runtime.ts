@@ -7,17 +7,21 @@ import { Accounts } from "@/lib/accounts"
 import { ApiServer } from "@/lib/api/runtime"
 import { Credential } from "@/lib/credential/service"
 import { Database } from "@/lib/db/database"
+import { Drafts } from "@/lib/drafts"
 import { ServerEvents } from "@/lib/events"
 import { ServerLifecycle } from "@/lib/lifecycle"
 import { MailActions } from "@/lib/mail/actions"
 import { Discovery } from "@/lib/mail/autoconfig"
 import { MessageBodies } from "@/lib/mail/bodies"
 import { Imap } from "@/lib/mail/imap"
+import { Mailer } from "@/lib/mail/mailer"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { Search } from "@/lib/mail/search"
+import { SentCopies } from "@/lib/mail/sent"
 import { SyncEngine } from "@/lib/mail/sync"
 import { DesktopNotifications } from "@/lib/notify/desktop"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
+import { Outbox } from "@/lib/outbox"
 import { Scheduler } from "@/lib/scheduler"
 import { Settings } from "@/lib/settings"
 
@@ -50,10 +54,26 @@ const SyncLayer = Layer.mergeAll(
 
 const SchedulerLayer = Scheduler.layer.pipe(Layer.provide(SyncLayer), Layer.provide(CoreLayer))
 
+const MailerLayer = Mailer.layer.pipe(Layer.provide(CoreLayer))
+
+const SentCopiesLayer = SentCopies.layer.pipe(Layer.provide(MailerLayer), Layer.provide(CoreLayer))
+
+const OutboxLayer = Outbox.layer.pipe(
+  Layer.provide(SentCopiesLayer),
+  Layer.provide(MailerLayer),
+  Layer.provide(CoreLayer),
+)
+
+const DraftsLayer = Drafts.layer.pipe(Layer.provide(CoreLayer))
+
 const AppLayer = Layer.mergeAll(
   CoreLayer,
   SyncLayer,
   SchedulerLayer,
+  MailerLayer,
+  SentCopiesLayer,
+  OutboxLayer,
+  DraftsLayer,
   Discovery.layer,
   MailActions.layer.pipe(Layer.provide(CoreLayer)),
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),

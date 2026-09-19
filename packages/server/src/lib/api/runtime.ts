@@ -11,10 +11,12 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { AccountHandlers } from "@/lib/api/accounts"
 import { ServerApi } from "@/lib/api/api"
 import { authorizationLayer } from "@/lib/api/authorization"
+import { DraftHandlers } from "@/lib/api/drafts"
 import { EventHandlers } from "@/lib/api/events"
 import { MailboxHandlers } from "@/lib/api/mailboxes"
 import { MessageHandlers } from "@/lib/api/messages"
 import { notFoundLayer } from "@/lib/api/not-found"
+import { OutboxHandlers } from "@/lib/api/outbox"
 import { writeRegistration } from "@/lib/api/registration"
 import { schemaErrorLayer } from "@/lib/api/schema-error"
 import { SearchHandlers } from "@/lib/api/search"
@@ -37,6 +39,8 @@ const HandlersLayer = Layer.mergeAll(
   SyncHandlers,
   SettingsHandlers,
   EventHandlers,
+  OutboxHandlers,
+  DraftHandlers,
 )
 
 const appLayer = (token: string) =>

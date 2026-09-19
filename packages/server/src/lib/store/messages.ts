@@ -180,6 +180,7 @@ const getMessage = Effect.fn("Message.get")(function* get(
       mailboxName: MailboxTable.name,
       messageId: MessageTable.message_id,
       inReplyTo: MessageTable.in_reply_to,
+      references: MessageTable.references,
       to: MessageTable.to,
       cc: MessageTable.cc,
       answered: MessageTable.answered,
@@ -190,6 +191,19 @@ const getMessage = Effect.fn("Message.get")(function* get(
     .where(eq(MessageTable.id, messageId))
     .limit(1)
   return rows[0]
+})
+
+const getMessageIdByUid = Effect.fn("Message.idByUid")(function* idByUid(
+  mailboxId: MailboxId,
+  uid: Uid,
+): Effect.fn.Return<MessageId | undefined, EffectDrizzleQueryError, Database> {
+  const database = yield* Database
+  const rows = yield* database.client
+    .select({ id: MessageTable.id })
+    .from(MessageTable)
+    .where(and(eq(MessageTable.mailbox_id, mailboxId), eq(MessageTable.uid, uid)))
+    .limit(1)
+  return rows[0]?.id
 })
 
 const messageCounts = Effect.fn("Message.counts")(function* countsForMailboxes() {
@@ -244,6 +258,7 @@ export {
   deleteMailboxMessages,
   deleteMessages,
   getMessage,
+  getMessageIdByUid,
   listColumns,
   listMailboxSearchRows,
   listMessages,
