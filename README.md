@@ -191,7 +191,8 @@ bun client api …   # send an API request to the running daemon
 bun run build      # compile standalone binaries into packages/*/dist/
 bun db:generate    # generate a migration from packages/server/src/lib/db/schema.ts
 bun db:check       # validate the generated migrations
-bun run check      # format check, lint, typecheck
+bun run test       # run the server and client test suites
+bun run check      # format check, lint, typecheck, tests
 ```
 
 Migrations live in `packages/server/drizzle/` and are applied by the daemon on startup.

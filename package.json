@@ -16,7 +16,8 @@
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
     "tsc": "bun run --filter '*' tsc",
-    "check": "bun run format:check && bun run lint && bun run tsc",
+    "test": "bun run --filter @vingroto/server test && bun run --filter @vingroto/client test",
+    "check": "bun run format:check && bun run lint && bun run tsc && bun run test",
     "db:generate": "bun run --filter @vingroto/server db:generate",
     "db:check": "bun run --filter @vingroto/server db:check"
   },
