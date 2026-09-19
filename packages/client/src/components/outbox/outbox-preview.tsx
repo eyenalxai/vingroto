@@ -6,6 +6,7 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import type { MailViewKind } from "@/lib/mail/mailbox-tree"
 
+import { Divider } from "@/components/divider"
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { addressList, formatMessageDateTime } from "@/lib/format"
@@ -13,6 +14,7 @@ import { addressList, formatMessageDateTime } from "@/lib/format"
 interface HeaderLine {
   readonly label: string
   readonly value: string
+  readonly error?: boolean
 }
 
 interface OutboxPreviewProps {
@@ -57,7 +59,7 @@ const OutboxPreview = (props: OutboxPreviewProps) => {
       }
       lines.push(
         { label: "Created", value: formatMessageDateTime(current.createdAt) },
-        { label: "State", value: props.detailOf(current) },
+        { label: "State", value: props.detailOf(current), error: current.state === "failed" },
       )
       return lines
     }
@@ -96,6 +98,8 @@ const OutboxPreview = (props: OutboxPreviewProps) => {
       flexDirection="column"
       border
       borderColor={props.focused ? theme.accent : theme.border}
+      title="reader"
+      titleColor={props.focused ? theme.accent : theme.muted}
     >
       <Show
         when={selected()}
@@ -120,7 +124,7 @@ const OutboxPreview = (props: OutboxPreviewProps) => {
       >
         <box flexGrow={1} flexDirection="column">
           <box flexShrink={0} flexDirection="column" paddingLeft={1} paddingRight={1}>
-            <text fg={theme.accent} wrapMode="none" truncate>
+            <text fg={theme.text} wrapMode="word">
               {subject()}
             </text>
             <For each={headerLines()}>
@@ -130,7 +134,7 @@ const OutboxPreview = (props: OutboxPreviewProps) => {
                     <text fg={theme.muted}>{line.label}</text>
                   </box>
                   <box flexGrow={1}>
-                    <text fg={theme.text} wrapMode="word">
+                    <text fg={line.error === true ? theme.error : theme.text} wrapMode="word">
                       {line.value}
                     </text>
                   </box>
@@ -138,9 +142,7 @@ const OutboxPreview = (props: OutboxPreviewProps) => {
               )}
             </For>
           </box>
-          <box height={1}>
-            <text fg={theme.border}>{"─".repeat(200)}</text>
-          </box>
+          <Divider />
           <scrollbox
             ref={(box) => {
               setScrollBox(box)

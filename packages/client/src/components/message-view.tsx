@@ -8,6 +8,7 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
 import type { BodyState } from "@/lib/mail/body-state"
 
+import { Divider } from "@/components/divider"
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
 import { addressList, formatMessageDateTime } from "@/lib/format"
@@ -125,6 +126,8 @@ const MessageView = (props: MessageViewProps) => {
       flexDirection="column"
       border
       borderColor={props.focused ? theme.accent : theme.border}
+      title="reader"
+      titleColor={props.focused ? theme.accent : theme.muted}
     >
       <Show
         when={props.detail}
@@ -146,7 +149,7 @@ const MessageView = (props: MessageViewProps) => {
         {(detail) => (
           <box flexGrow={1} flexDirection="column">
             <box flexShrink={0} flexDirection="column" paddingLeft={1} paddingRight={1}>
-              <text fg={theme.accent} wrapMode="none" truncate>
+              <text fg={theme.text} wrapMode="word">
                 {detail().subject ?? "(no subject)"}
               </text>
               <For each={headerLines()}>
@@ -164,9 +167,7 @@ const MessageView = (props: MessageViewProps) => {
                 )}
               </For>
             </box>
-            <box height={1}>
-              <text fg={theme.border}>{"─".repeat(200)}</text>
-            </box>
+            <Divider />
             <scrollbox
               ref={(box) => {
                 setScrollBox(box)

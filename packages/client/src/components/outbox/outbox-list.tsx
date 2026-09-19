@@ -45,6 +45,9 @@ const OutboxRow = (props: OutboxRowProps) => {
   const theme = useTheme()
   const foreground = () => (props.selected ? theme.selectionForeground : theme.text)
   const muted = () => (props.selected ? theme.selectionForeground : theme.muted)
+  const marker = () =>
+    props.selected ? theme.selectionForeground : (props.markerColor ?? theme.muted)
+  const tail = () => (props.selected ? theme.selectionForeground : (props.tailColor ?? theme.muted))
   return (
     <box
       id={props.id}
@@ -53,7 +56,7 @@ const OutboxRow = (props: OutboxRowProps) => {
       backgroundColor={props.selected ? theme.selectionBackground : "transparent"}
     >
       <box width={1} flexShrink={0}>
-        <text fg={props.markerColor ?? muted()}>{props.marker}</text>
+        <text fg={marker()}>{props.marker}</text>
       </box>
       <box width={senderColumnWidth} minWidth={senderMinimumWidth} flexShrink={1} overflow="hidden">
         <text fg={foreground()} wrapMode="none" truncate>
@@ -88,7 +91,7 @@ const OutboxRow = (props: OutboxRowProps) => {
       </Show>
       <Show when={props.tail.length > 0}>
         <box flexShrink={1} overflow="hidden">
-          <text fg={props.tailColor ?? muted()} wrapMode="none" truncate>
+          <text fg={tail()} wrapMode="none" truncate>
             {props.tail}
           </text>
         </box>
@@ -132,7 +135,7 @@ const OutboxList = (props: OutboxListProps) => {
           <Show
             when={props.loading}
             fallback={
-              <text fg={theme.muted} wrapMode="none" truncate>
+              <text fg={theme.muted}>
                 {props.scope === "drafts" ? "no drafts" : "no pending messages"}
               </text>
             }

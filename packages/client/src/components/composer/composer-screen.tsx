@@ -9,6 +9,7 @@ import type { ComposerSeed } from "@/lib/mail/compose"
 import type { AppRuntime } from "@/lib/runtime"
 
 import { useComposer } from "@/components/composer/use-composer"
+import { StatusBar } from "@/components/status-bar"
 import { useTheme } from "@/components/theme-provider"
 import { describeSystemEditor } from "@/lib/external"
 
@@ -47,10 +48,15 @@ const ComposerScreen = (props: ComposerScreenProps) => {
 
   const title = () => (composer.draftId() === undefined ? "compose" : "compose · draft")
 
-  const hint = () =>
-    composer.editing()
-      ? "waiting for the editor…"
-      : "tab next · ctrl+s queue · esc close · ctrl+c quit"
+  const statusMessage = () => {
+    const message = composer.status()
+    if (message.length > 0) {
+      return message
+    }
+    return composer.draftId() === undefined ? "new message" : "draft saved"
+  }
+
+  const hint = "tab next · esc save & close · ctrl+s queue · ctrl+c quit app"
 
   useKeyboard((event: KeyEvent) => {
     if (event.ctrl && event.name === "c") {
@@ -111,8 +117,8 @@ const ComposerScreen = (props: ComposerScreenProps) => {
         borderColor={theme.accent}
         title={title()}
         titleColor={theme.accent}
-        paddingLeft={2}
-        paddingRight={2}
+        paddingLeft={1}
+        paddingRight={1}
         paddingTop={0}
       >
         <box flexDirection="row" gap={1} flexShrink={0}>
@@ -212,7 +218,7 @@ const ComposerScreen = (props: ComposerScreenProps) => {
             when={props.editor === "builtin"}
             fallback={
               <text fg={composer.field() === "body" ? theme.text : theme.muted} wrapMode="none">
-                {`enter to edit in ${systemEditor}`}
+                {`⏎ to edit in ${systemEditor}`}
               </text>
             }
           >
@@ -235,19 +241,12 @@ const ComposerScreen = (props: ComposerScreenProps) => {
           </Show>
         </box>
       </box>
-      <box flexDirection="row" gap={1} paddingLeft={2} paddingRight={2} flexShrink={0} height={1}>
-        <text
-          fg={composer.statusError() ? theme.error : theme.muted}
-          flexGrow={1}
-          wrapMode="none"
-          truncate
-        >
-          {composer.status()}
-        </text>
-        <text fg={theme.muted} flexShrink={0} wrapMode="none" truncate>
-          {hint()}
-        </text>
-      </box>
+      <StatusBar
+        message={statusMessage()}
+        busy={composer.busy()}
+        error={composer.statusError()}
+        hint={hint}
+      />
     </box>
   )
 }

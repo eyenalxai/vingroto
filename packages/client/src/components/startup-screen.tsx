@@ -1,7 +1,7 @@
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { Show } from "solid-js"
 
-import { Spinner } from "@/components/spinner"
+import { StatusBar } from "@/components/status-bar"
 import { useTheme } from "@/components/theme-provider"
 
 interface StartupScreenProps {
@@ -14,8 +14,12 @@ const StartupScreen = (props: StartupScreenProps) => {
   const theme = useTheme()
   const renderer = useRenderer()
 
-  const label = () => (props.failure === undefined ? "connecting to the daemon…" : "retrying…")
-  const color = () => (props.failure === undefined ? theme.muted : theme.error)
+  const message = () => {
+    if (props.failure !== undefined) {
+      return props.failure
+    }
+    return props.retrying ? "connecting to the daemon…" : "ready"
+  }
 
   useKeyboard((key) => {
     if ((key.ctrl && key.name === "c") || (key.name === "q" && !key.ctrl)) {
@@ -25,13 +29,17 @@ const StartupScreen = (props: StartupScreenProps) => {
   })
 
   return (
-    <box flexGrow={1} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
-      <Show when={props.retrying}>
-        <Spinner label={label()} color={color()} />
-      </Show>
-      <Show when={props.failure}>{(message) => <text fg={theme.error}>{message()}</text>}</Show>
-      <Show when={props.endpoint}>{(url) => <text fg={theme.muted}>{url()}</text>}</Show>
-      <text fg={theme.muted}>q quit</text>
+    <box flexGrow={1} flexDirection="column">
+      <box flexGrow={1} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
+        <text fg={theme.text}>vingroto</text>
+        <Show when={props.endpoint}>{(url) => <text fg={theme.muted}>{url()}</text>}</Show>
+      </box>
+      <StatusBar
+        message={message()}
+        busy={props.retrying}
+        error={props.failure !== undefined}
+        hint="q quit · ctrl+c quit app"
+      />
     </box>
   )
 }

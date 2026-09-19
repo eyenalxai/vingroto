@@ -90,10 +90,10 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const listTitle = createMemo(() => {
     const scope = view()
     if (scope === "outbox") {
-      return `outbox (${props.store.outboxView.entries().length})`
+      return `outbox · ${props.store.outboxView.entries().length}`
     }
     if (scope === "drafts") {
-      return `drafts (${props.store.outboxView.drafts().length})`
+      return `drafts · ${props.store.outboxView.drafts().length}`
     }
     const row = props.store.selectedMailboxTreeRow()
     const parts = [row?.label ?? "messages"]
@@ -244,7 +244,12 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
           </box>
         </Show>
       </box>
-      <StatusBar message={props.connection ?? props.status} busy={busy()} hint={statusHint()} />
+      <StatusBar
+        message={props.connection ?? props.status}
+        busy={busy()}
+        error={props.connection !== undefined}
+        hint={statusHint()}
+      />
     </box>
   )
 }

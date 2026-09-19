@@ -48,6 +48,7 @@ const useComposer = (options: ComposerOptions) => {
   const [body, setBody] = createSignal(options.seed.body)
   const [status, setStatus] = createSignal("")
   const [statusError, setStatusError] = createSignal(false)
+  const [busy, setBusy] = createSignal(false)
   const [invalidFields, setInvalidFields] = createSignal<ReadonlySet<ComposerField>>(new Set())
   const [draftId, setDraftId] = createSignal<DraftId | undefined>(options.seed.draftId)
   const [queued, setQueued] = createSignal(false)
@@ -57,6 +58,7 @@ const useComposer = (options: ComposerOptions) => {
   const fromLabel = createMemo(() => describeAccount(fromAccount()))
 
   const report = (message: string, error = false) => {
+    setBusy(false)
     setStatus(message)
     setStatusError(error)
   }
@@ -191,6 +193,7 @@ const useComposer = (options: ComposerOptions) => {
     setBody(bodyText())
     autosave.cancel()
     report("queuing…")
+    setBusy(true)
     const program = Effect.gen(function* queueComposerMessage() {
       yield* Effect.gen(function* runQueueComposerMessage() {
         const entry = yield* enqueueMessage({
@@ -228,6 +231,7 @@ const useComposer = (options: ComposerOptions) => {
       options.onClose()
       return
     }
+    setBusy(true)
     const program = Effect.gen(function* flushComposerDraft() {
       yield* Effect.gen(function* runFlushComposerDraft() {
         const account = fromAccount()
@@ -264,6 +268,7 @@ const useComposer = (options: ComposerOptions) => {
   return {
     bccText,
     body,
+    busy,
     ccText,
     close,
     cycleFrom,

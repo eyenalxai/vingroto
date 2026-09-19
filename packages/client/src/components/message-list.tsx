@@ -48,7 +48,7 @@ const MessageList = (props: MessageListProps) => {
     >
       <Show when={props.searchEditing || props.searchActive}>
         <box paddingLeft={1} paddingRight={1} flexShrink={0}>
-          <text fg={props.searchEditing ? theme.accent : theme.muted} wrapMode="none" truncate>
+          <text fg={props.searchEditing ? theme.accent : theme.muted} wrapMode="char">
             {`/ ${props.searchQuery}${props.searchEditing ? "▌" : ""}`}
           </text>
         </box>
@@ -65,9 +65,7 @@ const MessageList = (props: MessageListProps) => {
           <Show
             when={props.loading}
             fallback={
-              <text fg={theme.muted} wrapMode="none" truncate>
-                {props.searchActive ? "no matches" : "no messages"}
-              </text>
+              <text fg={theme.muted}>{props.searchActive ? "no matches" : "no messages"}</text>
             }
           >
             <Spinner label="loading messages…" />

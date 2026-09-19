@@ -1,9 +1,11 @@
+import { useTerminalDimensions } from "@opentui/solid"
 import { For, Show } from "solid-js"
 
 import type { FieldDescriptor, FieldId } from "@/components/setup/form-model"
 
 import { FieldRow } from "@/components/setup/form-fields"
 import { Spinner } from "@/components/spinner"
+import { StatusBar } from "@/components/status-bar"
 import { useTheme } from "@/components/theme-provider"
 
 interface AccountSetupViewProps {
@@ -21,64 +23,78 @@ interface AccountSetupViewProps {
   readonly onInput: (id: FieldId, value: string) => void
 }
 
+const panelPreferredWidth = 72
+
 const AccountSetupView = (props: AccountSetupViewProps) => {
   const theme = useTheme()
+  const dimensions = useTerminalDimensions()
+
+  const panelWidth = () => Math.min(panelPreferredWidth, Math.max(1, dimensions().width - 4))
+  const title = () =>
+    `${props.mode === "initial" ? "welcome to vingroto" : "add account"} · ${props.step}`
+
   return (
-    <box flexGrow={1} flexDirection="column" alignItems="center" justifyContent="center" gap={1}>
+    <box flexGrow={1} flexDirection="column">
       <box
-        width={72}
+        flexGrow={1}
         flexDirection="column"
-        border
-        borderColor={theme.accent}
-        title={props.mode === "initial" ? "welcome to vingroto" : "add account"}
-        titleColor={theme.accent}
+        alignItems="center"
+        justifyContent="center"
         paddingLeft={2}
         paddingRight={2}
-        paddingTop={1}
-        paddingBottom={1}
-        gap={1}
       >
-        <Show
-          when={props.step === "credentials"}
-          fallback={
-            <Show
-              when={props.discovering}
-              fallback={
-                <text fg={theme.muted}>
-                  {props.source ?? "servers not detected, enter them below"}
-                </text>
-              }
-            >
-              <Spinner label="detecting mail servers…" />
-            </Show>
-          }
+        <box
+          width={panelWidth()}
+          flexDirection="column"
+          border
+          borderColor={theme.accent}
+          title={title()}
+          titleColor={theme.accent}
+          paddingLeft={1}
+          paddingRight={1}
+          gap={1}
         >
-          <text fg={theme.muted}>
-            Enter your email and password. Mail servers are detected automatically.
-          </text>
-        </Show>
-        <box flexDirection="column">
-          <For each={props.fields}>
-            {(field) => (
-              <FieldRow
-                field={field}
-                focused={props.focusedId === field.id}
-                value={props.valueOf(field.id)}
-                onInput={(value) => {
-                  props.onInput(field.id, value)
-                }}
-              />
-            )}
-          </For>
+          <Show
+            when={props.step === "credentials"}
+            fallback={
+              <Show
+                when={props.discovering}
+                fallback={
+                  <text fg={theme.muted}>
+                    {props.source ?? "servers not detected, enter them below"}
+                  </text>
+                }
+              >
+                <Spinner label="detecting mail servers…" />
+              </Show>
+            }
+          >
+            <text fg={theme.muted}>
+              enter your email and password. mail servers are detected automatically.
+            </text>
+          </Show>
+          <box flexDirection="column">
+            <For each={props.fields}>
+              {(field) => (
+                <FieldRow
+                  field={field}
+                  focused={props.focusedId === field.id}
+                  value={props.valueOf(field.id)}
+                  onInput={(value) => {
+                    props.onInput(field.id, value)
+                  }}
+                />
+              )}
+            </For>
+          </box>
         </box>
-        <Show
-          when={props.busy}
-          fallback={<text fg={props.statusError ? theme.error : theme.muted}>{props.status}</text>}
-        >
-          <Spinner label={props.status} />
-        </Show>
-        <text fg={theme.muted}>{props.hint}</text>
       </box>
+      <StatusBar
+        message={props.status}
+        busy={props.busy}
+        error={props.statusError}
+        hint={props.hint}
+      />
     </box>
   )
 }

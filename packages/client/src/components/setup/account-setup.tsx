@@ -105,9 +105,9 @@ const AccountSetup = (props: AccountSetupProps) => {
   const hint = () => {
     if (form.step() === "credentials") {
       const cancel = props.onCancel === undefined ? "" : " · esc cancel"
-      return `tab next · ⏎ continue${cancel} · ctrl+c quit`
+      return `tab next · ⏎ continue${cancel} · ctrl+c quit app`
     }
-    return "tab next · ⏎ save · esc back · ctrl+c quit"
+    return "tab next · ⏎ save · esc back · ctrl+c quit app"
   }
 
   return (

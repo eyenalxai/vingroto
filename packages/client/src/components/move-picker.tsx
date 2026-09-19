@@ -2,9 +2,11 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 import type { MailboxId } from "@vingroto/core/ids"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
-import { useKeyboard, useRenderer } from "@opentui/solid"
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
 
+import { Divider } from "@/components/divider"
+import { StatusBar } from "@/components/status-bar"
 import { useTheme } from "@/components/theme-provider"
 import { matchesQuery } from "@/lib/search"
 
@@ -17,9 +19,12 @@ interface MovePickerProps {
 
 const rowId = (mailboxId: MailboxId) => `move-row-${mailboxId}`
 
+const panelPreferredWidth = 64
+
 const MovePicker = (props: MovePickerProps) => {
   const theme = useTheme()
   const renderer = useRenderer()
+  const dimensions = useTerminalDimensions()
   const [query, setQuery] = createSignal("")
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
@@ -33,6 +38,13 @@ const MovePicker = (props: MovePickerProps) => {
       matchesQuery(`${mailbox.path} ${mailbox.name} ${mailbox.special_use ?? ""}`, query()),
     ),
   )
+
+  const panelWidth = () => Math.min(panelPreferredWidth, Math.max(1, dimensions().width - 4))
+  const emptyLabel = () => (query().length === 0 ? "no mailboxes synced yet" : "no mailbox matches")
+  const countLabel = () => {
+    const count = filtered().length
+    return count === 1 ? "1 mailbox" : `${count} mailboxes`
+  }
 
   createEffect(() => {
     query()
@@ -93,17 +105,15 @@ const MovePicker = (props: MovePickerProps) => {
   return (
     <box flexGrow={1} flexDirection="column" alignItems="center" justifyContent="center">
       <box
-        width={64}
+        width={panelWidth()}
         height="70%"
         flexDirection="column"
         border
         borderColor={theme.accent}
         title={`move to · ${props.accountLabel}`}
         titleColor={theme.accent}
-        paddingLeft={1}
-        paddingRight={1}
       >
-        <box flexShrink={0}>
+        <box flexShrink={0} paddingLeft={1} paddingRight={1}>
           <input
             value={query()}
             onInput={(value) => {
@@ -118,6 +128,7 @@ const MovePicker = (props: MovePickerProps) => {
             flexGrow={1}
           />
         </box>
+        <Divider />
         <scrollbox
           ref={(box) => {
             setScrollBox(box)
@@ -127,9 +138,7 @@ const MovePicker = (props: MovePickerProps) => {
           paddingRight={1}
         >
           <Show when={filtered().length === 0}>
-            <text fg={theme.muted} wrapMode="none" truncate>
-              no mailbox matches
-            </text>
+            <text fg={theme.muted}>{emptyLabel()}</text>
           </Show>
           <For each={filtered()}>
             {(mailbox, index) => {
@@ -141,30 +150,34 @@ const MovePicker = (props: MovePickerProps) => {
                   gap={1}
                   backgroundColor={isSelected() ? theme.selectionBackground : "transparent"}
                 >
-                  <text
-                    fg={isSelected() ? theme.selectionForeground : theme.text}
-                    wrapMode="none"
-                    truncate
-                    flexGrow={1}
-                  >
-                    {mailbox.path}
-                  </text>
-                  <text
-                    fg={isSelected() ? theme.selectionForeground : theme.muted}
-                    wrapMode="none"
-                    truncate
-                    flexShrink={0}
-                  >
-                    {mailbox.name === mailbox.path ? "" : mailbox.name}
-                  </text>
+                  <box flexGrow={1} overflow="hidden">
+                    <text
+                      fg={isSelected() ? theme.selectionForeground : theme.text}
+                      wrapMode="none"
+                      truncate
+                    >
+                      {mailbox.path}
+                    </text>
+                  </box>
+                  <box flexShrink={0}>
+                    <text
+                      fg={isSelected() ? theme.selectionForeground : theme.muted}
+                      wrapMode="none"
+                      truncate
+                    >
+                      {mailbox.name === mailbox.path ? "" : mailbox.name}
+                    </text>
+                  </box>
                 </box>
               )
             }}
           </For>
         </scrollbox>
-        <box flexShrink={0} paddingLeft={1} paddingRight={1}>
-          <text fg={theme.muted}>↑↓ move · ⏎ move here · esc cancel</text>
-        </box>
+        <StatusBar
+          message={countLabel()}
+          busy={false}
+          hint="↑↓ move · ⏎ move here · esc cancel · ctrl+c quit app"
+        />
       </box>
     </box>
   )

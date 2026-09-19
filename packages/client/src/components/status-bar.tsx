@@ -7,6 +7,7 @@ interface StatusBarProps {
   readonly message: string
   readonly busy: boolean
   readonly hint: string
+  readonly error?: boolean
 }
 
 const StatusBar = (props: StatusBarProps) => {
@@ -20,7 +21,7 @@ const StatusBar = (props: StatusBarProps) => {
             <Spinner color={theme.accent} />
           </Show>
         </box>
-        <text fg={theme.text} flexGrow={1}>
+        <text fg={props.error === true ? theme.error : theme.text} flexGrow={1}>
           {props.message}
         </text>
       </box>

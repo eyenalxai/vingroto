@@ -14,25 +14,27 @@ const hints = {
   mailbox:
     "↑↓ move · ⏎ open · space fold · i mute · / search · c compose · tab next pane · ctrl+x · q quit",
   list: "↑↓ move · / search · space mark · s read · u unread · r reply · R reply all · m move · esc back · c compose · ctrl+x · q quit",
-  reader: "↑↓ scroll · pgup/pgdn · r reply · R reply all · c compose · esc back · ctrl+x · q quit",
+  reader:
+    "↑↓ scroll · pgup/pgdn · s read · u unread · r reply · R reply all · c compose · esc back · ctrl+x · q quit",
 } as const
 
 const viewHints: Readonly<Record<MailViewKind, Readonly<Record<Pane, string>>>> = {
   outbox: {
     mailbox: hints.mailbox,
-    list: "↑↓ move · ⏎ read · s send now · x cancel · esc mailboxes · c compose · ctrl+x · q quit",
-    reader: "↑↓ move · pgup/pgdn scroll · esc mailboxes · c compose · ctrl+x · q quit",
+    list: "↑↓ move · ⏎ read · s send now · x cancel · esc back · c compose · ctrl+x · q quit",
+    reader:
+      "↑↓ scroll · pgup/pgdn · s send now · x cancel · esc back · c compose · ctrl+x · q quit",
   },
   drafts: {
     mailbox: hints.mailbox,
-    list: "↑↓ move · ⏎ edit · d delete · esc mailboxes · c compose · ctrl+x · q quit",
-    reader: "↑↓ move · pgup/pgdn scroll · esc mailboxes · c compose · ctrl+x · q quit",
+    list: "↑↓ move · ⏎ edit · d delete · esc back · c compose · ctrl+x · q quit",
+    reader: "↑↓ scroll · pgup/pgdn · d delete · esc back · c compose · ctrl+x · q quit",
   },
 }
 
 const markedHint = "s read · u unread · m move · ctrl+a mark all · esc clear"
 
-const searchHint = "enter apply · esc clear · ctrl+a mark every match"
+const searchHint = "⏎ apply · esc clear · ctrl+a mark every match"
 
 const resolveLayoutMode = (width: number): LayoutMode => {
   if (width >= wideLayoutWidth) {
