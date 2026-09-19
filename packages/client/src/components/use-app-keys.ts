@@ -22,6 +22,13 @@ interface AppKeysOptions {
   readonly onAddAccount: () => void
   readonly onOpenSettings: () => void
   readonly onMoveMessages: () => void
+  readonly searchActive: () => boolean
+  readonly searchEditing: () => boolean
+  readonly onSearchBegin: () => void
+  readonly onSearchClear: () => void
+  readonly onSearchCommit: () => void
+  readonly onSearchType: (character: string) => void
+  readonly onSearchBackspace: () => void
   readonly enabled: () => boolean
 }
 
@@ -131,6 +138,63 @@ const useAppKeys = (options: AppKeysOptions) => {
     return false
   }
 
+  const handleSearchKey = (key: KeyEvent): boolean => {
+    if (!options.searchEditing()) {
+      return false
+    }
+    if (key.name === "escape") {
+      options.onSearchClear()
+      return true
+    }
+    if (key.name === "return") {
+      options.onSearchCommit()
+      return true
+    }
+    if (key.name === "backspace" || key.name === "delete") {
+      options.onSearchBackspace()
+      return true
+    }
+    if (key.name === "tab" || key.name === "left" || key.name === "right") {
+      return true
+    }
+    if (key.name === "space") {
+      options.onSearchType(" ")
+      return true
+    }
+    if (!key.ctrl && !key.meta && !key.option && key.super !== true && key.name.length === 1) {
+      options.onSearchType(key.name)
+      return true
+    }
+    return false
+  }
+
+  const handleListActionKey = (key: KeyEvent): boolean => {
+    if (options.pane() !== "list") {
+      return false
+    }
+    if (key.name === "/" && !key.ctrl && !key.meta && !key.option) {
+      options.onSearchBegin()
+      return true
+    }
+    if (key.name === "r" && !key.ctrl) {
+      options.store.markRead()
+      return true
+    }
+    if (key.name === "u" && !key.ctrl) {
+      options.store.markUnread()
+      return true
+    }
+    if (key.name === "m" && !key.ctrl) {
+      options.onMoveMessages()
+      return true
+    }
+    if (key.ctrl && key.name === "a") {
+      options.store.toggleMarkAll()
+      return true
+    }
+    return false
+  }
+
   const handleActionKey = (key: KeyEvent): boolean => {
     if ((key.ctrl && key.name === "c") || (key.name === "q" && !key.ctrl)) {
       options.renderer.destroy()
@@ -148,23 +212,8 @@ const useAppKeys = (options: AppKeysOptions) => {
       toggleFocusedAccount()
       return true
     }
-    if (options.pane() === "list") {
-      if (key.name === "r" && !key.ctrl) {
-        options.store.markRead()
-        return true
-      }
-      if (key.name === "u" && !key.ctrl) {
-        options.store.markUnread()
-        return true
-      }
-      if (key.name === "m" && !key.ctrl) {
-        options.onMoveMessages()
-        return true
-      }
-      if (key.ctrl && key.name === "a") {
-        options.store.toggleMarkAll()
-        return true
-      }
+    if (handleListActionKey(key)) {
+      return true
     }
     if (options.pane() === "mailbox" && key.name === "i" && !key.ctrl) {
       options.store.toggleMailboxMuted()
@@ -211,6 +260,10 @@ const useAppKeys = (options: AppKeysOptions) => {
       return true
     }
     if (key.name === "escape") {
+      if (options.pane() === "list" && options.searchActive()) {
+        options.onSearchClear()
+        return true
+      }
       if (options.pane() === "list" && options.store.markedIds().size > 0) {
         options.store.clearMarks()
         return true
@@ -230,6 +283,7 @@ const useAppKeys = (options: AppKeysOptions) => {
     const handled =
       leader.handle(key) ||
       handleSelectionKey(key) ||
+      handleSearchKey(key) ||
       handleActionKey(key) ||
       handleMovementKey(key) ||
       handlePaneKey(key)

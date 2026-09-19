@@ -156,8 +156,8 @@ const useMailStore = (options: MailStoreOptions) => {
     onDisconnected: options.onDisconnected,
     onStatus: options.onStatus,
     runtime: options.runtime,
-    selectedMessage: messagePane.selectedMessage,
-    markedMessages: messagePane.markedMessages,
+    selectedTarget: messagePane.selectedTarget,
+    markedTargets: messagePane.markedTargetList,
   })
 
   const mailboxMute = useMailboxMute({

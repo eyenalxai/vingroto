@@ -59,6 +59,16 @@ const listQuery = (scope: ListScope, limit: number) => {
   return { scope: scope.kind, limit }
 }
 
+const scopeFields = (scope: ListScope) => {
+  if (scope.kind === "mailbox") {
+    return { scope: scope.kind, mailboxId: scope.mailboxId }
+  }
+  if (scope.kind === "unread" && scope.accountId !== undefined) {
+    return { scope: scope.kind, accountId: scope.accountId }
+  }
+  return { scope: scope.kind }
+}
+
 const ClientLayer = Layer.unwrap(
   Effect.gen(function* makeClientLayer() {
     const paths = yield* AppPaths
@@ -176,6 +186,12 @@ const ClientLayer = Layer.unwrap(
       loadBody: (id) => guard(api.messages["message.body"]({ params: { messageId: id } })),
       moveMessages: (ids, targetMailboxId) =>
         guard(api.messages["message.move"]({ payload: { ids, targetMailboxId } })),
+      searchMessages: (scope, query, limit) =>
+        guard(api.search["search.messages"]({ query: { ...scopeFields(scope), query, limit } })),
+      searchMarks: (scope, query) =>
+        guard(api.search["search.marks"]({ query: { ...scopeFields(scope), query } })),
+      startSearch: (scope, query) =>
+        guard(api.search["search.start"]({ payload: { ...scopeFields(scope), query } })),
       saveNotifications: (settings) =>
         guard(api.settings["settings.saveNotifications"]({ payload: settings })),
       saveSyncSettings: (settings) =>

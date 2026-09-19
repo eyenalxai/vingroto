@@ -1,17 +1,17 @@
 import type { MessageId } from "@vingroto/core/ids"
-import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
+import type { MessageListItem, MessageTarget } from "@vingroto/core/protocol/mail"
 
-import { Effect, Fiber } from "effect"
-import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
+import { Effect } from "effect"
+import { createEffect, createMemo, createSignal, untrack } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
-import type { BodyState } from "@/lib/mail/body-state"
 import type { AppRuntime } from "@/lib/runtime"
 
+import { useMessageDetail } from "@/components/use-message-detail"
+import { useMessageSearch } from "@/components/use-message-search"
 import { useReadOnDisplay } from "@/components/use-read-on-display"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
-import { bodyState } from "@/lib/mail/body-state"
 import { parseListKey } from "@/lib/mail/mailbox-tree"
 
 const messageWindow = 500
@@ -23,26 +23,38 @@ interface MessagePaneOptions {
   readonly onDisconnected: (message: string) => void
 }
 
+const targetOf = (row: MessageListItem): MessageTarget => {
+  return { id: row.id, accountId: row.accountId, mailboxPath: row.mailboxPath }
+}
+
 const useMessagePane = (options: MessagePaneOptions) => {
   const [messages, setMessages] = createSignal<readonly MessageListItem[]>([])
-  const [detail, setDetail] = createSignal<MessageDetail | undefined>()
-  const [body, setBody] = createSignal<BodyState | undefined>()
   const [selectedMessageId, setSelectedMessageId] = createSignal<MessageId | undefined>()
-  const [markedIds, setMarkedIds] = createSignal<ReadonlySet<MessageId>>(new Set())
+  const [markedTargets, setMarkedTargets] = createSignal<ReadonlyMap<MessageId, MessageTarget>>(
+    new Map(),
+  )
   const [loadingMessages, setLoadingMessages] = createSignal(false)
-  const [loadingDetail, setLoadingDetail] = createSignal(false)
   const [loadedListKey, setLoadedListKey] = createSignal<string | undefined>()
   let messageLoadToken = 0
 
   const selectedMessage = createMemo(() => messages().find((row) => row.id === selectedMessageId()))
+  const selectedTarget = createMemo((): MessageTarget | undefined => {
+    const row = selectedMessage()
+    return row === undefined ? undefined : targetOf(row)
+  })
+  const markedIds = createMemo(() => new Set(markedTargets().keys()))
+  const markedTargetList = createMemo(() => [...markedTargets().values()])
 
-  const markedMessages = createMemo(() => {
-    const ids = markedIds()
-    return messages().filter((row) => ids.has(row.id))
+  const detail = useMessageDetail({
+    listKey: options.listKey,
+    onDisconnected: options.onDisconnected,
+    onStatus: options.onStatus,
+    runtime: options.runtime,
+    selectedMessageId,
   })
 
   const readOnDisplay = useReadOnDisplay({
-    detail,
+    detail: detail.detail,
     listKey: options.listKey,
     messages,
     onDisconnected: options.onDisconnected,
@@ -51,6 +63,15 @@ const useMessagePane = (options: MessagePaneOptions) => {
     selectedMessageId,
     setMessages,
     setSelectedMessageId,
+  })
+
+  const search = useMessageSearch({
+    applyRows: readOnDisplay.applyMessageRows,
+    listKey: options.listKey,
+    onDisconnected: options.onDisconnected,
+    onQueryChanged: readOnDisplay.reset,
+    onStatus: options.onStatus,
+    runtime: options.runtime,
   })
 
   const reportFailure = (label: string, error: MailClientError) => {
@@ -73,10 +94,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
         setLoadedListKey(key)
         readOnDisplay.reset()
         setMessages([])
-        setDetail(undefined)
-        setBody(undefined)
         setSelectedMessageId(undefined)
-        setLoadingDetail(false)
       }
       messageLoadToken += 1
       const token = messageLoadToken
@@ -112,70 +130,38 @@ const useMessagePane = (options: MessagePaneOptions) => {
     })
   }
 
-  const loadDetail = (messageId: MessageId) => {
-    untrack(() => {
-      setLoadingDetail(true)
-      const program = Effect.gen(function* loadMessageDetail() {
-        yield* Effect.gen(function* queryMessageDetail() {
-          const client = yield* MailClient
-          const value = yield* client.getMessage(messageId)
-          yield* Effect.sync(() => {
-            if (selectedMessageId() === messageId) {
-              setDetail(value ?? undefined)
-            }
-          })
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              reportFailure("could not load the message", error)
-            }),
-          ),
-        )
-      }).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (selectedMessageId() === messageId) {
-              setLoadingDetail(false)
-            }
-          }),
-        ),
-      )
-      options.runtime.runFork(program)
-    })
-  }
-
-  const applyBody = (messageId: MessageId, state: BodyState) => {
-    if (selectedMessageId() === messageId) {
-      setBody(state)
+  const setSearchQuery = (next: string) => {
+    search.updateQuery(next)
+    if (next.length === 0) {
+      loadListMessages()
     }
   }
 
-  const loadBody = (messageId: MessageId) =>
-    untrack(() => {
-      const program = Effect.gen(function* loadMessageBody() {
-        yield* Effect.sync(() => {
-          applyBody(messageId, bodyState.loading())
-        })
-        const client = yield* MailClient
-        yield* client.loadBody(messageId).pipe(
-          Effect.tap((loaded) =>
-            Effect.sync(() => {
-              applyBody(messageId, bodyState.loaded({ html: loaded.html, text: loaded.text }))
-            }),
-          ),
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              const failure = describeClientFailure(error)
-              applyBody(messageId, bodyState.error({ message: failure.message }))
-              if (failure._tag === "connection") {
-                options.onDisconnected(failure.message)
-              }
-            }),
-          ),
-        )
-      })
-      return options.runtime.runFork(program)
-    })
+  const clearSearch = () => {
+    search.cancel()
+    loadListMessages()
+  }
+
+  const commitSearch = () => {
+    search.commit()
+  }
+
+  const typeSearchCharacter = (character: string) => {
+    setSearchQuery(search.query() + character)
+  }
+
+  const searchBackspace = () => {
+    setSearchQuery(search.query().slice(0, -1))
+  }
+
+  const maybeGrowSearch = (index: number, rowCount: number) => {
+    if (!search.active() || !search.hasMore()) {
+      return
+    }
+    if (index >= Math.floor(rowCount / 2)) {
+      search.grow()
+    }
+  }
 
   const moveMessageSelection = (delta: number) => {
     const rows = messages()
@@ -184,16 +170,19 @@ const useMessagePane = (options: MessagePaneOptions) => {
     const next = rows[clamped]
     if (next !== undefined) {
       setSelectedMessageId(next.id)
+      maybeGrowSearch(clamped, rows.length)
     }
   }
 
   const toggleMark = (messageId: MessageId) => {
-    setMarkedIds((current) => {
-      const next = new Set<MessageId>(current)
-      if (next.has(messageId)) {
-        next.delete(messageId)
-      } else {
-        next.add(messageId)
+    setMarkedTargets((current) => {
+      const next = new Map(current)
+      if (next.delete(messageId)) {
+        return next
+      }
+      const row = messages().find((entry) => entry.id === messageId)
+      if (row !== undefined) {
+        next.set(messageId, targetOf(row))
       }
       return next
     })
@@ -209,63 +198,72 @@ const useMessagePane = (options: MessagePaneOptions) => {
   }
 
   const toggleMarkAll = () => {
+    if (search.active()) {
+      search.fetchMarks((targets) => {
+        setMarkedTargets((current) => {
+          const allMarked = targets.length > 0 && targets.every((target) => current.has(target.id))
+          return allMarked
+            ? new Map()
+            : new Map(targets.map((target): [MessageId, MessageTarget] => [target.id, target]))
+        })
+      })
+      return
+    }
     const rows = messages()
-    setMarkedIds((current) => {
+    setMarkedTargets((current) => {
       const allMarked = rows.length > 0 && rows.every((row) => current.has(row.id))
-      return allMarked ? new Set<MessageId>() : new Set<MessageId>(rows.map((row) => row.id))
+      if (allMarked) {
+        return new Map()
+      }
+      return new Map(rows.map((row): [MessageId, MessageTarget] => [row.id, targetOf(row)]))
     })
   }
 
   const clearMarks = () => {
-    setMarkedIds(new Set<MessageId>())
+    setMarkedTargets(new Map())
   }
 
   const reloadCurrent = () => {
+    if (search.active()) {
+      search.reload()
+      return
+    }
     loadListMessages()
   }
 
   createEffect(() => {
     options.listKey()
     clearMarks()
+    search.cancel()
     loadListMessages()
-  })
-
-  createEffect(() => {
-    const messageId = selectedMessageId()
-    setDetail(undefined)
-    setBody(undefined)
-    if (messageId === undefined) {
-      setLoadingDetail(false)
-      return
-    }
-    loadDetail(messageId)
-    const fiber = loadBody(messageId)
-    if (fiber === undefined) {
-      return
-    }
-    onCleanup(() => {
-      // Moving the selection cancels a body download that is no longer on screen.
-      options.runtime.runFork(Fiber.interrupt(fiber))
-    })
   })
 
   return {
     applyReadOnDisplay: readOnDisplay.applyReadOnDisplay,
-    body,
+    beginSearch: search.begin,
+    body: detail.body,
     clearMarks,
-    detail,
+    clearSearch,
+    commitSearch,
+    detail: detail.detail,
     dropRetained: readOnDisplay.dropRetained,
-    loadingDetail,
+    loadingDetail: detail.loadingDetail,
     loadingMessages,
     markedIds,
-    markedMessages,
+    markedTargetList,
     messages,
     moveMessageSelection,
     reloadCurrent,
+    searchActive: search.active,
+    searchBackspace,
+    searchEditing: search.editing,
+    searchQuery: search.query,
     selectedMessage,
     selectedMessageId,
+    selectedTarget,
     toggleMarkAll,
     toggleMarkCurrent,
+    typeSearchCharacter,
   }
 }
 

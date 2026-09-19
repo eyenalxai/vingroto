@@ -19,6 +19,7 @@ import {
   mailboxPaneWidthFor,
   markedHint,
   resolveLayoutMode,
+  searchHint,
   visiblePanesFor,
 } from "@/components/pane-layout"
 import { useRuntime } from "@/components/runtime-provider"
@@ -66,13 +67,24 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     onAddAccount: props.onAddAccount,
     onOpenSettings: props.onOpenSettings,
     onMoveMessages: props.onMoveMessages,
+    onSearchBackspace: props.store.searchBackspace,
+    onSearchBegin: props.store.beginSearch,
+    onSearchClear: props.store.clearSearch,
+    onSearchCommit: props.store.commitSearch,
+    onSearchType: props.store.typeSearchCharacter,
+    searchActive: props.store.searchActive,
+    searchEditing: props.store.searchEditing,
     enabled: () => true,
   })
 
   const listTitle = createMemo(() => {
     const row = props.store.selectedMailboxTreeRow()
-    const parts = [`${row?.label ?? "messages"} · ${props.store.messages().length}`]
-    const marked = props.store.markedMessages().length
+    const parts = [row?.label ?? "messages"]
+    if (props.store.searchActive()) {
+      parts.push(`search: ${props.store.searchQuery()}`)
+    }
+    parts.push(`${props.store.messages().length}`)
+    const marked = props.store.markedIds().size
     if (marked > 0) {
       parts.push(`${marked} marked`)
     }
@@ -83,7 +95,10 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     if (keys.leaderActive()) {
       return describeLeaderHint()
     }
-    if (props.pane === "list" && props.store.markedMessages().length > 0) {
+    if (props.pane === "list" && props.store.searchEditing()) {
+      return searchHint
+    }
+    if (props.pane === "list" && props.store.markedIds().size > 0) {
       return markedHint
     }
     return describePaneHint(props.pane)
@@ -136,6 +151,9 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
               pending={props.store.pendingMessageIds()}
               loading={props.store.messages().length === 0 && props.store.loadingMessages()}
               focused={props.pane === "list"}
+              searchActive={props.store.searchActive()}
+              searchEditing={props.store.searchEditing()}
+              searchQuery={props.store.searchQuery()}
             />
           </box>
         </Show>

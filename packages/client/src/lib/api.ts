@@ -23,7 +23,9 @@ import type {
   MessageBody,
   MessageDetail,
   MessageListItem,
+  MessageTarget,
   MoveOutcome,
+  SearchOutcome,
   SeenOutcome,
   SyncReport,
 } from "@vingroto/core/protocol/mail"
@@ -73,6 +75,16 @@ interface MailClientShape {
     ids: readonly MessageId[],
     targetMailboxId: MailboxId,
   ) => Effect.Effect<MoveOutcome, MailClientError>
+  readonly searchMessages: (
+    scope: ListScope,
+    query: string,
+    limit: number,
+  ) => Effect.Effect<SearchOutcome, MailClientError>
+  readonly searchMarks: (
+    scope: ListScope,
+    query: string,
+  ) => Effect.Effect<readonly MessageTarget[], MailClientError>
+  readonly startSearch: (scope: ListScope, query: string) => Effect.Effect<void, MailClientError>
   readonly setMailboxMuted: (
     mailboxId: MailboxId,
     muted: boolean,

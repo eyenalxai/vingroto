@@ -1,5 +1,5 @@
 import type { MessageId } from "@vingroto/core/ids"
-import type { Mailbox, MessageListItem } from "@vingroto/core/protocol/mail"
+import type { Mailbox, MessageTarget } from "@vingroto/core/protocol/mail"
 
 import { Effect } from "effect"
 import { createSignal } from "solid-js"
@@ -12,8 +12,8 @@ import { describeClientFailure } from "@/lib/failure"
 
 interface MessageActionsOptions {
   readonly runtime: AppRuntime
-  readonly selectedMessage: () => MessageListItem | undefined
-  readonly markedMessages: () => readonly MessageListItem[]
+  readonly selectedTarget: () => MessageTarget | undefined
+  readonly markedTargets: () => readonly MessageTarget[]
   readonly onChanged: (ids: readonly MessageId[]) => void
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
@@ -23,11 +23,11 @@ const useMessageActions = (options: MessageActionsOptions) => {
   const [pendingMessageIds, setPendingMessageIds] = createSignal<ReadonlySet<MessageId>>(new Set())
 
   const targets = () => {
-    const marked = options.markedMessages()
+    const marked = options.markedTargets()
     if (marked.length > 0) {
       return marked
     }
-    const selected = options.selectedMessage()
+    const selected = options.selectedTarget()
     return selected === undefined ? [] : [selected]
   }
 
@@ -60,7 +60,7 @@ const useMessageActions = (options: MessageActionsOptions) => {
     })
   }
 
-  const applySeen = (items: readonly MessageListItem[], seen: boolean) => {
+  const applySeen = (items: readonly MessageTarget[], seen: boolean) => {
     const targetIds = items.map((item) => item.id)
     addPending(targetIds)
     const program = Effect.gen(function* updateSeen() {

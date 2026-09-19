@@ -16,6 +16,9 @@ interface MessageListProps {
   readonly pending: ReadonlySet<MessageId>
   readonly loading: boolean
   readonly focused: boolean
+  readonly searchActive: boolean
+  readonly searchEditing: boolean
+  readonly searchQuery: string
 }
 
 const senderColumnWidth = 18
@@ -43,6 +46,13 @@ const MessageList = (props: MessageListProps) => {
       title={props.title}
       titleColor={props.focused ? theme.accent : theme.muted}
     >
+      <Show when={props.searchEditing || props.searchActive}>
+        <box paddingLeft={1} paddingRight={1} flexShrink={0}>
+          <text fg={props.searchEditing ? theme.accent : theme.muted} wrapMode="none" truncate>
+            {`/ ${props.searchQuery}${props.searchEditing ? "▌" : ""}`}
+          </text>
+        </box>
+      </Show>
       <scrollbox
         ref={(box) => {
           setScrollBox(box)
@@ -56,7 +66,7 @@ const MessageList = (props: MessageListProps) => {
             when={props.loading}
             fallback={
               <text fg={theme.muted} wrapMode="none" truncate>
-                no messages
+                {props.searchActive ? "no matches" : "no messages"}
               </text>
             }
           >

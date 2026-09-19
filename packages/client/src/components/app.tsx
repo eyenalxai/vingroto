@@ -137,10 +137,7 @@ const App = () => {
   }
 
   const beginMove = () => {
-    const selected = store.selectedMessage()
-    const marked = store.markedMessages()
-    const items = marked.length > 0 ? marked : selected === undefined ? [] : [selected]
-    const result = resolveMoveTargets(items, accounts(), store.visibleMailboxes())
+    const result = resolveMoveTargets(store.targets(), accounts(), store.visibleMailboxes())
     if (result._tag === "error") {
       setStatus(result.message)
       return

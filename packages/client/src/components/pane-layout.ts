@@ -10,11 +10,13 @@ const mediumMailboxPaneWidth = 26
 
 const hints = {
   mailbox: "↑↓ move · ⏎ open · space fold · i mute · tab next pane · ctrl+x · q quit",
-  list: "↑↓ move · space mark · r read · u unread · m move · esc back · ctrl+x · q quit",
+  list: "↑↓ move · / search · space mark · r read · u unread · m move · esc back · ctrl+x · q quit",
   reader: "↑↓ scroll · pgup/pgdn · esc back · ctrl+x · q quit",
 } as const
 
 const markedHint = "r read · u unread · m move · ctrl+a mark all · esc clear"
+
+const searchHint = "enter apply · esc clear · ctrl+a mark every match"
 
 const resolveLayoutMode = (width: number): LayoutMode => {
   if (width >= wideLayoutWidth) {
@@ -54,6 +56,7 @@ export {
   paneOrder,
   resolveLayoutMode,
   markedHint,
+  searchHint,
   visiblePanesFor,
   type LayoutMode,
   type Pane,
