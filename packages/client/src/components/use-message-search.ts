@@ -1,4 +1,4 @@
-import type { MessageListItem, MessageTarget } from "@vingroto/core/protocol/mail"
+import type { ListScope, MessageListItem, MessageTarget } from "@vingroto/core/protocol/mail"
 
 import { Effect } from "effect"
 import { createSignal, onCleanup, untrack } from "solid-js"
@@ -34,6 +34,14 @@ const useMessageSearch = (options: MessageSearchOptions) => {
 
   const active = () => query().length > 0
 
+  const searchScope = (): ListScope | undefined => {
+    const scope = parseListKey(options.listKey())
+    if (scope === undefined || scope.kind === "outbox" || scope.kind === "drafts") {
+      return undefined
+    }
+    return scope
+  }
+
   const reportFailure = (label: string, error: MailClientError) => {
     const failure = describeClientFailure(error)
     if (failure._tag === "connection") {
@@ -50,7 +58,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
     }
   }
 
-  const runRemote = (scope: NonNullable<ReturnType<typeof parseListKey>>, value: string) => {
+  const runRemote = (scope: ListScope, value: string) => {
     const program = Effect.gen(function* startRemoteSearch() {
       const client = yield* MailClient
       yield* client.startSearch(scope, value)
@@ -66,7 +74,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
     options.runtime.runFork(program)
   }
 
-  const scheduleRemote = (scope: NonNullable<ReturnType<typeof parseListKey>>, value: string) => {
+  const scheduleRemote = (scope: ListScope, value: string) => {
     clearRemoteTimer()
     if (value.trim().length < minimumRemoteQueryLength || queryTerms(value).length === 0) {
       return
@@ -80,7 +88,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
   const loadResults = (advance: boolean) => {
     untrack(() => {
       const key = options.listKey()
-      const scope = parseListKey(key)
+      const scope = searchScope()
       const value = query()
       const limit = windowSize()
       if (key === undefined || scope === undefined || value.length === 0) {
@@ -125,7 +133,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
       return
     }
     loadResults(false)
-    const scope = parseListKey(options.listKey())
+    const scope = searchScope()
     if (scope !== undefined) {
       scheduleRemote(scope, next)
     }
@@ -163,7 +171,7 @@ const useMessageSearch = (options: MessageSearchOptions) => {
   }
 
   const fetchMarks = (onLoaded: (targets: readonly MessageTarget[]) => void) => {
-    const scope = parseListKey(options.listKey())
+    const scope = searchScope()
     const value = query()
     if (scope === undefined || value.length === 0) {
       return

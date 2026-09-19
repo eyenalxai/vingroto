@@ -1,56 +1,51 @@
 import type { Draft, OutboxEntry } from "@vingroto/core/protocol/outgoing"
 
 import { Effect } from "effect"
-import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
+import type { MailViewKind } from "@/lib/mail/mailbox-tree"
 import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
-import { reportClientFailure } from "@/lib/failure"
+import { describeClientFailure } from "@/lib/failure"
 
-type OutboxSection = "pending" | "drafts"
 type ArmedAction = "release" | "delete"
 
-interface OutboxOptions {
+interface OutboxViewOptions {
   readonly runtime: AppRuntime
-  readonly dataVersion: () => number
-  readonly onOpenDraft: (draft: Draft) => void
+  readonly enabled: () => boolean
+  readonly scope: () => MailViewKind | undefined
+  readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
 }
 
 const armDurationMs = 3000
 
-const useOutbox = (options: OutboxOptions) => {
-  const [section, setSection] = createSignal<OutboxSection>("pending")
+const attemptsLabel = (attempts: number) => `${attempts} attempt${attempts === 1 ? "" : "s"}`
+
+const useOutboxView = (options: OutboxViewOptions) => {
   const [entries, setEntries] = createSignal<readonly OutboxEntry[]>([])
   const [drafts, setDrafts] = createSignal<readonly Draft[]>([])
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [loading, setLoading] = createSignal(false)
-  const [status, setStatus] = createSignal("")
-  const [statusError, setStatusError] = createSignal(false)
   const [armed, setArmed] = createSignal<ArmedAction | undefined>()
   const [now, setNow] = createSignal(Date.now())
-
   let armTimer: ReturnType<typeof setTimeout> | null = null
+  let loadToken = 0
 
   const selectedEntry = createMemo(() => entries()[selectedIndex()])
   const selectedDraft = createMemo(() => drafts()[selectedIndex()])
 
-  const rowCount = () => (section() === "pending" ? entries().length : drafts().length)
-
-  const report = (message: string, error = false) => {
-    setStatus(message)
-    setStatusError(error)
-  }
+  const rowCount = () => (options.scope() === "drafts" ? drafts().length : entries().length)
 
   const reportFailure = (label: string, error: MailClientError) => {
-    reportClientFailure(label, error, {
-      onDisconnected: options.onDisconnected,
-      onStatus: (message) => {
-        report(message, true)
-      },
-    })
+    const failure = describeClientFailure(error)
+    if (failure._tag === "connection") {
+      options.onDisconnected(failure.message)
+      return
+    }
+    options.onStatus(`${label} · ${failure.message}`)
   }
 
   const disarm = () => {
@@ -73,34 +68,42 @@ const useOutbox = (options: OutboxOptions) => {
   const applyLoaded = (nextEntries: readonly OutboxEntry[], nextDrafts: readonly Draft[]) => {
     setEntries(nextEntries)
     setDrafts(nextDrafts)
-    const count = section() === "pending" ? nextEntries.length : nextDrafts.length
+    const count = options.scope() === "drafts" ? nextDrafts.length : nextEntries.length
     setSelectedIndex((current) => Math.max(0, Math.min(current, count - 1)))
   }
 
   const load = () => {
-    setLoading(true)
-    const program = Effect.gen(function* loadOutbox() {
-      yield* Effect.gen(function* queryOutbox() {
-        const client = yield* MailClient
-        const [outbox, nextDrafts] = yield* Effect.all([client.listOutbox(), client.listDrafts()])
-        yield* Effect.sync(() => {
-          applyLoaded(outbox, nextDrafts)
-        })
+    untrack(() => {
+      loadToken += 1
+      const token = loadToken
+      setLoading(true)
+      const program = Effect.gen(function* loadOutboxView() {
+        yield* Effect.gen(function* queryOutboxView() {
+          const client = yield* MailClient
+          const [outbox, nextDrafts] = yield* Effect.all([client.listOutbox(), client.listDrafts()])
+          yield* Effect.sync(() => {
+            if (loadToken === token) {
+              applyLoaded(outbox, nextDrafts)
+            }
+          })
+        }).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              reportFailure("could not load the outbox", error)
+            }),
+          ),
+        )
       }).pipe(
-        Effect.catch((error) =>
+        Effect.ensuring(
           Effect.sync(() => {
-            reportFailure("could not load the outbox", error)
+            if (loadToken === token) {
+              setLoading(false)
+            }
           }),
         ),
       )
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          setLoading(false)
-        }),
-      ),
-    )
-    options.runtime.runFork(program)
+      options.runtime.runFork(program)
+    })
   }
 
   const moveSelection = (delta: number) => {
@@ -110,12 +113,6 @@ const useOutbox = (options: OutboxOptions) => {
       return
     }
     setSelectedIndex((current) => Math.min(Math.max(current + delta, 0), count - 1))
-  }
-
-  const toggleSection = () => {
-    disarm()
-    setSection((current) => (current === "pending" ? "drafts" : "pending"))
-    setSelectedIndex(0)
   }
 
   const runGuarded = (
@@ -135,18 +132,18 @@ const useOutbox = (options: OutboxOptions) => {
   const cancelSelected = () => {
     const entry = selectedEntry()
     if (entry === undefined) {
-      report("select a pending message")
+      options.onStatus("select a pending message")
       return
     }
     disarm()
-    report("cancelling…")
+    options.onStatus("cancelling…")
     const program = runGuarded(
       "could not cancel the message",
       Effect.gen(function* cancelOutboxEntry() {
         const client = yield* MailClient
         yield* client.cancelOutbox(entry.id)
         yield* Effect.sync(() => {
-          report("cancelled · moved to drafts")
+          options.onStatus("cancelled · moved to drafts")
           load()
         })
       }),
@@ -157,7 +154,7 @@ const useOutbox = (options: OutboxOptions) => {
   const releaseSelected = () => {
     const entry = selectedEntry()
     if (entry === undefined) {
-      report("select a pending message")
+      options.onStatus("select a pending message")
       return
     }
     if (armed() !== "release") {
@@ -165,14 +162,14 @@ const useOutbox = (options: OutboxOptions) => {
       return
     }
     disarm()
-    report("sending now…")
+    options.onStatus("sending now…")
     const program = runGuarded(
       "could not release the message",
       Effect.gen(function* releaseOutboxEntry() {
         const client = yield* MailClient
         yield* client.releaseOutbox(entry.id)
         yield* Effect.sync(() => {
-          report("released · sending now")
+          options.onStatus("released · sending now")
           load()
         })
       }),
@@ -183,7 +180,7 @@ const useOutbox = (options: OutboxOptions) => {
   const deleteSelected = () => {
     const draft = selectedDraft()
     if (draft === undefined) {
-      report("select a draft")
+      options.onStatus("select a draft")
       return
     }
     if (armed() !== "delete") {
@@ -191,14 +188,14 @@ const useOutbox = (options: OutboxOptions) => {
       return
     }
     disarm()
-    report("deleting…")
+    options.onStatus("deleting…")
     const program = runGuarded(
       "could not delete the draft",
       Effect.gen(function* deleteOutboxDraft() {
         const client = yield* MailClient
         yield* client.deleteDraft(draft.id)
         yield* Effect.sync(() => {
-          report("draft deleted")
+          options.onStatus("draft deleted")
           load()
         })
       }),
@@ -206,26 +203,55 @@ const useOutbox = (options: OutboxOptions) => {
     options.runtime.runFork(program)
   }
 
-  const openDraft = () => {
+  const openDraft = (open: (draft: Draft) => void) => {
     const draft = selectedDraft()
     if (draft === undefined) {
-      report("select a draft")
+      options.onStatus("select a draft")
       return
     }
-    options.onOpenDraft(draft)
+    disarm()
+    open(draft)
   }
 
-  const countdownOf = (entry: OutboxEntry) => {
+  const countdownOf = (entry: OutboxEntry): string => {
+    if (entry.state === "failed") {
+      return "not sent"
+    }
     const remaining = Math.max(0, Math.ceil((entry.sendAt - now()) / 1000))
-    return remaining === 0 ? "sending…" : `sends in ${remaining}s`
+    if (remaining === 0) {
+      return entry.lastError === null ? "sending…" : "retrying…"
+    }
+    return entry.lastError === null ? `sends in ${remaining}s` : `retry in ${remaining}s`
+  }
+
+  const stateOf = (entry: OutboxEntry): string => {
+    const attempts = entry.attempts === 0 ? "" : attemptsLabel(entry.attempts)
+    if (entry.lastError === null) {
+      return attempts
+    }
+    const failure = `failed: ${entry.lastError}`
+    return attempts.length === 0 ? failure : `${attempts} · ${failure}`
+  }
+
+  const detailOf = (entry: OutboxEntry): string => {
+    const state = stateOf(entry)
+    return state.length === 0 ? countdownOf(entry) : `${countdownOf(entry)} · ${state}`
   }
 
   createEffect(() => {
-    options.dataVersion()
+    if (!options.enabled()) {
+      return
+    }
     load()
   })
 
-  onMount(() => {
+  createEffect(() => {
+    if (options.scope() === undefined) {
+      return
+    }
+    setSelectedIndex(0)
+    disarm()
+    setNow(Date.now())
     const timer = setInterval(() => {
       setNow(Date.now())
     }, 1000)
@@ -241,6 +267,7 @@ const useOutbox = (options: OutboxOptions) => {
     cancelSelected,
     countdownOf,
     deleteSelected,
+    detailOf,
     disarm,
     drafts,
     entries,
@@ -249,14 +276,11 @@ const useOutbox = (options: OutboxOptions) => {
     moveSelection,
     openDraft,
     releaseSelected,
-    section,
     selectedDraft,
     selectedEntry,
     selectedIndex,
-    status,
-    statusError,
-    toggleSection,
+    stateOf,
   }
 }
 
-export { useOutbox, type OutboxOptions, type OutboxSection }
+export { useOutboxView, type OutboxViewOptions }

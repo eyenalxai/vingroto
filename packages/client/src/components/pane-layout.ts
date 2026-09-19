@@ -1,3 +1,5 @@
+import type { MailViewKind } from "@/lib/mail/mailbox-tree"
+
 type Pane = "mailbox" | "list" | "reader"
 type LayoutMode = "three" | "two" | "single"
 
@@ -11,11 +13,24 @@ const mediumMailboxPaneWidth = 26
 const hints = {
   mailbox:
     "↑↓ move · ⏎ open · space fold · i mute · / search · c compose · tab next pane · ctrl+x · q quit",
-  list: "↑↓ move · / search · space mark · s read · S/u unread · r reply · m move · esc back · ctrl+x · q quit",
-  reader: "↑↓ scroll · pgup/pgdn · r reply · c compose · esc back · ctrl+x · q quit",
+  list: "↑↓ move · / search · space mark · s read · u unread · r reply · R reply all · m move · esc back · c compose · ctrl+x · q quit",
+  reader: "↑↓ scroll · pgup/pgdn · r reply · R reply all · c compose · esc back · ctrl+x · q quit",
 } as const
 
-const markedHint = "s read · S/u unread · m move · ctrl+a mark all · esc clear"
+const viewHints: Readonly<Record<MailViewKind, Readonly<Record<Pane, string>>>> = {
+  outbox: {
+    mailbox: hints.mailbox,
+    list: "↑↓ move · ⏎ read · s send now · x cancel · esc mailboxes · c compose · ctrl+x · q quit",
+    reader: "↑↓ move · pgup/pgdn scroll · esc mailboxes · c compose · ctrl+x · q quit",
+  },
+  drafts: {
+    mailbox: hints.mailbox,
+    list: "↑↓ move · ⏎ edit · d delete · esc mailboxes · c compose · ctrl+x · q quit",
+    reader: "↑↓ move · pgup/pgdn scroll · esc mailboxes · c compose · ctrl+x · q quit",
+  },
+}
+
+const markedHint = "s read · u unread · m move · ctrl+a mark all · esc clear"
 
 const searchHint = "enter apply · esc clear · ctrl+a mark every match"
 
@@ -49,7 +64,12 @@ const mailboxPaneWidthFor = (mode: LayoutMode): number | "100%" => {
   return "100%"
 }
 
-const describePaneHint = (pane: Pane): string => hints[pane]
+const describePaneHint = (pane: Pane, view: MailViewKind | undefined): string => {
+  if (view === undefined) {
+    return hints[pane]
+  }
+  return viewHints[view][pane]
+}
 
 export {
   describePaneHint,

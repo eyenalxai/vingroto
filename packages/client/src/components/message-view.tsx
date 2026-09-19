@@ -10,7 +10,7 @@ import type { BodyState } from "@/lib/mail/body-state"
 
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
-import { addressList, formatBytes, formatMessageDateTime } from "@/lib/format"
+import { addressList, formatMessageDateTime } from "@/lib/format"
 import { splitLinks } from "@/lib/link"
 import { renderBodyText } from "@/lib/mail/body-text"
 
@@ -72,7 +72,7 @@ const MessageView = (props: MessageViewProps) => {
       ...ccLine,
       {
         label: "Date",
-        value: `${formatMessageDateTime(detail.date)} · ${formatBytes(detail.size)}`,
+        value: formatMessageDateTime(detail.date),
       },
       { label: "Mailbox", value: `${account} · ${detail.mailboxName}` },
     ]

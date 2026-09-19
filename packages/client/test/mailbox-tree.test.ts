@@ -67,6 +67,8 @@ describe("buildMailboxTreeRows unread counts", () => {
       ],
       counts,
       unread: 5,
+      outboxCount: 2,
+      draftCount: 1,
       collapsed: new Set(),
     })
     const row = (key: string) => rows.find((entry) => entry.key === key)
@@ -76,6 +78,14 @@ describe("buildMailboxTreeRows unread counts", () => {
     expect(row("mailbox:1")?.count).toBe(3)
     expect(row("mailbox:2")?.count).toBe(2)
     expect(row("virtual:unread")?.count).toBe(5)
+    expect(rows.map((entry) => entry.key).slice(0, 4)).toEqual([
+      "virtual:all",
+      "virtual:unread",
+      "virtual:outbox",
+      "virtual:drafts",
+    ])
+    expect(row("virtual:outbox")?.count).toBe(2)
+    expect(row("virtual:drafts")?.count).toBe(1)
     const perMailboxSum = (row("mailbox:1")?.count ?? 0) + (row("mailbox:2")?.count ?? 0)
     expect(perMailboxSum).toBe(5)
     expect(perMailboxSum).not.toBe(row(`account:${alpha}`)?.count)

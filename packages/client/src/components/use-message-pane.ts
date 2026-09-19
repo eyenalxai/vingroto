@@ -90,6 +90,15 @@ const useMessagePane = (options: MessagePaneOptions) => {
       if (key === undefined || target === undefined) {
         return
       }
+      if (target.kind === "outbox" || target.kind === "drafts") {
+        if (loadedListKey() !== key) {
+          setLoadedListKey(key)
+          readOnDisplay.reset()
+          setMessages([])
+          setSelectedMessageId(undefined)
+        }
+        return
+      }
       if (loadedListKey() !== key) {
         setLoadedListKey(key)
         readOnDisplay.reset()

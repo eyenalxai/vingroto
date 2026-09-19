@@ -21,9 +21,8 @@ interface ComposeFlowOptions {
 
 const useComposeFlow = (options: ComposeFlowOptions) => {
   const [composing, setComposing] = createSignal<ComposerSeed | undefined>()
-  const [outboxOpen, setOutboxOpen] = createSignal(false)
 
-  const active = createMemo(() => composing() !== undefined || outboxOpen())
+  const active = createMemo(() => composing() !== undefined)
 
   const beginCompose = () => {
     setComposing(emptyComposerSeed(options.accounts()[0]?.id))
@@ -60,7 +59,6 @@ const useComposeFlow = (options: ComposeFlowOptions) => {
   }
 
   const openDraft = (draft: Draft) => {
-    setOutboxOpen(false)
     setComposing(seedFromDraft(draft))
   }
 
@@ -71,15 +69,8 @@ const useComposeFlow = (options: ComposeFlowOptions) => {
     closeComposer: () => {
       setComposing(undefined)
     },
-    closeOutbox: () => {
-      setOutboxOpen(false)
-    },
     composing,
     openDraft,
-    openOutbox: () => {
-      setOutboxOpen(true)
-    },
-    outboxOpen,
   }
 }
 

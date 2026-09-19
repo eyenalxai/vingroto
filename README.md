@@ -172,7 +172,9 @@ The window splits into three panes: mailboxes, the message list and the reader. 
 | 64 - 109 | mailboxes plus the focused pane (list or reader) |
 | < 64     | only the focused pane                            |
 
-The mailbox pane starts with two virtual views, **All emails** and **All unread**, computed from the cached messages of every account. A virtual view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups mailboxes by account the same way, with its own collapse state.
+The mailbox pane starts with two virtual views, **All emails** and **All unread**, computed from the cached messages of every account, then the **Outbox** and **Drafts** rows with the number of pending messages and saved drafts (a count of zero has no badge). A virtual view shows one row per email even when the account caches it in several mailboxes, and unread totals count each email once. Below them each configured account is listed with its mailboxes; accounts collapse and expand (`space`) so a long mailbox tree stays readable. The settings screen groups mailboxes by account the same way, with its own collapse state.
+
+The Outbox and Drafts are views of the workspace, not screens: selecting one shows its entries in the list pane and a read-only preview of the selected entry in the reader pane. Pending rows tick every second towards their send time (`sends in 42s`, `sending…` once it is due, and `retry in 42s · N attempts · failed: …` after a failure); draft rows show when they were last updated. In the Outbox `enter` reads the message in the reader and `s` twice releases it to send now, `x` cancels it into drafts; in Drafts `enter` reopens the draft in the composer and `d` twice deletes it. `escape` steps back to the mailbox pane, and the mail-only keys (`/`, `m`, `space`, `ctrl+a`, `r`, `u`, the read `s`) do not act in these views.
 
 Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox is dimmed, marked with `⊘`, and excluded from **All unread**, from account and global unread totals and from body prefetching; its own unread count stays visible and its mail is still listed and readable.
 
@@ -208,7 +210,7 @@ Headers are synced, bodies are not. The reader shows a message straight from the
 
 Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: `style` and `script` blocks, hidden preheaders (`display:none`, `visibility:hidden`, zero-height or zero-opacity blocks) and tracking pixels are dropped, links keep their text with the target in brackets and images render only a meaningful `alt`. What remains is normalized: HTML entities and `&nbsp;` are decoded, zero-width and other invisible spacer characters are removed, runs of spaces collapse and blank-line ladders shrink to a single empty line. A `text/plain` part that is really raw HTML or CSS is converted the same way, so a broken sender cannot leak `td, p { font-family: … }` into the reader. Links and URLs are clickable; long tracking URLs are shown truncated but open in full.
 
-`s` marks the selected (or selected set of) messages read, and `S` or `u` marks them unread; `\Seen` is written back to the server. `m` moves them to another mailbox of the same account. Both actions ask the daemon to talk to the mail server first and update the local cache afterwards; if some mailboxes fail, the rest still applies and the failures are reported in the status bar.
+`s` marks the selected (or selected set of) messages read, and `u` marks them unread; `\Seen` is written back to the server. `m` moves them to another mailbox of the same account. Both actions ask the daemon to talk to the mail server first and update the local cache afterwards; if some mailboxes fail, the rest still applies and the failures are reported in the status bar.
 
 ## Writing
 
@@ -216,7 +218,7 @@ Bodies are rendered as plain terminal text. HTML is parsed, not regex-stripped: 
 
 `r` replies to the selected message and `R` replies to all of them, from the list or the reader. The composer prefills the sender, reply-all adds the original recipients minus your own address and duplicates, the subject gains `Re:` when it does not have one, the `In-Reply-To` and `References` headers are carried over, and the body quotes the original after an attribution line with the cursor at the top.
 
-The composer autosaves a draft a second after the last change; an empty message is not saved, a draft that becomes empty is deleted, and a draft can be saved without recipients. `ctrl+x o` opens the outbox and drafts: `tab` switches between **Pending** and **Drafts**, `up`/`down` move, `c` cancels the selected pending message into drafts, `s` twice releases it to send now, `enter` on a draft reopens it in the composer and `d` twice deletes it. The screen reloads on every daemon change, so a message the worker has sent disappears on its own.
+The composer autosaves a draft a second after the last change; an empty message is not saved, a draft that becomes empty is deleted, and a draft can be saved without recipients. The composer's drafts and the daemon's outbox are listed in the workspace: `ctrl+x o` selects the **Outbox** view and `ctrl+x d` the **Drafts** view, each in the message list pane beside the mail. Both views reload on every daemon change and their rows tick every second, so a message the worker has sent disappears on its own and one that becomes due turns into `sending…`.
 
 ## Keys
 
@@ -231,15 +233,18 @@ The composer autosaves a draft a second after the last change; an empty message 
 | `space`                                       | mailboxes: collapse the account · list: select the message |
 | `r`                                           | list, reader: reply                                        |
 | `R`                                           | list, reader: reply all                                    |
-| `s`                                           | list, reader: mark read                                    |
-| `S`, `u`                                      | list, reader: mark unread                                  |
+| `s`                                           | list, reader: mark read · outbox: send now (press twice)   |
+| `u`                                           | list, reader: mark unread                                  |
 | `m`                                           | list: move to another mailbox                              |
+| `x`                                           | outbox: cancel the pending message into drafts             |
+| `d`                                           | drafts: delete the draft (press twice)                     |
 | `ctrl+a`                                      | list: select every loaded message / clear                  |
 | `i`                                           | mailboxes: mute or unmute the mailbox                      |
 | `shift+up`, `shift+down`                      | settings: move the selected account up or down             |
 | `escape`                                      | list: clear the selection · otherwise step back            |
 | `ctrl+x` `a`                                  | add an account                                             |
-| `ctrl+x` `o`                                  | outbox and drafts                                          |
+| `ctrl+x` `o`                                  | the outbox view                                            |
+| `ctrl+x` `d`                                  | the drafts view                                            |
 | `ctrl+x` `s`                                  | settings                                                   |
 | `ctrl+x` `r`                                  | ask the daemon to sync the selected scope                  |
 

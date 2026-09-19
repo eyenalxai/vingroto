@@ -32,8 +32,14 @@ const MailboxPane = (props: MailboxPaneProps) => {
   const theme = useTheme()
   const [scrollBox, setScrollBox] = createSignal<ScrollBoxRenderable>()
 
-  const virtualRows = () => props.rows.filter((row) => row.kind === "global")
-  const treeRows = () => props.rows.filter((row) => row.kind !== "global")
+  const virtualRows = () =>
+    props.rows.filter(
+      (row) => row.kind === "global" || row.kind === "outbox" || row.kind === "drafts",
+    )
+  const treeRows = () =>
+    props.rows.filter(
+      (row) => row.kind === "account" || row.kind === "unread" || row.kind === "mailbox",
+    )
 
   const mailboxBusy = (row: MailboxTreeRow) => {
     if (row.mailboxId === undefined) {

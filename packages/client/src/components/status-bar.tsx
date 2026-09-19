@@ -1,4 +1,3 @@
-import { useTerminalDimensions } from "@opentui/solid"
 import { Show } from "solid-js"
 
 import { Spinner } from "@/components/spinner"
@@ -10,28 +9,22 @@ interface StatusBarProps {
   readonly hint: string
 }
 
-const hintMinimumWidth = 80
-
 const StatusBar = (props: StatusBarProps) => {
   const theme = useTheme()
-  const dimensions = useTerminalDimensions()
-  const hintVisible = () => dimensions().width >= hintMinimumWidth
 
   return (
-    <box flexDirection="row" gap={1} paddingLeft={1} paddingRight={1} flexShrink={0}>
-      <box width={2} flexShrink={0} height={1}>
-        <Show when={props.busy}>
-          <Spinner color={theme.accent} />
-        </Show>
-      </box>
-      <text fg={theme.text} flexBasis={0} flexGrow={1} wrapMode="none" truncate>
-        {props.message}
-      </text>
-      <Show when={hintVisible()}>
-        <text fg={theme.muted} flexShrink={0} wrapMode="none" truncate>
-          {props.hint}
+    <box flexDirection="column" flexShrink={0} paddingLeft={1} paddingRight={1}>
+      <box flexDirection="row" gap={1}>
+        <box width={2} flexShrink={0}>
+          <Show when={props.busy}>
+            <Spinner color={theme.accent} />
+          </Show>
+        </box>
+        <text fg={theme.text} flexGrow={1}>
+          {props.message}
         </text>
-      </Show>
+      </box>
+      <text fg={theme.muted}>{props.hint}</text>
     </box>
   )
 }

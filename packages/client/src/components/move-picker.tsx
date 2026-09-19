@@ -163,9 +163,7 @@ const MovePicker = (props: MovePickerProps) => {
           </For>
         </scrollbox>
         <box flexShrink={0} paddingLeft={1} paddingRight={1}>
-          <text fg={theme.muted} wrapMode="none" truncate>
-            ↑↓ move · ⏎ move here · esc cancel
-          </text>
+          <text fg={theme.muted}>↑↓ move · ⏎ move here · esc cancel</text>
         </box>
       </box>
     </box>

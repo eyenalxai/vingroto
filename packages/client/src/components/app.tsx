@@ -11,7 +11,6 @@ import type { MoveTargetsResult } from "@/lib/mail/move"
 import { ComposerScreen } from "@/components/composer/composer-screen"
 import { MailWorkspace } from "@/components/mail-workspace"
 import { MovePicker } from "@/components/move-picker"
-import { OutboxScreen } from "@/components/outbox/outbox-screen"
 import { useRuntime } from "@/components/runtime-provider"
 import { createSettingsActions } from "@/components/settings/settings-actions"
 import { SettingsScreen } from "@/components/settings/settings-screen"
@@ -58,16 +57,11 @@ const App = () => {
   const needsSetup = createMemo(() => daemon.status()?.config._tag === "empty")
   const connected = createMemo((prior: boolean) => prior || daemon.status() !== undefined, false)
 
-  const [dataVersion, setDataVersion] = createSignal(0)
-
   const store = useMailStore({
     config: appConfig,
     connected: () => connected(),
     onConfigChanged: () => {
       runtime.runFork(Effect.promise(async () => daemon.refresh()))
-    },
-    onDataChanged: () => {
-      setDataVersion((current) => current + 1)
     },
     onDisconnected: (message: string) => {
       daemon.retry(message)
@@ -112,7 +106,6 @@ const App = () => {
   const composerVisible = createMemo(
     () => flow.composing() !== undefined && appConfig() !== undefined,
   )
-  const outboxVisible = createMemo(() => flow.outboxOpen() && appConfig() !== undefined)
 
   const sync = useMailSyncWindow({
     runtime,
@@ -202,7 +195,7 @@ const App = () => {
           onOpenSettings={() => {
             setSettingsOpen(true)
           }}
-          onOpenOutbox={flow.openOutbox}
+          onOpenDraft={flow.openDraft}
           onMoveMessages={beginMove}
           onCompose={flow.beginCompose}
           onReply={flow.beginReply}
@@ -259,16 +252,6 @@ const App = () => {
             />
           )}
         </Show>
-      </Show>
-      <Show when={outboxVisible()}>
-        <OutboxScreen
-          runtime={runtime}
-          accounts={accounts()}
-          dataVersion={dataVersion}
-          onClose={flow.closeOutbox}
-          onOpenDraft={flow.openDraft}
-          onDisconnected={daemon.retry}
-        />
       </Show>
       <Show when={moving()}>
         {(targets) => (

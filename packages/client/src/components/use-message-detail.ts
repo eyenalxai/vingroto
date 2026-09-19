@@ -11,6 +11,7 @@ import type { AppRuntime } from "@/lib/runtime"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
 import { bodyState } from "@/lib/mail/body-state"
+import { parseListKey } from "@/lib/mail/mailbox-tree"
 
 interface MessageDetailOptions {
   readonly runtime: AppRuntime
@@ -97,11 +98,11 @@ const useMessageDetail = (options: MessageDetailOptions) => {
   }
 
   createEffect(() => {
-    options.listKey()
+    const target = parseListKey(options.listKey())
     const messageId = options.selectedMessageId()
     setDetail(undefined)
     setBody(undefined)
-    if (messageId === undefined) {
+    if (messageId === undefined || target?.kind === "outbox" || target?.kind === "drafts") {
       setLoadingDetail(false)
       return
     }

@@ -1,17 +1,18 @@
 import type { AppConfig } from "@vingroto/core/config/schema"
 import type { MailboxId, MessageId } from "@vingroto/core/ids"
-import type { ServerEvent, SyncEvent } from "@vingroto/core/protocol/events"
+import type { ServerEvent } from "@vingroto/core/protocol/events"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
 import { AccountId } from "@vingroto/core/ids"
-import { describeSyncEvent } from "@vingroto/core/protocol/events"
 import { Effect } from "effect"
 import { createEffect, createMemo, createSignal, untrack } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
-import type { MailboxTreeRow } from "@/lib/mail/mailbox-tree"
+import type { MailboxTreeRow, MailViewKind } from "@/lib/mail/mailbox-tree"
 import type { AppRuntime } from "@/lib/runtime"
 
+import { useOutboxView } from "@/components/outbox/use-outbox-view"
+import { useMailSyncEvents } from "@/components/use-mail-sync-events"
 import { useMailboxMute } from "@/components/use-mailbox-mute"
 import { useMessageActions } from "@/components/use-message-actions"
 import { useMessagePane } from "@/components/use-message-pane"
@@ -21,10 +22,10 @@ import { describeClientFailure } from "@/lib/failure"
 import {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
-  findMailboxId,
-  listHasMailbox,
+  listKeyForView,
   parseListKey,
   rowKeyAfterMove,
+  viewKindOf,
 } from "@/lib/mail/mailbox-tree"
 import { reconcileRows } from "@/lib/rows"
 
@@ -35,7 +36,6 @@ interface MailStoreOptions {
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
   readonly onConfigChanged: () => void
-  readonly onDataChanged: () => void
   readonly onNewMail: (mailbox: Mailbox, visible: boolean) => void
 }
 
@@ -47,8 +47,17 @@ const useMailStore = (options: MailStoreOptions) => {
   const [selectedListKey, setSelectedListKey] = createSignal<string | undefined>()
   const [collapsedAccounts, setCollapsedAccounts] = createSignal<ReadonlySet<AccountId>>(new Set())
   const [loadingMailboxes, setLoadingMailboxes] = createSignal(false)
-  const [syncingMailboxIds, setSyncingMailboxIds] = createSignal<ReadonlySet<MailboxId>>(new Set())
   let mailboxLoadToken = 0
+
+  const selectedView = createMemo(() => viewKindOf(parseListKey(selectedListKey())))
+
+  const outboxView = useOutboxView({
+    enabled: () => options.config() !== undefined,
+    onDisconnected: options.onDisconnected,
+    onStatus: options.onStatus,
+    runtime: options.runtime,
+    scope: selectedView,
+  })
 
   const visibleMailboxes = createMemo(() => mailboxes().filter((row) => row.selectable))
 
@@ -62,6 +71,8 @@ const useMailStore = (options: MailStoreOptions) => {
           mailboxes: visibleMailboxes(),
           counts: counts(),
           unread: unread(),
+          outboxCount: outboxView.entries().length,
+          draftCount: outboxView.drafts().length,
           collapsed: collapsedAccounts(),
         }),
         (row) => row.key,
@@ -167,6 +178,17 @@ const useMailStore = (options: MailStoreOptions) => {
     onDisconnected: options.onDisconnected,
   })
 
+  const syncEvents = useMailSyncEvents({
+    mailboxes,
+    visibleMailboxes,
+    selectedListKey,
+    searchActive: messagePane.searchActive,
+    onStatus: options.onStatus,
+    onNewMail: options.onNewMail,
+    onMailboxesChanged: loadMailboxData,
+    onReloadCurrent: messagePane.reloadCurrent,
+  })
+
   const toggleMailboxMuted = () => {
     const mailbox = selectedMailbox()
     if (mailbox === undefined) {
@@ -197,67 +219,18 @@ const useMailStore = (options: MailStoreOptions) => {
     setSelectedListKey(key)
   }
 
-  const applySyncEvent = (event: SyncEvent) => {
-    untrack(() => {
-      options.onStatus(describeSyncEvent(event))
-      if (event._tag === "mailbox-start") {
-        const id = findMailboxId(mailboxes(), event.accountId, event.path)
-        if (id !== undefined) {
-          setSyncingMailboxIds((current) => new Set(current).add(id))
-        }
-        return
-      }
-      if (event._tag === "sync-error") {
-        setSyncingMailboxIds(new Set<MailboxId>())
-      } else {
-        const id = findMailboxId(mailboxes(), event.accountId, event.path)
-        setSyncingMailboxIds((current) =>
-          id === undefined ? current : new Set([...current].filter((entry) => entry !== id)),
-        )
-      }
-      const target = parseListKey(selectedListKey())
-      if (event._tag === "mailbox-done" && event.stored > 0 && !event.reset) {
-        const mailbox = mailboxes().find(
-          (row) => row.account_id === event.accountId && row.path === event.path,
-        )
-        if (mailbox !== undefined) {
-          options.onNewMail(mailbox, listHasMailbox(target, messagePane.searchActive(), mailbox))
-        }
-      }
-      loadMailboxData()
-      if (target === undefined) {
-        return
-      }
-      if (target.kind === "mailbox") {
-        const mailbox = visibleMailboxes().find((row) => row.id === target.mailboxId)
-        if (
-          event._tag === "mailbox-done" &&
-          mailbox !== undefined &&
-          event.accountId === mailbox.account_id &&
-          event.path === mailbox.path
-        ) {
-          messagePane.reloadCurrent()
-        }
-        return
-      }
-      if (event._tag === "mailbox-done") {
-        messagePane.reloadCurrent()
-      }
-    })
-  }
-
   const applyEvent = (event: ServerEvent) => {
     if (event._tag === "data-changed") {
-      options.onDataChanged()
       loadMailboxData()
       messagePane.reloadCurrent()
+      outboxView.load()
       return
     }
     if (event._tag === "config-changed") {
       options.onConfigChanged()
       return
     }
-    applySyncEvent(event)
+    syncEvents.applySyncEvent(event)
   }
 
   createEffect(() => {
@@ -282,14 +255,19 @@ const useMailStore = (options: MailStoreOptions) => {
     loadingMailboxes,
     mailboxes,
     mutingMailboxIds: mailboxMute.mutingIds,
+    outboxView,
     selectedListKey,
     selectedMailboxTreeRow,
     selectedMailbox,
-    syncingMailboxIds,
+    selectedView,
+    syncingMailboxIds: syncEvents.syncingMailboxIds,
     unread,
     visibleMailboxes,
     loadMailboxData,
     moveRowSelection,
+    selectView: (view: MailViewKind) => {
+      setSelectedListKey(listKeyForView(view))
+    },
     toggleAccountRow,
     toggleMailboxMuted,
   }

@@ -1,6 +1,7 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { AccountId } from "@vingroto/core/ids"
+import type { Draft } from "@vingroto/core/protocol/outgoing"
 import type { Setter } from "solid-js"
 
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
@@ -14,6 +15,8 @@ import { describeLeaderHint } from "@/components/leader-key"
 import { MailboxPane } from "@/components/mailbox-pane"
 import { MessageList } from "@/components/message-list"
 import { MessageView } from "@/components/message-view"
+import { OutboxList } from "@/components/outbox/outbox-list"
+import { OutboxPreview } from "@/components/outbox/outbox-preview"
 import {
   describePaneHint,
   mailboxPaneWidthFor,
@@ -39,7 +42,7 @@ interface MailWorkspaceProps {
   readonly onStatus: (message: string) => void
   readonly onAddAccount: () => void
   readonly onOpenSettings: () => void
-  readonly onOpenOutbox: () => void
+  readonly onOpenDraft: (draft: Draft) => void
   readonly onMoveMessages: () => void
   readonly onCompose: () => void
   readonly onReply: (all: boolean) => void
@@ -54,6 +57,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   const layout = createMemo(() => resolveLayoutMode(dimensions().width))
   const visiblePanes = createMemo(() => visiblePanesFor(layout(), props.pane))
   const showPane = (target: Pane) => visiblePanes().includes(target)
+  const view = createMemo(() => props.store.selectedView())
 
   const accountLabels = createMemo<ReadonlyMap<AccountId, string>>(
     () => new Map(props.accounts.map((account) => [account.id, account.label])),
@@ -69,7 +73,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     onStatus: props.onStatus,
     onAddAccount: props.onAddAccount,
     onOpenSettings: props.onOpenSettings,
-    onOpenOutbox: props.onOpenOutbox,
+    onOpenDraft: props.onOpenDraft,
     onMoveMessages: props.onMoveMessages,
     onCompose: props.onCompose,
     onReply: props.onReply,
@@ -84,6 +88,13 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   })
 
   const listTitle = createMemo(() => {
+    const scope = view()
+    if (scope === "outbox") {
+      return `outbox (${props.store.outboxView.entries().length})`
+    }
+    if (scope === "drafts") {
+      return `drafts (${props.store.outboxView.drafts().length})`
+    }
     const row = props.store.selectedMailboxTreeRow()
     const parts = [row?.label ?? "messages"]
     if (props.store.searchActive()) {
@@ -101,13 +112,20 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
     if (keys.leaderActive()) {
       return describeLeaderHint()
     }
+    const armed = props.store.outboxView.armed()
+    if (view() === "outbox" && armed === "release") {
+      return "press s again to send now"
+    }
+    if (view() === "drafts" && armed === "delete") {
+      return "press d again to delete"
+    }
     if (props.pane === "list" && props.store.searchEditing()) {
       return searchHint
     }
     if (props.pane === "list" && props.store.markedIds().size > 0) {
       return markedHint
     }
-    return describePaneHint(props.pane)
+    return describePaneHint(props.pane, view())
   })
 
   const busy = createMemo(
@@ -117,6 +135,7 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
       props.store.mutingMailboxIds().size > 0 ||
       props.store.syncingMailboxIds().size > 0 ||
       props.store.loadingDetail() ||
+      props.store.outboxView.loading() ||
       (props.store.mailboxes().length === 0 && props.store.loadingMailboxes()),
   )
 
@@ -148,37 +167,80 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
           </box>
         </Show>
         <Show when={showPane("list")}>
-          <box flexGrow={1} flexDirection="column">
-            <MessageList
-              title={listTitle()}
-              messages={props.store.messages()}
-              selectedId={props.store.selectedMessageId()}
-              marked={props.store.markedIds()}
-              pending={props.store.pendingMessageIds()}
-              loading={props.store.messages().length === 0 && props.store.loadingMessages()}
-              focused={props.pane === "list"}
-              searchActive={props.store.searchActive()}
-              searchEditing={props.store.searchEditing()}
-              searchQuery={props.store.searchQuery()}
-            />
+          <box flexGrow={1} flexBasis={0} flexDirection="column">
+            <Show
+              when={view()}
+              fallback={
+                <MessageList
+                  title={listTitle()}
+                  messages={props.store.messages()}
+                  selectedId={props.store.selectedMessageId()}
+                  marked={props.store.markedIds()}
+                  pending={props.store.pendingMessageIds()}
+                  loading={props.store.messages().length === 0 && props.store.loadingMessages()}
+                  focused={props.pane === "list"}
+                  searchActive={props.store.searchActive()}
+                  searchEditing={props.store.searchEditing()}
+                  searchQuery={props.store.searchQuery()}
+                />
+              }
+            >
+              {(scope) => (
+                <OutboxList
+                  title={listTitle()}
+                  scope={scope()}
+                  entries={props.store.outboxView.entries()}
+                  drafts={props.store.outboxView.drafts()}
+                  selectedId={
+                    scope() === "drafts"
+                      ? props.store.outboxView.selectedDraft()?.id
+                      : props.store.outboxView.selectedEntry()?.id
+                  }
+                  loading={props.store.outboxView.loading()}
+                  focused={props.pane === "list"}
+                  countdownOf={props.store.outboxView.countdownOf}
+                  stateOf={props.store.outboxView.stateOf}
+                />
+              )}
+            </Show>
           </box>
         </Show>
         <Show when={showPane("reader")}>
-          <box flexGrow={1} flexDirection="column">
-            <MessageView
-              detail={props.store.detail()}
-              body={props.store.body()}
-              loadingDetail={props.store.loadingDetail()}
-              focused={props.pane === "reader"}
-              accountLabels={accountLabels()}
-              onOpenLink={openLink}
-              onBodyDisplayed={(messageId) => {
-                props.store.applyReadOnDisplay(messageId)
-              }}
-              onScrollRef={(box) => {
-                setReaderScroll(box)
-              }}
-            />
+          <box flexGrow={1} flexBasis={0} flexDirection="column">
+            <Show
+              when={view()}
+              fallback={
+                <MessageView
+                  detail={props.store.detail()}
+                  body={props.store.body()}
+                  loadingDetail={props.store.loadingDetail()}
+                  focused={props.pane === "reader"}
+                  accountLabels={accountLabels()}
+                  onOpenLink={openLink}
+                  onBodyDisplayed={(messageId) => {
+                    props.store.applyReadOnDisplay(messageId)
+                  }}
+                  onScrollRef={(box) => {
+                    setReaderScroll(box)
+                  }}
+                />
+              }
+            >
+              {(scope) => (
+                <OutboxPreview
+                  scope={scope()}
+                  entry={props.store.outboxView.selectedEntry()}
+                  draft={props.store.outboxView.selectedDraft()}
+                  loading={props.store.outboxView.loading()}
+                  focused={props.pane === "reader"}
+                  accountLabels={accountLabels()}
+                  detailOf={props.store.outboxView.detailOf}
+                  onScrollRef={(box) => {
+                    setReaderScroll(box)
+                  }}
+                />
+              )}
+            </Show>
           </box>
         </Show>
       </box>

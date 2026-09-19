@@ -5,7 +5,8 @@ import { AccountId, MailboxId } from "@vingroto/core/ids"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
-type MailboxTreeRowKind = "global" | "account" | "unread" | "mailbox"
+type MailViewKind = "outbox" | "drafts"
+type MailboxTreeRowKind = "global" | "account" | "unread" | "mailbox" | MailViewKind
 type CountTone = "attention" | "quiet"
 
 interface MailboxTreeRow {
@@ -22,7 +23,7 @@ interface MailboxTreeRow {
   readonly mailboxId: MailboxId | undefined
 }
 
-type ListTarget = ListScope
+type ListTarget = ListScope | { readonly kind: "outbox" } | { readonly kind: "drafts" }
 
 interface MailboxTreeInput {
   readonly accounts: readonly AccountConfig[]
@@ -30,12 +31,28 @@ interface MailboxTreeInput {
   readonly mailboxes: readonly Mailbox[]
   readonly counts: ReadonlyMap<MailboxId, MailboxCounts>
   readonly unread: number
+  readonly outboxCount: number
+  readonly draftCount: number
   readonly collapsed: ReadonlySet<AccountId>
 }
 
 const accountUnreadPrefix = "virtual:unread:"
 
+const viewListKeys: Readonly<Record<MailViewKind, string>> = {
+  outbox: "virtual:outbox",
+  drafts: "virtual:drafts",
+}
+
 const parseMailboxId = Schema.decodeUnknownOption(MailboxId)
+
+const listKeyForView = (kind: MailViewKind): string => viewListKeys[kind]
+
+const viewKindOf = (target: ListTarget | undefined): MailViewKind | undefined => {
+  if (target === undefined || (target.kind !== "outbox" && target.kind !== "drafts")) {
+    return undefined
+  }
+  return target.kind
+}
 
 const parseListKey = (key: string | undefined): ListTarget | undefined => {
   if (key === undefined) {
@@ -46,6 +63,12 @@ const parseListKey = (key: string | undefined): ListTarget | undefined => {
   }
   if (key === "virtual:unread") {
     return { kind: "unread" }
+  }
+  if (key === viewListKeys.outbox) {
+    return { kind: "outbox" }
+  }
+  if (key === viewListKeys.drafts) {
+    return { kind: "drafts" }
   }
   if (key.startsWith(accountUnreadPrefix)) {
     const accountId = key.slice(accountUnreadPrefix.length)
@@ -75,7 +98,7 @@ const listHasMailbox = (
   if (target.kind === "unread") {
     return target.accountId === undefined || target.accountId === mailbox.account_id
   }
-  return true
+  return target.kind === "all"
 }
 
 const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[] => {
@@ -101,6 +124,32 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
       indented: false,
       count: input.unread,
       countTone: "attention",
+      muted: false,
+      accountId: undefined,
+      mailboxPath: undefined,
+      mailboxId: undefined,
+    },
+    {
+      key: viewListKeys.outbox,
+      kind: "outbox",
+      label: "Outbox",
+      marker: "",
+      indented: false,
+      count: input.outboxCount,
+      countTone: "attention",
+      muted: false,
+      accountId: undefined,
+      mailboxPath: undefined,
+      mailboxId: undefined,
+    },
+    {
+      key: viewListKeys.drafts,
+      kind: "drafts",
+      label: "Drafts",
+      marker: "",
+      indented: false,
+      count: input.draftCount,
+      countTone: "quiet",
       muted: false,
       accountId: undefined,
       mailboxPath: undefined,
@@ -201,11 +250,14 @@ export {
   createInitialRowKeySelector,
   findMailboxId,
   listHasMailbox,
+  listKeyForView,
   parseListKey,
   rowKeyAfterMove,
+  viewKindOf,
   type CountTone,
   type MailboxTreeRow,
   type MailboxTreeRowKind,
   type ListTarget,
   type MailboxTreeInput,
+  type MailViewKind,
 }

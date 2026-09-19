@@ -30,24 +30,6 @@ const formatMessageDateTime = (timestamp: number | null): string => {
   return `${day} ${padNumber(date.getHours())}:${padNumber(date.getMinutes())}`
 }
 
-const formatBytes = (size: number | null): string => {
-  if (size === null) {
-    return "unknown size"
-  }
-  if (size < 1024) {
-    return `${size} B`
-  }
-  const kilobytes = size / 1024
-  if (kilobytes < 1024) {
-    return `${kilobytes.toFixed(1)} kB`
-  }
-  const megabytes = kilobytes / 1024
-  if (megabytes < 1024) {
-    return `${megabytes.toFixed(1)} MB`
-  }
-  return `${(megabytes / 1024).toFixed(1)} GB`
-}
-
 const addressLabel = (address: MailAddress): string => {
   if (address.name === undefined || address.name.length === 0) {
     return address.address
@@ -82,7 +64,6 @@ const senderLabel = (fromName: string | null, fromAddress: string | null): strin
 export {
   addressLabel,
   addressList,
-  formatBytes,
   formatMessageDate,
   formatMessageDateTime,
   senderLabel,
