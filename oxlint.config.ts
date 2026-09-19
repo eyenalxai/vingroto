@@ -94,14 +94,11 @@ const baseRules: RuleConfig = {
 }
 
 // The Effect recommended preset and this repository's all-error categories
-// raise these diagnostics to errors in packages/*/src. Keep the ones below
-// visible as warnings because they are either outside this change's ownership
-// or conflict with another configured rule. Each remaining rule's `off` entry
-// states why it does not fit this application.
+// raise the diagnostics below to errors. Keep them visible as warnings because
+// they are either safe by the rule's own definition or conflict with another
+// configured rule. The `off` entries state why a rule does not fit this
+// application.
 const effectRuleSeverities: RuleConfig = {
-  // packages/server/src/lib/api/runtime.ts still exposes unknown error channels
-  // in the api server bootstrap; that path is owned by another change.
-  "effecttsgo/any-unknown-in-error-context": "warn",
   // The reported Effect.provide calls are the client entry point and test
   // harnesses that own their layers, which the rule itself calls out as safe.
   "effecttsgo/strict-effect-provide": "warn",

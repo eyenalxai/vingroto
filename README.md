@@ -115,7 +115,7 @@ The response body is streamed to stdout as it arrives, so a long-lived response 
 error: GET /api/messages?scope=inbox failed with HTTP 400 Bad Request: query parameter "scope" is invalid
 ```
 
-The exit code is 0 on success, 1 for a usage error, 2 when the daemon cannot be reached and 3 when the API answers with an error response. Failures are JSON error objects (`_tag`, `message`, and `field` for invalid requests); a method or path that matches no route answers `NotFoundError` with 404 instead of an empty body.
+The exit code is 0 on success, 1 for a usage error, 2 when the daemon cannot be reached and 3 when the API answers with an error response. Failures are JSON error objects (`_tag`, `message`, and `field` for invalid requests); a method or path that matches no route answers `RouteNotFoundError` with 404 instead of an empty body.
 
 Plain HTTP works too:
 
