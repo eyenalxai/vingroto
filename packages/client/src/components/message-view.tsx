@@ -146,7 +146,7 @@ const MessageView = (props: MessageViewProps) => {
         {(detail) => (
           <box flexGrow={1} flexDirection="column">
             <box flexShrink={0} flexDirection="column" paddingLeft={1} paddingRight={1}>
-              <text fg={theme.accent} wrapMode="word">
+              <text fg={theme.accent} wrapMode="none" truncate>
                 {detail().subject ?? "(no subject)"}
               </text>
               <For each={headerLines()}>
