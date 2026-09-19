@@ -9,11 +9,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
 
-import type {
-  MailboxSnapshot,
-  MailboxWindowRequest,
-  MailboxWindowResult,
-} from "@/lib/mail/imap-types"
+import type { MailboxSnapshot, MailboxWindowRequest } from "@/lib/mail/imap-types"
 import type { MailboxRow } from "@/lib/store/mailboxes"
 
 import { Database } from "@/lib/db/database"
@@ -21,7 +17,7 @@ import { ServerEvents } from "@/lib/events"
 import { Imap } from "@/lib/mail/imap"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/lib/store/mailboxes"
-import { deleteMailboxMessages, storeMessages } from "@/lib/store/messages"
+import { replaceMailboxMessages, storeMessages } from "@/lib/store/messages"
 
 interface SyncReport {
   readonly accountId: AccountId
@@ -93,11 +89,28 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
         },
       )
 
+      const announceStored = Effect.fn("Sync.announceStored")(function* announceMailboxStored(
+        account: AccountConfig,
+        row: MailboxRow,
+        fetched: number,
+        stored: number,
+        reset: boolean,
+      ) {
+        yield* events.publish({
+          _tag: "mailbox-done",
+          accountId: account.id,
+          path: row.path,
+          fetched,
+          stored,
+          reset,
+        })
+        yield* notifier.mailboxStored({ account, mailbox: row, stored, reset })
+      })
+
       const storeSnapshot = Effect.fn("Sync.storeSnapshot")(function* storeSnapshot(
         account: AccountConfig,
         row: MailboxRow,
         snapshot: MailboxSnapshot,
-        reset: boolean,
       ) {
         let lastSeenUid: number = row.last_seen_uid
         for (const message of snapshot.messages) {
@@ -122,21 +135,33 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
             stored: outcome.inserted,
           }),
         )
-        yield* events.publish({
-          _tag: "mailbox-done",
-          accountId: account.id,
-          path: row.path,
-          fetched: snapshot.messages.length,
-          stored: outcome.inserted,
-          reset,
-        })
-        yield* notifier.mailboxStored({
-          account,
-          mailbox: row,
-          stored: outcome.inserted,
-          reset,
-        })
+        yield* announceStored(account, row, snapshot.messages.length, outcome.inserted, false)
         return { fetched: snapshot.messages.length, stored: outcome.inserted }
+      })
+
+      const storeReplacement = Effect.fn("Sync.storeReplacement")(function* storeReplacement(
+        account: AccountConfig,
+        row: MailboxRow,
+        snapshot: MailboxSnapshot,
+      ) {
+        const fetched = snapshot.messages.length
+        const syncedAt = yield* DateTime.now
+        yield* replaceMailboxMessages({
+          accountId: account.id,
+          mailboxId: row.id,
+          envelopes: snapshot.messages,
+          uidValidity: snapshot.uidValidity,
+          syncedAt: DateTime.toEpochMillis(syncedAt),
+        })
+        yield* Effect.logInfo("mailbox cache replaced").pipe(
+          Effect.annotateLogs({
+            account: account.id,
+            mailbox: row.path,
+            fetched,
+          }),
+        )
+        yield* announceStored(account, row, fetched, fetched, true)
+        return { fetched, stored: fetched }
       })
 
       const syncAccount = Effect.fn("Sync.syncAccount")(function* syncAccount(
@@ -160,10 +185,10 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           targets.map((row) => toWindowRequest(row, config, now)),
         )
         const errors: string[] = []
-        const recreated = new Set<number>()
+        const recreated: MailboxRow[] = []
         const processable: {
           readonly row: MailboxRow
-          readonly result: MailboxWindowResult
+          readonly snapshot: MailboxSnapshot
           readonly reset: boolean
         }[] = []
         for (const result of results) {
@@ -178,7 +203,8 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
           }
           if (row.uid_validity !== null && row.uid_validity !== result.snapshot.uidValidity) {
             // The server reassigned the UID space: every cached UID for this mailbox is meaningless.
-            yield* Effect.logWarning("uid validity changed, dropping cached messages").pipe(
+            // The cached window is kept until the replacement fetch succeeds, so a failure leaves it intact.
+            yield* Effect.logWarning("uid validity changed, refreshing mailbox from scratch").pipe(
               Effect.annotateLogs({
                 account: account.id,
                 mailbox: row.path,
@@ -186,49 +212,39 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
                 current: result.snapshot.uidValidity,
               }),
             )
-            yield* deleteMailboxMessages(row.id)
-            yield* setMailboxSyncState(row.id, {
-              uidValidity: result.snapshot.uidValidity,
-              lastSeenUid: Uid.make(0),
-              syncedAt: null,
-            })
-            recreated.add(row.id)
+            recreated.push(row)
             continue
           }
-          processable.push({ row, result, reset: false })
+          processable.push({ row, snapshot: result.snapshot, reset: false })
         }
-        if (recreated.size > 0) {
-          const refreshed = yield* listAccountMailboxes(account.id)
-          const refreshedByPath = new Map(refreshed.map((row) => [row.path, row]))
-          const retryRows = refreshed.filter((row) => recreated.has(row.id))
-          for (const row of retryRows) {
+        if (recreated.length > 0) {
+          for (const row of recreated) {
             yield* events.publish({ _tag: "mailbox-start", accountId: account.id, path: row.path })
           }
-          const retry = yield* imap.fetchMailboxWindows(
+          const refreshed = yield* imap.fetchMailboxWindows(
             account,
-            retryRows.map((row) => initialWindow(row, config, now)),
+            recreated.map((row) => initialWindow(row, config, now)),
           )
-          for (const result of retry) {
-            const row = refreshedByPath.get(result.path)
-            if (row !== undefined) {
-              processable.push({ row, result, reset: true })
+          const recreatedByPath = new Map(recreated.map((row) => [row.path, row]))
+          for (const result of refreshed) {
+            const row = recreatedByPath.get(result.path)
+            if (row === undefined) {
+              continue
             }
+            if (result._tag === "error") {
+              errors.push(`${result.path}: ${result.message}`)
+              yield* reportMailboxError(account, result.path, result.message)
+              continue
+            }
+            processable.push({ row, snapshot: result.snapshot, reset: true })
           }
         }
         let fetched = 0
         let storedCount = 0
         for (const entry of processable) {
-          if (entry.result._tag === "error") {
-            errors.push(`${entry.result.path}: ${entry.result.message}`)
-            yield* reportMailboxError(account, entry.result.path, entry.result.message)
-            continue
-          }
-          const outcome = yield* storeSnapshot(
-            account,
-            entry.row,
-            entry.result.snapshot,
-            entry.reset,
-          )
+          const outcome = entry.reset
+            ? yield* storeReplacement(account, entry.row, entry.snapshot)
+            : yield* storeSnapshot(account, entry.row, entry.snapshot)
           fetched += outcome.fetched
           storedCount += outcome.stored
         }
@@ -241,14 +257,13 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/
             errors: errors.length,
           }),
         )
-        const report: SyncReport = {
+        return {
           accountId: account.id,
           mailboxes: targets.length,
           fetched,
           stored: storedCount,
           errors,
-        }
-        return report
+        } satisfies SyncReport
       })
 
       const syncMailboxes = Effect.fn("Sync.syncMailboxes")(

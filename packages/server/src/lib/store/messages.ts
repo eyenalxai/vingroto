@@ -1,16 +1,18 @@
 import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
-import type { MailAddress } from "@vingroto/core/mail/address"
 import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
+import { Uid as UidSchema } from "@vingroto/core/ids"
 import { and, count, desc, eq, inArray } from "drizzle-orm"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 
 import type { MessageEnvelope } from "@/lib/mail/imap-types"
 
+import { decodeStored, persistedAddressList, persistedReferenceList } from "@/lib/db/codecs"
 import { Database } from "@/lib/db/database"
 import { MailboxTable, MessageTable } from "@/lib/db/schema"
+import { listColumns } from "@/lib/store/message-rows"
 
 interface MailboxCounts {
   readonly total: number
@@ -28,50 +30,12 @@ interface MessageStoreOutcome {
   readonly updated: number
 }
 
-const listColumns = {
-  id: MessageTable.id,
-  uid: MessageTable.uid,
-  accountId: MessageTable.account_id,
-  mailboxId: MessageTable.mailbox_id,
-  mailboxPath: MailboxTable.path,
-  subject: MessageTable.subject,
-  fromName: MessageTable.from_name,
-  fromAddress: MessageTable.from_address,
-  date: MessageTable.date,
-  seen: MessageTable.seen,
-  flagged: MessageTable.flagged,
-  size: MessageTable.size,
-  hasAttachments: MessageTable.has_attachments,
-  snippet: MessageTable.snippet,
-} as const
-
-const searchColumns = {
-  ...listColumns,
-  messageId: MessageTable.message_id,
-  to: MessageTable.to,
-  cc: MessageTable.cc,
-  bodyFetchedAt: MessageTable.body_fetched_at,
-} as const
-
-interface MessageSearchRow {
-  readonly id: MessageId
-  readonly uid: Uid
+interface MailboxReplacement {
   readonly accountId: AccountId
   readonly mailboxId: MailboxId
-  readonly mailboxPath: string
-  readonly subject: string | null
-  readonly fromName: string | null
-  readonly fromAddress: string | null
-  readonly date: number | null
-  readonly seen: boolean
-  readonly flagged: boolean
-  readonly size: number | null
-  readonly hasAttachments: boolean
-  readonly snippet: string | null
-  readonly messageId: string | null
-  readonly to: readonly MailAddress[] | null
-  readonly cc: readonly MailAddress[] | null
-  readonly bodyFetchedAt: number | null
+  readonly envelopes: readonly MessageEnvelope[]
+  readonly uidValidity: number
+  readonly syncedAt: number
 }
 
 const toEnvelopeColumns = (envelope: MessageEnvelope, now: number) => {
@@ -95,6 +59,15 @@ const toEnvelopeColumns = (envelope: MessageEnvelope, now: number) => {
   }
 }
 
+const toMessageValues = (input: MessageStoreInput, envelope: MessageEnvelope, now: number) => {
+  return {
+    account_id: input.accountId,
+    mailbox_id: input.mailboxId,
+    uid: envelope.uid,
+    ...toEnvelopeColumns(envelope, now),
+  }
+}
+
 const storeMessages = Effect.fn("Message.store")(function* store(input: MessageStoreInput) {
   if (input.envelopes.length === 0) {
     return { inserted: 0, updated: 0 }
@@ -109,40 +82,59 @@ const storeMessages = Effect.fn("Message.store")(function* store(input: MessageS
   const knownUids = new Set(known.map((row) => row.uid))
   const fresh = input.envelopes.filter((envelope) => !knownUids.has(envelope.uid))
   const stale = input.envelopes.filter((envelope) => knownUids.has(envelope.uid))
-  if (fresh.length > 0) {
-    yield* database.client
-      .insert(MessageTable)
-      .values(
-        fresh.map((envelope) => {
-          return {
-            account_id: input.accountId,
-            mailbox_id: input.mailboxId,
-            uid: envelope.uid,
-            ...toEnvelopeColumns(envelope, now),
-          }
-        }),
-      )
-      .onConflictDoNothing()
-  }
-  yield* Effect.all(
-    stale.map((envelope) =>
-      database.client
-        .update(MessageTable)
-        .set(toEnvelopeColumns(envelope, now))
-        .where(
-          and(eq(MessageTable.mailbox_id, input.mailboxId), eq(MessageTable.uid, envelope.uid)),
+  yield* database.client.transaction((tx) =>
+    Effect.gen(function* storeEnvelopes() {
+      if (fresh.length > 0) {
+        yield* tx
+          .insert(MessageTable)
+          .values(fresh.map((envelope) => toMessageValues(input, envelope, now)))
+          .onConflictDoNothing()
+      }
+      yield* Effect.all(
+        stale.map((envelope) =>
+          tx
+            .update(MessageTable)
+            .set(toEnvelopeColumns(envelope, now))
+            .where(
+              and(eq(MessageTable.mailbox_id, input.mailboxId), eq(MessageTable.uid, envelope.uid)),
+            ),
         ),
-    ),
-    { discard: true },
+        { discard: true },
+      )
+    }),
   )
   return { inserted: fresh.length, updated: stale.length }
 })
 
-const deleteMailboxMessages = Effect.fn("Message.deleteForMailbox")(function* deleteForMailbox(
-  mailboxId: MailboxId,
+const replaceMailboxMessages = Effect.fn("Message.replaceMailboxWindow")(function* replace(
+  input: MailboxReplacement,
 ) {
   const database = yield* Database
-  yield* database.client.delete(MessageTable).where(eq(MessageTable.mailbox_id, mailboxId))
+  const now = yield* Clock.currentTimeMillis
+  let lastSeenUid = 0
+  for (const envelope of input.envelopes) {
+    lastSeenUid = Math.max(lastSeenUid, envelope.uid)
+  }
+  yield* database.client.transaction((tx) =>
+    Effect.gen(function* replaceWindow() {
+      yield* tx.delete(MessageTable).where(eq(MessageTable.mailbox_id, input.mailboxId))
+      if (input.envelopes.length > 0) {
+        yield* tx
+          .insert(MessageTable)
+          .values(input.envelopes.map((envelope) => toMessageValues(input, envelope, now)))
+          .onConflictDoNothing()
+      }
+      yield* tx
+        .update(MailboxTable)
+        .set({
+          uid_validity: input.uidValidity,
+          last_seen_uid: UidSchema.make(lastSeenUid),
+          synced_at: input.syncedAt,
+          updated_at: now,
+        })
+        .where(eq(MailboxTable.id, input.mailboxId))
+    }),
+  )
 })
 
 const listMessages = Effect.fn("Message.list")(function* list(
@@ -157,17 +149,6 @@ const listMessages = Effect.fn("Message.list")(function* list(
     .where(eq(MessageTable.mailbox_id, mailboxId))
     .orderBy(desc(MessageTable.date), desc(MessageTable.uid))
     .limit(limit)
-})
-
-const listMailboxSearchRows = Effect.fn("Message.listSearch")(function* listSearch(
-  mailboxId: MailboxId,
-): Effect.fn.Return<readonly MessageSearchRow[], EffectDrizzleQueryError, Database> {
-  const database = yield* Database
-  return yield* database.client
-    .select(searchColumns)
-    .from(MessageTable)
-    .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
-    .where(eq(MessageTable.mailbox_id, mailboxId))
 })
 
 const getMessage = Effect.fn("Message.get")(function* get(
@@ -190,7 +171,16 @@ const getMessage = Effect.fn("Message.get")(function* get(
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
     .where(eq(MessageTable.id, messageId))
     .limit(1)
-  return rows[0]
+  const row = rows[0]
+  if (row === undefined) {
+    return undefined
+  }
+  const [references, to, cc] = yield* Effect.all([
+    decodeStored(persistedReferenceList, row.references),
+    decodeStored(persistedAddressList, row.to),
+    decodeStored(persistedAddressList, row.cc),
+  ])
+  return { ...row, cc, references, to }
 })
 
 const getMessageIdByUid = Effect.fn("Message.idByUid")(function* idByUid(
@@ -255,18 +245,15 @@ const deleteMessages = Effect.fn("Message.delete")(function* removeMessages(
 })
 
 export {
-  deleteMailboxMessages,
   deleteMessages,
   getMessage,
   getMessageIdByUid,
-  listColumns,
-  listMailboxSearchRows,
   listMessages,
   messageCounts,
-  searchColumns,
+  replaceMailboxMessages,
   setMessagesSeen,
   storeMessages,
   type MailboxCounts,
-  type MessageSearchRow,
+  type MailboxReplacement,
   type MessageStoreOutcome,
 }

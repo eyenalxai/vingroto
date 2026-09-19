@@ -2,14 +2,15 @@ import type { AccountId } from "@vingroto/core/ids"
 import type { ListScope, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
-import { and, countDistinct, desc, eq, sql } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import * as Effect from "effect/Effect"
 
-import type { MessageSearchRow } from "@/lib/store/messages"
+import type { MessageSearchRow } from "@/lib/store/message-rows"
 
 import { Database } from "@/lib/db/database"
 import { MailboxTable, MessageTable } from "@/lib/db/schema"
-import { listMessages, searchColumns } from "@/lib/store/messages"
+import { searchColumns } from "@/lib/store/message-rows"
+import { listMessages } from "@/lib/store/messages"
 
 type VirtualListScope =
   | { readonly kind: "all" }
@@ -20,26 +21,110 @@ interface UnreadMessageCounts {
   readonly byAccount: ReadonlyMap<AccountId, number>
 }
 
+interface VirtualCandidateRow extends MessageSearchRow {
+  readonly specialUse: string | null
+  readonly muted: boolean
+}
+
 const inboxSpecialUse = String.raw`\Inbox`
 const allMailSpecialUse = String.raw`\All`
 
-const identityKey = sql`coalesce(${MessageTable.message_id}, 'row:' || ${MessageTable.id})`
+const identityKeyOf = (row: { accountId: AccountId; id: number; messageId: string | null }) =>
+  `${row.accountId}\u0000${row.messageId ?? `row:${row.id}`}`
 
-const representativeRank = sql<number>`row_number() over (
-  partition by ${MessageTable.account_id}, ${identityKey}
-  order by
-    case
-      when ${MailboxTable.special_use} = ${inboxSpecialUse} then 0
-      when ${MailboxTable.muted} = 0
-        and (${MailboxTable.special_use} is null or ${MailboxTable.special_use} <> ${allMailSpecialUse}) then 1
-      when ${MailboxTable.special_use} = ${allMailSpecialUse} then 2
-      else 3
-    end,
-    ${MailboxTable.id} asc,
-    ${MessageTable.uid} asc
-)`
+const representativeRank = (row: VirtualCandidateRow) => {
+  if (row.specialUse === inboxSpecialUse) {
+    return 0
+  }
+  if (!row.muted && row.specialUse !== allMailSpecialUse) {
+    return 1
+  }
+  if (row.specialUse === allMailSpecialUse) {
+    return 2
+  }
+  return 3
+}
 
-const virtualRanked = Effect.fnUntraced(function* buildRankedRows(scope: VirtualListScope) {
+const isPreferredCopy = (candidate: VirtualCandidateRow, current: VirtualCandidateRow) => {
+  const candidateRank = representativeRank(candidate)
+  const currentRank = representativeRank(current)
+  if (candidateRank !== currentRank) {
+    return candidateRank < currentRank
+  }
+  if (candidate.mailboxId !== current.mailboxId) {
+    return candidate.mailboxId < current.mailboxId
+  }
+  return candidate.uid < current.uid
+}
+
+const toSearchRow = (row: VirtualCandidateRow): MessageSearchRow => {
+  return {
+    id: row.id,
+    uid: row.uid,
+    accountId: row.accountId,
+    mailboxId: row.mailboxId,
+    mailboxPath: row.mailboxPath,
+    subject: row.subject,
+    fromName: row.fromName,
+    fromAddress: row.fromAddress,
+    date: row.date,
+    seen: row.seen,
+    flagged: row.flagged,
+    size: row.size,
+    hasAttachments: row.hasAttachments,
+    snippet: row.snippet,
+    messageId: row.messageId,
+    to: row.to,
+    cc: row.cc,
+    bodyFetchedAt: row.bodyFetchedAt,
+  }
+}
+
+const toListItem = (row: MessageSearchRow): MessageListItem => {
+  return {
+    id: row.id,
+    uid: row.uid,
+    accountId: row.accountId,
+    mailboxId: row.mailboxId,
+    mailboxPath: row.mailboxPath,
+    subject: row.subject,
+    fromName: row.fromName,
+    fromAddress: row.fromAddress,
+    date: row.date,
+    seen: row.seen,
+    flagged: row.flagged,
+    size: row.size,
+    hasAttachments: row.hasAttachments,
+    snippet: row.snippet,
+  }
+}
+
+const representatives = (rows: readonly VirtualCandidateRow[]): readonly MessageSearchRow[] => {
+  const byIdentity = new Map<string, VirtualCandidateRow>()
+  for (const row of rows) {
+    const key = identityKeyOf(row)
+    const current = byIdentity.get(key)
+    if (current === undefined || isPreferredCopy(row, current)) {
+      byIdentity.set(key, row)
+    }
+  }
+  return [...byIdentity.values()].map((row) => toSearchRow(row))
+}
+
+const byNewestFirst = (left: MessageSearchRow, right: MessageSearchRow) => {
+  if (left.date !== right.date) {
+    if (left.date === null) {
+      return 1
+    }
+    if (right.date === null) {
+      return -1
+    }
+    return right.date - left.date
+  }
+  return right.uid - left.uid
+}
+
+const loadCandidates = Effect.fnUntraced(function* loadCandidateRows(scope: VirtualListScope) {
   const database = yield* Database
   const filters =
     scope.kind === "unread"
@@ -51,71 +136,29 @@ const virtualRanked = Effect.fnUntraced(function* buildRankedRows(scope: Virtual
             eq(MailboxTable.muted, false),
           ]
       : []
-  return database.client
-    .select({ ...searchColumns, rank: representativeRank.as("rank") })
+  return yield* database.client
+    .select({ ...searchColumns, specialUse: MailboxTable.special_use, muted: MailboxTable.muted })
     .from(MessageTable)
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
     .where(filters.length === 0 ? undefined : and(...filters))
-    .as("ranked")
 })
 
 const listVirtualRows = Effect.fn("Message.listVirtualRows")(function* listVirtualRows(
   scope: VirtualListScope,
 ): Effect.fn.Return<readonly MessageSearchRow[], EffectDrizzleQueryError, Database> {
-  const ranked = yield* virtualRanked(scope)
-  const database = yield* Database
-  return yield* database.client
-    .select({
-      id: ranked.id,
-      uid: ranked.uid,
-      accountId: ranked.accountId,
-      mailboxId: ranked.mailboxId,
-      mailboxPath: ranked.mailboxPath,
-      subject: ranked.subject,
-      fromName: ranked.fromName,
-      fromAddress: ranked.fromAddress,
-      date: ranked.date,
-      seen: ranked.seen,
-      flagged: ranked.flagged,
-      size: ranked.size,
-      hasAttachments: ranked.hasAttachments,
-      snippet: ranked.snippet,
-      messageId: ranked.messageId,
-      to: ranked.to,
-      cc: ranked.cc,
-      bodyFetchedAt: ranked.bodyFetchedAt,
-    })
-    .from(ranked)
-    .where(eq(ranked.rank, 1))
+  const rows = yield* loadCandidates(scope)
+  return representatives(rows)
 })
 
 const listVirtualMessages = Effect.fn("Message.listVirtual")(function* listVirtual(
   scope: VirtualListScope,
   limit: number,
 ): Effect.fn.Return<readonly MessageListItem[], EffectDrizzleQueryError, Database> {
-  const ranked = yield* virtualRanked(scope)
-  const database = yield* Database
-  return yield* database.client
-    .select({
-      id: ranked.id,
-      uid: ranked.uid,
-      accountId: ranked.accountId,
-      mailboxId: ranked.mailboxId,
-      mailboxPath: ranked.mailboxPath,
-      subject: ranked.subject,
-      fromName: ranked.fromName,
-      fromAddress: ranked.fromAddress,
-      date: ranked.date,
-      seen: ranked.seen,
-      flagged: ranked.flagged,
-      size: ranked.size,
-      hasAttachments: ranked.hasAttachments,
-      snippet: ranked.snippet,
-    })
-    .from(ranked)
-    .where(eq(ranked.rank, 1))
-    .orderBy(desc(ranked.date), desc(ranked.uid))
-    .limit(limit)
+  const rows = yield* loadCandidates(scope)
+  return representatives(rows)
+    .toSorted(byNewestFirst)
+    .slice(0, limit)
+    .map((row) => toListItem(row))
 })
 
 const listMessagesForScope = Effect.fn("Message.listForScope")(function* listForScope(
@@ -136,20 +179,25 @@ const unreadMessageCounts = Effect.fn("Message.unreadCounts")(function* countUnr
   const rows = yield* database.client
     .select({
       accountId: MessageTable.account_id,
-      unread: countDistinct(identityKey),
+      id: MessageTable.id,
+      messageId: MessageTable.message_id,
     })
     .from(MessageTable)
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
     .where(and(eq(MessageTable.seen, false), eq(MailboxTable.muted, false)))
-    .groupBy(MessageTable.account_id)
-    .orderBy(MessageTable.account_id)
-  const byAccount = new Map<AccountId, number>()
-  let total = 0
+  const byAccount = new Map<AccountId, Set<string>>()
   for (const row of rows) {
-    byAccount.set(row.accountId, row.unread)
-    total += row.unread
+    const identities = byAccount.get(row.accountId) ?? new Set<string>()
+    identities.add(identityKeyOf(row))
+    byAccount.set(row.accountId, identities)
   }
-  return { total, byAccount }
+  const counts = new Map<AccountId, number>()
+  let total = 0
+  for (const [accountId, identities] of byAccount) {
+    counts.set(accountId, identities.size)
+    total += identities.size
+  }
+  return { total, byAccount: counts }
 })
 
 export {

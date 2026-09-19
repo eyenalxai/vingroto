@@ -2,7 +2,6 @@ import { describeError } from "@vingroto/core/errors"
 import {
   AccountNotFoundError,
   CredentialsError,
-  InternalError,
   InvalidRequestError,
 } from "@vingroto/core/protocol/api/errors"
 import * as Effect from "effect/Effect"
@@ -10,81 +9,81 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 
 import { Accounts } from "@/lib/accounts"
 import { ServerApi } from "@/lib/api/api"
+import { internalFailure } from "@/lib/api/internal-error"
 import { Discovery } from "@/lib/mail/autoconfig"
 
-const toInternal = (error: unknown) => new InternalError({ message: describeError(error) })
+const credentialStoreMessage = "the credential store could not be used"
+
+const credentialStoreFailure = (error: {
+  readonly operation: "lookup" | "store"
+  readonly message: string
+}) =>
+  Effect.logError("credential store failed").pipe(
+    Effect.annotateLogs({ operation: error.operation, reason: describeError(error) }),
+    Effect.flatMap(() => Effect.fail(new CredentialsError({ message: credentialStoreMessage }))),
+  )
 
 const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =>
   handlers
     .handle("account.discover", ({ payload }) =>
-      Discovery.pipe(
-        Effect.flatMap((discovery) => discovery.discover(payload.email)),
-        Effect.mapError(toInternal),
-      ),
+      Discovery.pipe(Effect.flatMap((discovery) => discovery.discover(payload.email))),
     )
     .handle("account.create", ({ payload }) =>
-      Accounts.pipe(
-        Effect.flatMap((accounts) => accounts.create(payload)),
-        Effect.mapError((error): CredentialsError | InvalidRequestError | InternalError => {
-          if (error._tag === "CredentialNotFound" || error._tag === "KeyringError") {
-            return new CredentialsError({ message: describeError(error) })
-          }
-          if (error._tag === "ConfigInvalid") {
-            return new InvalidRequestError({
-              message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
-            })
-          }
-          return toInternal(error)
-        }),
+      Effect.catchTags(
+        Accounts.pipe(Effect.flatMap((accounts) => accounts.create(payload))),
+        {
+          CredentialNotFound: (error) =>
+            Effect.fail(new CredentialsError({ message: error.message })),
+          KeyringError: credentialStoreFailure,
+          ConfigInvalid: (error) =>
+            Effect.fail(
+              new InvalidRequestError({
+                message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
+              }),
+            ),
+        },
+        internalFailure,
       ),
     )
     .handle("account.update", ({ params, payload }) =>
-      Accounts.pipe(
-        Effect.flatMap((accounts) => accounts.update(params.accountId, payload)),
-        Effect.mapError(
-          (
-            error,
-          ): AccountNotFoundError | CredentialsError | InvalidRequestError | InternalError => {
-            if (error._tag === "AccountNotFound") {
-              return new AccountNotFoundError({ accountId: error.id, message: error.message })
-            }
-            if (error._tag === "CredentialNotFound" || error._tag === "KeyringError") {
-              return new CredentialsError({ message: describeError(error) })
-            }
-            if (error._tag === "ConfigInvalid") {
-              return new InvalidRequestError({
+      Effect.catchTags(
+        Accounts.pipe(Effect.flatMap((accounts) => accounts.update(params.accountId, payload))),
+        {
+          AccountNotFound: (error) =>
+            Effect.fail(new AccountNotFoundError({ accountId: error.id, message: error.message })),
+          CredentialNotFound: (error) =>
+            Effect.fail(new CredentialsError({ message: error.message })),
+          KeyringError: credentialStoreFailure,
+          ConfigInvalid: (error) =>
+            Effect.fail(
+              new InvalidRequestError({
                 message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
-              })
-            }
-            return toInternal(error)
-          },
-        ),
+              }),
+            ),
+        },
+        internalFailure,
       ),
     )
     .handle("account.reorder", ({ payload }) =>
-      Accounts.pipe(
-        Effect.flatMap((accounts) => accounts.reorder(payload.accountIds)),
-        Effect.mapError((error): InvalidRequestError | InternalError => {
-          if (error._tag === "AccountOrderInvalid") {
-            return new InvalidRequestError({
-              field: "body.accountIds",
-              message: error.message,
-            })
-          }
-          if (error._tag === "ConfigInvalid") {
-            return new InvalidRequestError({
-              message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
-            })
-          }
-          return toInternal(error)
-        }),
+      Effect.catchTags(
+        Accounts.pipe(Effect.flatMap((accounts) => accounts.reorder(payload.accountIds))),
+        {
+          AccountOrderInvalid: (error) =>
+            Effect.fail(
+              new InvalidRequestError({ field: "body.accountIds", message: error.message }),
+            ),
+          ConfigInvalid: (error) =>
+            Effect.fail(
+              new InvalidRequestError({
+                message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
+              }),
+            ),
+        },
+        internalFailure,
       ),
     )
     .handle("account.username", ({ params }) =>
-      Accounts.pipe(
-        Effect.flatMap((accounts) => accounts.username(params.accountId)),
-        Effect.mapError(toInternal),
-      ),
+      Accounts.pipe(Effect.flatMap((accounts) => accounts.username(params.accountId))),
     ),
 )
 

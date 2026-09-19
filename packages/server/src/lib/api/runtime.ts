@@ -5,7 +5,8 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
-import { HttpRouter, HttpServer } from "effect/unstable/http"
+import * as Option from "effect/Option"
+import { HttpRouter, HttpServer, HttpServerError } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 
 import { AccountHandlers } from "@/lib/api/accounts"
@@ -29,6 +30,7 @@ import { ServerEvents } from "@/lib/events"
 const hostname = "127.0.0.1"
 const defaultPort = 8464
 const maxPort = 65_535
+const maximumBindAttempts = 32
 
 const HandlersLayer = Layer.mergeAll(
   ServerHandlers,
@@ -60,15 +62,41 @@ const bind = (token: string, port: number) =>
     ),
   )
 
+const errorCodeOf = (error: unknown): string | undefined => {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined
+  }
+  const code: unknown = error.code
+  return typeof code === "string" ? code : undefined
+}
+
+const isAddressInUse = (cause: Cause.Cause<unknown>): boolean => {
+  const squashed = Cause.squash(cause)
+  if (squashed instanceof HttpServerError.ServeError) {
+    return errorCodeOf(squashed.cause) === "EADDRINUSE"
+  }
+  return errorCodeOf(squashed) === "EADDRINUSE"
+}
+
 const bindWithFallback = Effect.fnUntraced(function* bindApi(initialPort: number, token: string) {
-  let cause: Cause.Cause<unknown> = Cause.die(new Error("no api port was available"))
-  for (let port = initialPort; port <= maxPort; port += 1) {
+  const lastPort = Math.min(maxPort, initialPort + maximumBindAttempts - 1)
+  let cause: Cause.Cause<unknown> = Cause.die(
+    new Error(`no api port was available between ${initialPort} and ${lastPort}`),
+  )
+  for (let port = initialPort; port <= lastPort; port += 1) {
     const attempt = yield* Effect.exit(bind(token, port))
     if (Exit.isSuccess(attempt)) {
-      return Context.getUnsafe(attempt.value, HttpServer.HttpServer)
+      const server = Context.getOption(attempt.value, HttpServer.HttpServer)
+      if (Option.isNone(server)) {
+        return yield* Effect.die(new Error("the http server layer did not provide an http server"))
+      }
+      return server.value
     }
     cause = attempt.cause
-    if (port < maxPort) {
+    if (!isAddressInUse(cause)) {
+      return yield* Effect.failCause(cause).pipe(Effect.orDie)
+    }
+    if (port < lastPort) {
       yield* Effect.logWarning("api port is unavailable, trying the next one").pipe(
         Effect.annotateLogs({ port }),
       )

@@ -19,6 +19,7 @@ import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { Search } from "@/lib/mail/search"
 import { SentCopies } from "@/lib/mail/sent"
 import { SyncEngine } from "@/lib/mail/sync"
+import { Messages } from "@/lib/messages"
 import { DesktopNotifications } from "@/lib/notify/desktop"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { Outbox } from "@/lib/outbox"
@@ -71,6 +72,10 @@ const DraftsLayer = Drafts.layer.pipe(Layer.provide(CoreLayer))
 
 const AccountsLayer = Accounts.layer.pipe(Layer.provide(Layer.mergeAll(SchedulerLayer, CoreLayer)))
 
+const MailActionsLayer = MailActions.layer.pipe(Layer.provide(CoreLayer))
+
+const MessagesLayer = Messages.layer.pipe(Layer.provide(MailActionsLayer), Layer.provide(CoreLayer))
+
 const AppLayer = Layer.mergeAll(
   CoreLayer,
   SyncLayer,
@@ -80,7 +85,8 @@ const AppLayer = Layer.mergeAll(
   OutboxLayer,
   DraftsLayer,
   Discovery.layer,
-  MailActions.layer.pipe(Layer.provide(CoreLayer)),
+  MailActionsLayer,
+  MessagesLayer,
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
   AccountsLayer,
   Settings.layer.pipe(Layer.provide(CoreLayer)),

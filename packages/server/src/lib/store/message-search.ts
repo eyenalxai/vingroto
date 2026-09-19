@@ -5,12 +5,12 @@ import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 import { and, asc, eq, inArray } from "drizzle-orm"
 import * as Effect from "effect/Effect"
 
-import type { MessageSearchRow } from "@/lib/store/messages"
+import type { MessageSearchRow } from "@/lib/store/message-rows"
 
 import { Database } from "@/lib/db/database"
 import { MailboxTable, MessageBodyTable, MessageTable } from "@/lib/db/schema"
+import { listMailboxSearchRows } from "@/lib/store/message-rows"
 import { listVirtualRows } from "@/lib/store/message-views"
-import { listMailboxSearchRows } from "@/lib/store/messages"
 
 interface SearchMailbox {
   readonly id: MailboxId

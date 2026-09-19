@@ -5,7 +5,7 @@ import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 import * as Effect from "effect/Effect"
 
 import type { Database } from "@/lib/db/database"
-import type { MessageSearchRow } from "@/lib/store/messages"
+import type { MessageSearchRow } from "@/lib/store/message-rows"
 
 import { scoreTerms } from "@/lib/mail/fuzzy"
 import { listMessageBodies, listSearchRows, messageIdentity } from "@/lib/store/message-search"

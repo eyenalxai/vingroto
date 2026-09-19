@@ -1,7 +1,6 @@
 import { describeError } from "@vingroto/core/errors"
 import {
   AccountNotFoundError,
-  InternalError,
   InvalidRequestError,
   OutboxNotFoundError,
 } from "@vingroto/core/protocol/api/errors"
@@ -9,9 +8,8 @@ import * as Effect from "effect/Effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 
 import { ServerApi } from "@/lib/api/api"
+import { internalFailure, sanitizeFailure } from "@/lib/api/internal-error"
 import { Outbox } from "@/lib/outbox"
-
-const toInternal = (error: unknown) => new InternalError({ message: describeError(error) })
 
 const OutboxHandlers = HttpApiBuilder.group(ServerApi, "outbox", (handlers) =>
   handlers
@@ -24,56 +22,48 @@ const OutboxHandlers = HttpApiBuilder.group(ServerApi, "outbox", (handlers) =>
           }),
         )
       }
-      return Outbox.pipe(
-        Effect.flatMap((outbox) => outbox.enqueue(payload)),
-        Effect.mapError((error): AccountNotFoundError | InvalidRequestError | InternalError => {
-          if (error._tag === "AccountNotConfigured") {
-            return new AccountNotFoundError({
-              accountId: error.accountId,
-              message: error.message,
-            })
-          }
-          if (error._tag === "ConfigInvalid") {
-            return new InvalidRequestError({
-              message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
-            })
-          }
-          return toInternal(error)
-        }),
+      return Effect.catchTags(
+        Outbox.pipe(Effect.flatMap((outbox) => outbox.enqueue(payload))),
+        {
+          AccountNotConfigured: (error) =>
+            Effect.fail(
+              new AccountNotFoundError({ accountId: error.accountId, message: error.message }),
+            ),
+          ConfigInvalid: (error) =>
+            Effect.fail(
+              new InvalidRequestError({
+                message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
+              }),
+            ),
+        },
+        internalFailure,
       )
     })
     .handle("outbox.list", () =>
-      Outbox.pipe(
-        Effect.flatMap((outbox) => outbox.list()),
-        Effect.mapError(toInternal),
-      ),
+      sanitizeFailure(Outbox.pipe(Effect.flatMap((outbox) => outbox.list()))),
     )
     .handle("outbox.cancel", ({ params }) =>
-      Outbox.pipe(
-        Effect.flatMap((outbox) => outbox.cancel(params.outboxId)),
-        Effect.mapError((error): OutboxNotFoundError | InternalError => {
-          if (error._tag === "OutboxNotFound") {
-            return new OutboxNotFoundError({
-              outboxId: error.outboxId,
-              message: error.message,
-            })
-          }
-          return toInternal(error)
-        }),
+      Effect.catchTags(
+        Outbox.pipe(Effect.flatMap((outbox) => outbox.cancel(params.outboxId))),
+        {
+          OutboxNotFound: (error) =>
+            Effect.fail(
+              new OutboxNotFoundError({ outboxId: error.outboxId, message: error.message }),
+            ),
+        },
+        internalFailure,
       ),
     )
     .handle("outbox.release", ({ params }) =>
-      Outbox.pipe(
-        Effect.flatMap((outbox) => outbox.release(params.outboxId)),
-        Effect.mapError((error): OutboxNotFoundError | InternalError => {
-          if (error._tag === "OutboxNotFound") {
-            return new OutboxNotFoundError({
-              outboxId: error.outboxId,
-              message: error.message,
-            })
-          }
-          return toInternal(error)
-        }),
+      Effect.catchTags(
+        Outbox.pipe(Effect.flatMap((outbox) => outbox.release(params.outboxId))),
+        {
+          OutboxNotFound: (error) =>
+            Effect.fail(
+              new OutboxNotFoundError({ outboxId: error.outboxId, message: error.message }),
+            ),
+        },
+        internalFailure,
       ),
     ),
 )
