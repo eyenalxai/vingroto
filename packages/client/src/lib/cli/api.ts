@@ -5,25 +5,13 @@ import * as Schema from "effect/Schema"
 import { Argument, CliError, Command, Flag } from "effect/unstable/cli"
 import { EOL } from "node:os"
 
+import type { OpenApiDocument } from "@/lib/cli/openapi"
 import type { DaemonError } from "@/lib/daemon"
 
+import { httpMethods, OpenApiDocumentSchema } from "@/lib/cli/openapi"
 import { resolveDaemon } from "@/lib/daemon"
 
-const methods = new Set(["delete", "get", "head", "options", "patch", "post", "put"])
-
-const OpenApiDocumentSchema = Schema.Struct({
-  paths: Schema.optionalKey(
-    Schema.Record(
-      Schema.String,
-      Schema.Record(
-        Schema.String,
-        Schema.Struct({ operationId: Schema.optionalKey(Schema.String) }),
-      ),
-    ),
-  ),
-})
-
-type OpenApiDocument = typeof OpenApiDocumentSchema.Type
+const methods = new Set<string>(httpMethods)
 
 interface ApiRequest {
   readonly method: string
@@ -139,35 +127,45 @@ const resolveRequest = Effect.fnUntraced(function* resolveRequest(
   return yield* resolveOperation(document, operationId, params)
 })
 
+const apiArgumentDescriptions = {
+  request: "OpenAPI operation ID, or an HTTP method followed by a path",
+} as const
+
+const apiFlagDescriptions = {
+  param: "OpenAPI path or query parameter",
+  data: "Request body",
+  header: "Request header in name:value form",
+  server: "Daemon base URL (defaults to VINGROTO_SERVER or the registration file)",
+  token: "Daemon bearer token (defaults to VINGROTO_TOKEN or the token file)",
+} as const
+
 const apiCommand = Command.make(
   "api",
   {
     request: Argument.String("operation | method path").pipe(
-      Argument.withDescription("OpenAPI operation ID, or an HTTP method followed by a path"),
+      Argument.withDescription(apiArgumentDescriptions.request),
       Argument.variadic({ min: 1, max: 2 }),
     ),
     param: Flag.KeyValuePair("param").pipe(
-      Flag.withDescription("OpenAPI path or query parameter"),
+      Flag.withDescription(apiFlagDescriptions.param),
       Flag.optional,
     ),
     data: Flag.String("data").pipe(
       Flag.withAlias("d"),
-      Flag.withDescription("Request body"),
+      Flag.withDescription(apiFlagDescriptions.data),
       Flag.optional,
     ),
     header: Flag.String("header").pipe(
       Flag.withAlias("H"),
-      Flag.withDescription("Request header in name:value form"),
+      Flag.withDescription(apiFlagDescriptions.header),
       Flag.atMost(100),
     ),
     server: Flag.String("server").pipe(
-      Flag.withDescription(
-        "Daemon base URL (defaults to VINGROTO_SERVER or the registration file)",
-      ),
+      Flag.withDescription(apiFlagDescriptions.server),
       Flag.optional,
     ),
     token: Flag.String("token").pipe(
-      Flag.withDescription("Daemon bearer token (defaults to VINGROTO_TOKEN or the token file)"),
+      Flag.withDescription(apiFlagDescriptions.token),
       Flag.optional,
     ),
   },
@@ -223,4 +221,11 @@ const apiCommand = Command.make(
     }),
 ).pipe(Command.withDescription("Make a request to the running vingroto daemon"))
 
-export { apiCommand, interpolate, rawRequest, resolveOperation }
+export {
+  apiArgumentDescriptions,
+  apiCommand,
+  apiFlagDescriptions,
+  interpolate,
+  rawRequest,
+  resolveOperation,
+}

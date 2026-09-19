@@ -5,11 +5,12 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import { Command } from "effect/unstable/cli"
+import { CliConfig, Command, GlobalFlag } from "effect/unstable/cli"
 import path from "node:path"
 
 import { apiCommand } from "@/lib/cli/api"
-import { runTui } from "@/tui"
+import { completionsCommand } from "@/lib/cli/completions/command"
+import { rootCommand } from "@/lib/cli/root"
 
 const packageJson = isStandaloneExecutable
   ? path.join(import.meta.dirname, "package.json")
@@ -24,14 +25,19 @@ const readVersion = Effect.gen(function* readVersion() {
   return pkg.version
 })
 
-const root = Command.make("vingroto", {}, () => runTui).pipe(
-  Command.withDescription("Terminal mail client"),
-  Command.withSubcommands([apiCommand]),
-)
+const root = rootCommand.pipe(Command.withSubcommands([apiCommand, completionsCommand]))
+
+// Why: the built-in --completions flag only knows bash, zsh and fish; the completions subcommand replaces it so the CLI exposes a single completions surface.
+const builtIns: readonly GlobalFlag.BuiltIn[] = [
+  GlobalFlag.Help,
+  GlobalFlag.Version,
+  GlobalFlag.Wizard,
+  GlobalFlag.LogLevel,
+]
 
 const main = Effect.gen(function* main() {
   const version = yield* readVersion
-  yield* Command.run(root, { version })
+  yield* Command.run(root, { version }).pipe(Effect.provide(CliConfig.layer({ builtIns })))
 })
 
 const ServicesLayer = Layer.mergeAll(AppPaths.layer).pipe(Layer.provideMerge(BunServices.layer))

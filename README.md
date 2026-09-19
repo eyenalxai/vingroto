@@ -67,6 +67,18 @@ packages/client/dist/vingroto            # client
 
 The daemon binary embeds the SQLite migrations and the app version, and the client binary embeds OpenTUI and its native library, so neither reads anything from the checkout at runtime.
 
+### Shell completions
+
+`vingroto completions <bash|zsh|nushell>` prints a completion script for the client, its subcommands and the operation ids of the `api` command:
+
+```sh
+vingroto completions bash >> ~/.bashrc
+vingroto completions zsh > ~/.zsh/completions/_vingroto
+vingroto completions nushell | save -f ~/.config/nushell/completions/vingroto-completions.nu
+```
+
+Distribution packages install these files for every supported shell; the commands above are for a checkout or a manual setup. `bun run build` also writes the same scripts to `packages/client/completions/`.
+
 ## API
 
 The daemon's HTTP API is the only wire surface; it serves its OpenAPI document at `/openapi.json`. The `api` command (the client binary) sends a request to the running daemon:

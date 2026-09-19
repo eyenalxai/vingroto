@@ -84,3 +84,7 @@ Any process that talks to the daemon over the API: the TUI, the `api` command or
 **TUI**:
 The interactive, full-screen client.
 _Avoid_: UI, app
+
+**Completion script**:
+A static shell script, printed by `vingroto completions <shell>`, that completes the client's commands, flags and the operation ids of its `api` command for bash, zsh or nushell. Generated from the client's own command surface and the API definition, never fetched from the daemon.
+_Avoid_: Autocomplete
