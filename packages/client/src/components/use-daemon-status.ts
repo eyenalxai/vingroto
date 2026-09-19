@@ -7,8 +7,8 @@ import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { ClientConnection } from "@/lib/connection"
-import { describeClientFailure } from "@/lib/failure"
-import { retrySchedule } from "@/lib/retry"
+import { describeClientFailure, reportDefects } from "@/lib/failure"
+import { isTransientFailure, retryTransientFailures } from "@/lib/retry"
 
 const useDaemonStatus = (runtime: AppRuntime) => {
   const [status, setStatus] = createSignal<ServerStatus | undefined>()
@@ -54,22 +54,27 @@ const useDaemonStatus = (runtime: AppRuntime) => {
     generation()
     const program = Effect.gen(function* pollStatus() {
       const client = yield* MailClient
-      const poll = client.status().pipe(
-        Effect.tap((nextStatus) =>
-          Effect.sync(() => {
-            setStatus(nextStatus)
-            setFailure(undefined)
-          }),
+      yield* retryTransientFailures(
+        client.status().pipe(
+          Effect.tap((nextStatus) =>
+            Effect.sync(() => {
+              setStatus(nextStatus)
+              setFailure(undefined)
+            }),
+          ),
         ),
-        Effect.tapError((error) =>
-          Effect.sync(() => {
+        {
+          isTransient: isTransientFailure,
+          onFailure: (error) => {
             setFailure(describeClientFailure(error).message)
-          }),
-        ),
-        Effect.retry(retrySchedule),
+          },
+        },
       )
-      yield* poll
-    })
+    }).pipe(
+      reportDefects("could not load the daemon status", (message) => {
+        setFailure(message)
+      }),
+    )
     const fiber = runtime.runFork(program)
     onCleanup(() => {
       runtime.runFork(Fiber.interrupt(fiber))
@@ -81,20 +86,20 @@ const useDaemonStatus = (runtime: AppRuntime) => {
     setGeneration((value) => value + 1)
   }
 
-  const refresh = async () => {
-    await runtime.runPromise(
-      Effect.gen(function* refetchStatus() {
-        const client = yield* MailClient
-        const result = yield* client.status().pipe(Effect.result)
-        if (result._tag === "Success") {
-          setStatus(result.success)
-          setFailure(undefined)
-          return
-        }
-        setFailure(describeClientFailure(result.failure).message)
-      }),
-    )
-  }
+  const refresh = Effect.gen(function* refetchStatus() {
+    const client = yield* MailClient
+    const result = yield* client.status().pipe(Effect.result)
+    if (result._tag === "Success") {
+      yield* Effect.sync(() => {
+        setStatus(result.success)
+        setFailure(undefined)
+      })
+      return
+    }
+    yield* Effect.sync(() => {
+      setFailure(describeClientFailure(result.failure).message)
+    })
+  })
 
   return { endpoint, failure, refresh, retry, status }
 }

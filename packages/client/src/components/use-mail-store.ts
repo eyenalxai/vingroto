@@ -18,7 +18,7 @@ import { useMessageActions } from "@/components/use-message-actions"
 import { useMessagePane } from "@/components/use-message-pane"
 import { useServerEvents } from "@/components/use-server-events"
 import { MailClient } from "@/lib/api"
-import { describeClientFailure } from "@/lib/failure"
+import { describeClientFailure, reportDefects } from "@/lib/failure"
 import {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
@@ -153,7 +153,9 @@ const useMailStore = (options: MailStoreOptions) => {
           }),
         ),
       )
-      options.runtime.runFork(program)
+      options.runtime.runFork(
+        program.pipe(reportDefects("could not load the mailboxes", options.onStatus)),
+      )
     })
   }
 

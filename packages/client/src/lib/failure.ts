@@ -1,4 +1,6 @@
+import { describeError } from "@vingroto/core/errors"
 import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
 
 import type { MailClientError } from "@/lib/api"
 import type { DaemonError } from "@/lib/daemon"
@@ -13,19 +15,19 @@ type ClientFailure = Data.TaggedEnum<{
 
 const clientFailure = Data.taggedEnum<ClientFailure>()
 
-const daemonFailureTags: ReadonlySet<string> = new Set([
-  "DaemonEnvironmentUnreadable",
-  "DaemonNotRunning",
-  "DaemonRegistrationInvalid",
-  "DaemonTokenUnreadable",
-])
+const daemonErrorTags = {
+  DaemonEnvironmentUnreadable: true,
+  DaemonNotRunning: true,
+  DaemonRegistrationInvalid: true,
+  DaemonTokenUnreadable: true,
+} as const satisfies Record<DaemonError["_tag"], true>
 
 const isDaemonError = (error: MailClientError): error is DaemonError =>
-  daemonFailureTags.has(error._tag)
+  Object.hasOwn(daemonErrorTags, error._tag)
 
 const describeClientFailure = (error: MailClientError): ClientFailure => {
   if (error._tag === "ClientDefect") {
-    return clientFailure.unexpected({ message: error.message })
+    return clientFailure.unexpected({ message: `${error.operation}: ${error.message}` })
   }
   if (error._tag === "HttpClientError") {
     if (error.reason._tag === "TransportError" || error.reason._tag === "InvalidUrlError") {
@@ -55,4 +57,17 @@ const reportClientFailure = (label: string, error: MailClientError, handlers: Fa
   }
 }
 
-export { describeClientFailure, reportClientFailure, type ClientFailure }
+// Why: defects never reach the typed error channel, so without this the forked fiber dies silently.
+// The defect is observed and preserved, not swallowed.
+const reportDefects =
+  (operation: string, onUnexpected: (message: string) => void) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+    effect.pipe(
+      Effect.tapDefect((defect) =>
+        Effect.sync(() => {
+          onUnexpected(`${operation} · ${describeError(defect)}`)
+        }),
+      ),
+    )
+
+export { describeClientFailure, reportClientFailure, reportDefects, type ClientFailure }

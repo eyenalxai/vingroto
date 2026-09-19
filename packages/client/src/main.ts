@@ -1,9 +1,7 @@
-import { BunRuntime, BunServices } from "@effect/platform-bun"
-import { AppPaths } from "@vingroto/core/app-paths"
+import { BunRuntime } from "@effect/platform-bun"
 import { isStandaloneExecutable } from "@vingroto/core/standalone"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
-import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { CliConfig, Command, GlobalFlag } from "effect/unstable/cli"
 import path from "node:path"
@@ -11,6 +9,7 @@ import path from "node:path"
 import { apiCommand } from "@/lib/cli/api"
 import { completionsCommand } from "@/lib/cli/completions/command"
 import { rootCommand } from "@/lib/cli/root"
+import { ServicesLayer } from "@/lib/services"
 
 const packageJson = isStandaloneExecutable
   ? path.join(import.meta.dirname, "package.json")
@@ -39,7 +38,5 @@ const main = Effect.gen(function* main() {
   const version = yield* readVersion
   yield* Command.run(root, { version }).pipe(Effect.provide(CliConfig.layer({ builtIns })))
 })
-
-const ServicesLayer = Layer.mergeAll(AppPaths.layer).pipe(Layer.provideMerge(BunServices.layer))
 
 BunRuntime.runMain(main.pipe(Effect.provide(ServicesLayer)))

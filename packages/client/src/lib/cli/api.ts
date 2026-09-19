@@ -1,6 +1,9 @@
+import { AppPaths } from "@vingroto/core/app-paths"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import { Argument, Command, Flag } from "effect/unstable/cli"
+import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 
 import type { CatalogOperation } from "@/lib/cli/catalog"
 
@@ -137,10 +140,15 @@ const apiCommand = Command.make(
       const data = Option.getOrUndefined(config.data)
       const request = yield* resolveTarget(operation, path, params, data !== undefined)
       const body = data === undefined ? undefined : yield* resolveBody(data)
-      const daemon = yield* resolveDaemon({
-        server: Option.getOrUndefined(config.server),
-        token: Option.getOrUndefined(config.token),
-      }).pipe(Effect.mapError((error) => new DaemonUnreachable({ message: error.message })))
+      const paths = yield* AppPaths
+      const fs = yield* FileSystem.FileSystem
+      const daemon = yield* resolveDaemon(
+        { fs, paths },
+        {
+          server: Option.getOrUndefined(config.server),
+          token: Option.getOrUndefined(config.token),
+        },
+      ).pipe(Effect.mapError((error) => new DaemonUnreachable({ message: error.message })))
       const headers = new Headers({ authorization: `Bearer ${daemon.token}` })
       for (const header of config.header) {
         const separator = header.indexOf(":")
@@ -156,11 +164,12 @@ const apiCommand = Command.make(
         headers.set("content-type", "application/json")
       }
       const response = yield* sendRequest(daemon.url, request, headers, body)
-      if (!response.ok) {
-        yield* reportFailure(request, response)
-        return
-      }
-      yield* streamResponse(response)
+      yield* HttpClientResponse.filterStatusOk(response).pipe(
+        Effect.matchEffect({
+          onFailure: () => reportFailure(request, response),
+          onSuccess: (ready) => streamResponse(ready),
+        }),
+      )
     }).pipe(
       Effect.catchTag("UsageError", (error) => errorLine(1, error.message)),
       Effect.catchTag("DaemonUnreachable", (error) => errorLine(2, error.message)),

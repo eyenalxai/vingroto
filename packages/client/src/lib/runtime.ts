@@ -1,7 +1,7 @@
+import type { ServerEvent } from "@vingroto/core/protocol/events"
 import type { ListScope } from "@vingroto/core/protocol/mail"
 import type { HttpClientError } from "effect/unstable/http"
 
-import { BunServices } from "@effect/platform-bun"
 import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
 import { LoggingLayer } from "@vingroto/core/logging"
@@ -10,6 +10,7 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
+import * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
 import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
@@ -24,28 +25,8 @@ import type { DaemonTarget } from "@/lib/daemon"
 import { ClientDefect, MailClient } from "@/lib/api"
 import { ClientConnection, describeOpenError } from "@/lib/connection"
 import { resolveDaemon } from "@/lib/daemon"
-
-const ServicesLayer = Layer.mergeAll(AppPaths.layer).pipe(Layer.provideMerge(BunServices.layer))
-
-// The logger is built alongside the services so anything below it logs to the file instead of stdout.
-const InfraLayer = Layer.mergeAll(
-  ServicesLayer,
-  LoggingLayer.client.pipe(Layer.provide(ServicesLayer)),
-)
-
-// Defects would otherwise kill the calling fiber silently, so the ui can report them as a failure.
-// Schema errors are contract mismatches the caller cannot act on, so they belong in the same bucket.
-const guard = <A, E extends { readonly _tag: string }>(effect: Effect.Effect<A, E>) =>
-  effect.pipe(
-    Effect.catchDefect((defect) =>
-      Effect.fail(new ClientDefect({ message: describeError(defect) })),
-    ),
-    Effect.catchIf(
-      (error): error is Extract<E, { readonly _tag: "SchemaError" }> =>
-        error._tag === "SchemaError",
-      (error) => Effect.fail(new ClientDefect({ message: describeError(error) })),
-    ),
-  )
+import { makeClientMethods } from "@/lib/methods"
+import { ServicesLayer } from "@/lib/services"
 
 const listQuery = (scope: ListScope, limit: number) => {
   if (scope.kind === "mailbox") {
@@ -69,7 +50,7 @@ const scopeFields = (scope: ListScope) => {
   return { scope: scope.kind }
 }
 
-const ClientLayer = Layer.unwrap(
+const MailClientLayer = Layer.unwrap(
   Effect.gen(function* makeClientLayer() {
     const paths = yield* AppPaths
     const fs = yield* FileSystem.FileSystem
@@ -92,9 +73,7 @@ const ClientLayer = Layer.unwrap(
       if (cached !== null) {
         return cached
       }
-      const resolved = yield* resolveDaemon({}).pipe(
-        Effect.provideService(AppPaths, paths),
-        Effect.provideService(FileSystem.FileSystem, fs),
+      const resolved = yield* resolveDaemon({ fs, paths }, {}).pipe(
         Effect.tapError((error) => publishOpenError(describeOpenError(error))),
       )
       yield* Ref.set(target, resolved)
@@ -135,87 +114,154 @@ const ClientLayer = Layer.unwrap(
 
     const api = yield* HttpApiClient.makeWith(Api, { httpClient })
 
-    const mailClient = MailClient.of({
-      accountUsername: (id) =>
-        guard(
-          api.accounts["account.username"]({ params: { accountId: id } }).pipe(
-            Effect.catchTag("AccountNotFoundError", () => Effect.succeed(null)),
-          ),
-        ),
-      cancelOutbox: (outboxId) => guard(api.outbox["outbox.cancel"]({ params: { outboxId } })),
-      createAccount: (input) => guard(api.accounts["account.create"]({ payload: input })),
-      deleteDraft: (draftId) => guard(api.drafts["draft.delete"]({ params: { draftId } })),
-      discover: (email) => guard(api.accounts["account.discover"]({ payload: { email } })),
-      enqueueMessage: (message) => guard(api.outbox["outbox.enqueue"]({ payload: message })),
-      events: Stream.unwrap(
+    const { clientMethod, readMethod } = makeClientMethods(invalidateTarget)
+
+    // The daemon's SSE retry directive asks for a reconnect.
+    // Obeying it here keeps the failure out of the client surface, where the ui cannot act on it.
+    const subscribeToEvents = (): Stream.Stream<ServerEvent, MailClientError> =>
+      Stream.unwrap(
         api.events["event.subscribe"]().pipe(
           Effect.mapError((error): MailClientError =>
             error._tag === "SchemaError"
-              ? new ClientDefect({ message: describeError(error) })
+              ? new ClientDefect({
+                  operation: "MailClient.events",
+                  message: describeError(error),
+                })
               : error,
           ),
           Effect.map((events) =>
             events.pipe(
-              Stream.catchDefect((defect) =>
-                Stream.fail(new ClientDefect({ message: describeError(defect) })),
+              Stream.catchTag("Retry", (retry) =>
+                Stream.fromEffect(Effect.sleep(retry.duration)).pipe(
+                  Stream.drain,
+                  Stream.concat(subscribeToEvents()),
+                ),
               ),
-              Stream.tapError((error) =>
-                error._tag === "HttpClientError" ? reportTransportFailure(error) : Effect.void,
-              ),
+              Stream.tapError((error) => {
+                if (error._tag === "HttpClientError") {
+                  return reportTransportFailure(error)
+                }
+                return error._tag === "UnauthorizedError" ? invalidateTarget : Effect.void
+              }),
               Stream.mapError((error): MailClientError => {
                 if (error._tag === "SchemaError" || error._tag === "SseError") {
-                  return new ClientDefect({ message: describeError(error) })
-                }
-                if (error._tag === "Retry") {
                   return new ClientDefect({
-                    message: "the daemon asked the event stream to reconnect",
+                    operation: "MailClient.events",
+                    message: describeError(error),
                   })
                 }
                 return error
               }),
+              Stream.catchDefect((defect) =>
+                Stream.fail(
+                  new ClientDefect({
+                    operation: "MailClient.events",
+                    message: describeError(defect),
+                  }),
+                ),
+              ),
             ),
           ),
         ),
-      ),
-      mailboxSnapshot: () => guard(api.mailboxes["mailbox.snapshot"]()),
-      getMessage: (id) =>
-        guard(
-          api.messages["message.get"]({ params: { messageId: id } }).pipe(
-            Effect.catchTag("MessageNotFoundError", () => Effect.succeed(null)),
+      )
+
+    const mailClient = MailClient.of({
+      accountUsername: (id) =>
+        readMethod(
+          "accountUsername",
+          api.accounts["account.username"]({ params: { accountId: id } }).pipe(
+            Effect.map((username) => Option.fromNullOr(username)),
+            Effect.catchTag("AccountNotFoundError", () => Effect.succeed(Option.none())),
           ),
         ),
-      listDrafts: () => guard(api.drafts["draft.list"]()),
+      cancelOutbox: (outboxId) =>
+        clientMethod("cancelOutbox", api.outbox["outbox.cancel"]({ params: { outboxId } })),
+      createAccount: (input) =>
+        clientMethod("createAccount", api.accounts["account.create"]({ payload: input })),
+      deleteDraft: (draftId) =>
+        clientMethod("deleteDraft", api.drafts["draft.delete"]({ params: { draftId } })),
+      discover: (email) =>
+        clientMethod("discover", api.accounts["account.discover"]({ payload: { email } })),
+      enqueueMessage: (message) =>
+        clientMethod("enqueueMessage", api.outbox["outbox.enqueue"]({ payload: message })),
+      events: subscribeToEvents(),
+      getMessage: (id) =>
+        readMethod(
+          "getMessage",
+          api.messages["message.get"]({ params: { messageId: id } }).pipe(
+            Effect.asSome,
+            Effect.catchTag("MessageNotFoundError", () => Effect.succeed(Option.none())),
+          ),
+        ),
+      listDrafts: () => readMethod("listDrafts", api.drafts["draft.list"]()),
       listMessages: (scope, limit) =>
-        guard(api.messages["message.list"]({ query: listQuery(scope, limit) })),
-      listOutbox: () => guard(api.outbox["outbox.list"]()),
-      loadBody: (id) => guard(api.messages["message.body"]({ params: { messageId: id } })),
+        readMethod(
+          "listMessages",
+          api.messages["message.list"]({ query: listQuery(scope, limit) }),
+        ),
+      listOutbox: () => readMethod("listOutbox", api.outbox["outbox.list"]()),
+      loadBody: (id) =>
+        readMethod("loadBody", api.messages["message.body"]({ params: { messageId: id } })),
+      mailboxSnapshot: () => readMethod("mailboxSnapshot", api.mailboxes["mailbox.snapshot"]()),
       moveMessages: (ids, targetMailboxId) =>
-        guard(api.messages["message.move"]({ payload: { ids, targetMailboxId } })),
-      releaseOutbox: (outboxId) => guard(api.outbox["outbox.release"]({ params: { outboxId } })),
-      searchMessages: (scope, query, limit) =>
-        guard(api.search["search.messages"]({ query: { ...scopeFields(scope), query, limit } })),
-      searchMarks: (scope, query) =>
-        guard(api.search["search.marks"]({ query: { ...scopeFields(scope), query } })),
-      startSearch: (scope, query) =>
-        guard(api.search["search.start"]({ payload: { ...scopeFields(scope), query } })),
+        clientMethod(
+          "moveMessages",
+          api.messages["message.move"]({ payload: { ids, targetMailboxId } }),
+        ),
+      releaseOutbox: (outboxId) =>
+        clientMethod("releaseOutbox", api.outbox["outbox.release"]({ params: { outboxId } })),
       reorderAccounts: (accountIds) =>
-        guard(api.accounts["account.reorder"]({ payload: { accountIds } })),
-      saveDraft: (draft) => guard(api.drafts["draft.save"]({ payload: draft })),
+        clientMethod(
+          "reorderAccounts",
+          api.accounts["account.reorder"]({ payload: { accountIds } }),
+        ),
+      saveDraft: (draft) => clientMethod("saveDraft", api.drafts["draft.save"]({ payload: draft })),
       saveEditorSettings: (editor) =>
-        guard(api.settings["settings.saveEditor"]({ payload: { editor } })),
+        clientMethod(
+          "saveEditorSettings",
+          api.settings["settings.saveEditor"]({ payload: { editor } }),
+        ),
       saveNotifications: (settings) =>
-        guard(api.settings["settings.saveNotifications"]({ payload: settings })),
+        clientMethod(
+          "saveNotifications",
+          api.settings["settings.saveNotifications"]({ payload: settings }),
+        ),
       saveSendSettings: (settings) =>
-        guard(api.settings["settings.saveSend"]({ payload: settings })),
+        clientMethod("saveSendSettings", api.settings["settings.saveSend"]({ payload: settings })),
       saveSyncSettings: (settings) =>
-        guard(api.settings["settings.saveSyncSettings"]({ payload: settings })),
+        clientMethod(
+          "saveSyncSettings",
+          api.settings["settings.saveSyncSettings"]({ payload: settings }),
+        ),
+      searchMarks: (scope, query) =>
+        readMethod(
+          "searchMarks",
+          api.search["search.marks"]({ query: { ...scopeFields(scope), query } }),
+        ),
+      searchMessages: (scope, query, limit) =>
+        readMethod(
+          "searchMessages",
+          api.search["search.messages"]({ query: { ...scopeFields(scope), query, limit } }),
+        ),
       setMailboxMuted: (mailboxId, muted) =>
-        guard(api.mailboxes["mailbox.setMuted"]({ params: { mailboxId }, payload: { muted } })),
-      setSeen: (ids, seen) => guard(api.messages["message.setSeen"]({ payload: { ids, seen } })),
-      status: () => guard(api.server["server.status"]()),
-      sync: (request) => guard(api.sync["sync.run"]({ payload: request })),
+        clientMethod(
+          "setMailboxMuted",
+          api.mailboxes["mailbox.setMuted"]({ params: { mailboxId }, payload: { muted } }),
+        ),
+      setSeen: (ids, seen) =>
+        clientMethod("setSeen", api.messages["message.setSeen"]({ payload: { ids, seen } })),
+      startSearch: (scope, query) =>
+        clientMethod(
+          "startSearch",
+          api.search["search.start"]({ payload: { ...scopeFields(scope), query } }),
+        ),
+      status: () => readMethod("status", api.server["server.status"]()),
+      sync: (request) => clientMethod("sync", api.sync["sync.run"]({ payload: request })),
       updateAccount: (id, input) =>
-        guard(api.accounts["account.update"]({ params: { accountId: id }, payload: input })),
+        clientMethod(
+          "updateAccount",
+          api.accounts["account.update"]({ params: { accountId: id }, payload: input }),
+        ),
     })
 
     const connection = Layer.succeed(ClientConnection, {
@@ -228,10 +274,21 @@ const ClientLayer = Layer.unwrap(
 
     return Layer.merge(Layer.succeed(MailClient, mailClient), connection)
   }),
-).pipe(Layer.provide(FetchHttpClient.layer), Layer.provideMerge(InfraLayer))
+)
+
+const Logging = LoggingLayer.client.pipe(Layer.provide(ServicesLayer))
+
+// Why: the runtime exposes the mail client, its connection and the logger references only. AppPaths, FileSystem,
+// HttpClient and the rest of the Bun platform are provided to the layer and stay private to it.
+const ClientLayer = Layer.merge(
+  MailClientLayer.pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(ServicesLayer)),
+  Logging,
+)
 
 const createClientRuntime = () => ManagedRuntime.make(ClientLayer)
 
 type AppRuntime = ReturnType<typeof createClientRuntime>
 
-export { createClientRuntime, type AppRuntime }
+type AppRuntimeError = Layer.Error<typeof ClientLayer>
+
+export { createClientRuntime, type AppRuntime, type AppRuntimeError }

@@ -11,6 +11,7 @@ import {
   operationById,
   operations,
   placeholderFor,
+  requestMethod,
   requiredParameters,
 } from "@/lib/cli/catalog"
 
@@ -185,7 +186,7 @@ const resolveTarget = Effect.fnUntraced(function* resolveTarget(
         new UsageError({ message: `request paths must start with "/" — got "${path}"` }),
       )
     }
-    return { method: method.toUpperCase(), path: yield* interpolate(path, params) }
+    return { method: requestMethod(method), path: yield* interpolate(path, params) }
   }
   const entry = operationById.get(operation)
   if (entry === undefined) {

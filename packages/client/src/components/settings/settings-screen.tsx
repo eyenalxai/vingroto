@@ -9,6 +9,7 @@ import type { MailboxId } from "@vingroto/core/ids"
 import type { Mailbox, MailboxCounts } from "@vingroto/core/protocol/mail"
 
 import { useTerminalDimensions } from "@opentui/solid"
+import { Effect } from "effect"
 import { Show, createMemo, createSignal, onCleanup } from "solid-js"
 
 import { useRuntime } from "@/components/runtime-provider"
@@ -36,6 +37,7 @@ import { useSettingsInput } from "@/components/settings/use-settings-input"
 import { useSyncProfile } from "@/components/settings/use-sync-profile"
 import { StatusBar } from "@/components/status-bar"
 import { useMailboxMute } from "@/components/use-mailbox-mute"
+import { describeSystemEditor } from "@/lib/external"
 
 interface SettingsScreenProps {
   readonly accounts: readonly AccountConfig[]
@@ -63,6 +65,17 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const discard = useArmedDiscard()
   const [status, setStatus] = createSignal("")
   const [statusError, setStatusError] = createSignal(false)
+  const [systemEditor, setSystemEditor] = createSignal("vi")
+
+  runtime.runFork(
+    describeSystemEditor.pipe(
+      Effect.tap((label) =>
+        Effect.sync(() => {
+          setSystemEditor(label)
+        }),
+      ),
+    ),
+  )
 
   const report = (message: string, error = false) => {
     setStatus(message)
@@ -157,7 +170,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       expansion,
     }),
   )
-  const composerSection = createMemo(() => buildComposerSection({ editorSetting }))
+  const composerSection = createMemo(() => buildComposerSection({ editorSetting, systemEditor }))
   const sendingSection = createMemo(() => buildSendingSection({ sendProfile }))
   const syncSection = createMemo(() => buildSyncSection({ syncProfile }))
   const notificationsSection = createMemo(() => buildNotificationsSection({ notificationsSetting }))

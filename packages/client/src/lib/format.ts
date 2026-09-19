@@ -1,33 +1,38 @@
 import type { MailAddress } from "@vingroto/core/mail/address"
 
+import * as DateTime from "effect/DateTime"
+
 const padNumber = (value: number) => value.toString().padStart(2, "0")
+
+// Why: timestamps are epoch millis, but the list shows wall-clock time in the user's zone like Date did before.
+const localZone = DateTime.zoneMakeLocal()
+
+const partsAt = (value: DateTime.DateTime) => DateTime.toParts(DateTime.setZone(value, localZone))
+
+const localParts = (timestamp: number) => partsAt(DateTime.makeUnsafe(timestamp))
 
 const formatMessageDate = (timestamp: number | null): string => {
   if (timestamp === null) {
     return "--:--"
   }
-  const date = new Date(timestamp)
-  const now = new Date()
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
+  const date = localParts(timestamp)
+  const now = partsAt(DateTime.nowUnsafe())
+  const sameDay = date.year === now.year && date.month === now.month && date.day === now.day
   if (sameDay) {
-    return `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}`
+    return `${padNumber(date.hour)}:${padNumber(date.minute)}`
   }
-  if (date.getFullYear() === now.getFullYear()) {
-    return `${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`
+  if (date.year === now.year) {
+    return `${padNumber(date.month)}-${padNumber(date.day)}`
   }
-  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`
+  return `${date.year}-${padNumber(date.month)}-${padNumber(date.day)}`
 }
 
 const formatMessageDateTime = (timestamp: number | null): string => {
   if (timestamp === null) {
     return "unknown date"
   }
-  const date = new Date(timestamp)
-  const day = `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`
-  return `${day} ${padNumber(date.getHours())}:${padNumber(date.getMinutes())}`
+  const date = localParts(timestamp)
+  return `${date.year}-${padNumber(date.month)}-${padNumber(date.day)} ${padNumber(date.hour)}:${padNumber(date.minute)}`
 }
 
 const addressLabel = (address: MailAddress): string => {

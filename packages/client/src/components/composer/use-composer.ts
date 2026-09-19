@@ -3,6 +3,7 @@ import type { DraftId } from "@vingroto/core/ids"
 import type { Setter } from "solid-js"
 
 import { Effect } from "effect"
+import * as DateTime from "effect/DateTime"
 import { createMemo, createSignal } from "solid-js"
 
 import type { PersistOutcome, RecipientParse } from "@/components/composer/composer-draft"
@@ -54,7 +55,6 @@ const useComposer = (options: ComposerOptions) => {
   const [queued, setQueued] = createSignal(false)
 
   const fromAccount = createMemo(() => options.accounts[fromIndex()])
-
   const fromLabel = createMemo(() => describeAccount(fromAccount()))
 
   const report = (message: string, error = false) => {
@@ -130,9 +130,7 @@ const useComposer = (options: ComposerOptions) => {
   }
 
   const inputTo = recipientInput(setToText)
-
   const inputCc = recipientInput(setCcText)
-
   const inputBcc = recipientInput(setBccText)
 
   const inputSubject = (value: string) => {
@@ -203,10 +201,14 @@ const useComposer = (options: ComposerOptions) => {
           seed: options.seed,
           draftId: draftId(),
         })
+        const now = yield* DateTime.now
         yield* Effect.sync(() => {
           setDraftId(undefined)
           setQueued(true)
-          const seconds = Math.max(0, Math.round((entry.sendAt - Date.now()) / 1000))
+          const seconds = Math.max(
+            0,
+            Math.round((entry.sendAt - DateTime.toEpochMillis(now)) / 1000),
+          )
           report(
             options.sendDelaySeconds === 0 || seconds === 0
               ? "queued · sending now"

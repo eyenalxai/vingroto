@@ -2,7 +2,8 @@ import type { KeyEvent } from "@opentui/core"
 import type { AccountConfig, EditorConfig } from "@vingroto/core/config/schema"
 
 import { useKeyboard, useRenderer } from "@opentui/solid"
-import { Show } from "solid-js"
+import { Effect } from "effect"
+import { Show, createSignal } from "solid-js"
 
 import type { ComposerField } from "@/components/composer/composer-fields"
 import type { ComposerSeed } from "@/lib/mail/compose"
@@ -29,7 +30,16 @@ const labelWidth = 8
 const ComposerScreen = (props: ComposerScreenProps) => {
   const renderer = useRenderer()
   const theme = useTheme()
-  const systemEditor = describeSystemEditor()
+  const [systemEditor, setSystemEditor] = createSignal("vi")
+  props.runtime.runFork(
+    describeSystemEditor.pipe(
+      Effect.tap((label) =>
+        Effect.sync(() => {
+          setSystemEditor(label)
+        }),
+      ),
+    ),
+  )
   const composer = useComposer({
     accounts: props.accounts,
     editor: () => props.editor,
@@ -218,7 +228,7 @@ const ComposerScreen = (props: ComposerScreenProps) => {
             when={props.editor === "builtin"}
             fallback={
               <text fg={composer.field() === "body" ? theme.text : theme.muted} wrapMode="none">
-                {`⏎ to edit in ${systemEditor}`}
+                {`⏎ to edit in ${systemEditor()}`}
               </text>
             }
           >

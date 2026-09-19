@@ -1,12 +1,13 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 
+import type { MailClient } from "@/lib/api"
 import type { AppRuntime } from "@/lib/runtime"
 
 interface SettingsActionsOptions {
   readonly runtime: AppRuntime
-  readonly refresh: () => Promise<void>
+  readonly refresh: Effect.Effect<void, never, MailClient>
   readonly onRefreshed: () => void
   readonly onStatus: (message: string) => void
   readonly onAccountAdded: () => void
@@ -14,22 +15,23 @@ interface SettingsActionsOptions {
 }
 
 const createSettingsActions = (options: SettingsActionsOptions) => {
-  const refreshConfig = async () => {
-    await options.refresh()
-    options.onRefreshed()
-  }
+  const refreshConfig = options.refresh.pipe(
+    Effect.andThen(
+      Effect.sync(() => {
+        options.onRefreshed()
+      }),
+    ),
+  )
 
   const refreshWithStatus = (message: string) => {
     options.onStatus(message)
-    options.runtime.runFork(Effect.promise(refreshConfig))
+    options.runtime.runFork(refreshConfig)
   }
 
   const handleAccountSaved = (account: AccountConfig) => {
     options.onAccountAdded()
     options.onStatus(`account ${account.label} saved · syncing`)
-    options.runtime.runFork(
-      Effect.promise(options.refresh).pipe(Effect.andThen(Effect.sync(options.syncWindow))),
-    )
+    options.runtime.runFork(options.refresh.pipe(Effect.andThen(Effect.sync(options.syncWindow))))
   }
 
   return {

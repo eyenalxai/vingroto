@@ -88,10 +88,16 @@ const resolveEditorCommand = Effect.gen(function* resolveEditorCommand() {
   return editorCommand(Option.getOrUndefined(visual), Option.getOrUndefined(editor))
 })
 
-const describeSystemEditor = (): string => {
-  const [executable, ...args] = editorCommand(Bun.env.VISUAL, Bun.env.EDITOR)
+const describeEditorCommand = (command: readonly string[]): string => {
+  const [executable, ...args] = command
   return [path.basename(executable ?? "vi"), ...args].join(" ")
 }
+
+// Why: the label is cosmetic, so an unreadable environment falls back to the same default the editor itself uses.
+const describeSystemEditor: Effect.Effect<string> = resolveEditorCommand.pipe(
+  Effect.map((command) => describeEditorCommand(command)),
+  Effect.orElseSucceed(() => describeEditorCommand(["vi"])),
+)
 
 const writeFile = (file: string, text: string) =>
   Effect.gen(function* writeTemporaryFile() {

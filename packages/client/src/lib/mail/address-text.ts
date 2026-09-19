@@ -1,8 +1,13 @@
 import type { MailAddress } from "@vingroto/core/mail/address"
 
-type AddressListResult =
-  | { readonly _tag: "ok"; readonly addresses: readonly MailAddress[] }
-  | { readonly _tag: "error"; readonly message: string }
+import * as Data from "effect/Data"
+
+type AddressListResult = Data.TaggedEnum<{
+  ok: { readonly addresses: readonly MailAddress[] }
+  error: { readonly message: string }
+}>
+
+const addressList = Data.taggedEnum<AddressListResult>()
 
 const emailPattern = /^[^\s@,;<>]+@[^\s@,;<>]+$/u
 
@@ -60,11 +65,11 @@ const parseAddressList = (value: string): AddressListResult => {
   for (const entry of splitEntries(value)) {
     const parsed = parseAddress(entry)
     if (parsed === undefined) {
-      return { _tag: "error", message: `${entry} is not a valid email address` }
+      return addressList.error({ message: `${entry} is not a valid email address` })
     }
     addresses.push(parsed)
   }
-  return { _tag: "ok", addresses }
+  return addressList.ok({ addresses })
 }
 
 const formatAddress = (address: MailAddress): string => {

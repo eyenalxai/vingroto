@@ -4,11 +4,12 @@ import type { AccountId } from "@vingroto/core/ids"
 import type { Setter } from "solid-js"
 
 import { Effect, Fiber } from "effect"
+import * as Option from "effect/Option"
 import { createEffect, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 
 import type { AccountDraft, FieldId } from "@/components/setup/form-model"
-import type { AppRuntime } from "@/lib/runtime"
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
 import { draftFromAccount, draftsMatch } from "@/components/settings/account-draft"
 import { applySecretKey, cycleSecurity, validateEditDraft } from "@/components/setup/form-model"
@@ -53,11 +54,17 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
   const storedUsernames = new Map<AccountId, string>()
   const loadedUsernames = new Set<AccountId>()
   const editedUsernames = new Set<AccountId>()
-  const fibers: Fiber.Fiber<unknown, unknown>[] = []
+  const fibers: Fiber.Fiber<void, AppRuntimeError>[] = []
 
   const initialize = (account: AccountConfig, username: string | undefined) => {
     sources.set(account.id, account)
     setDrafts(account.id, draftFromAccount(account, username))
+  }
+
+  const applyStoredUsername = (account: AccountConfig, username: string) => {
+    if (!editedUsernames.has(account.id)) {
+      setDrafts(account.id, "username", username)
+    }
   }
 
   for (const account of options.accounts()) {
@@ -100,17 +107,20 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
                 `could not read the stored username for ${account.label} · ${describeClientFailure(error).message}`,
                 true,
               )
-              return null
+              return Option.none<string>()
             }),
           ),
         )
         yield* Effect.sync(() => {
-          if (stored !== null) {
-            storedUsernames.set(account.id, stored)
-          }
-          if (!editedUsernames.has(account.id)) {
-            setDrafts(account.id, "username", stored ?? account.email)
-          }
+          Option.match(stored, {
+            onNone: () => {
+              applyStoredUsername(account, account.email)
+            },
+            onSome: (username) => {
+              storedUsernames.set(account.id, username)
+              applyStoredUsername(account, username)
+            },
+          })
         })
       }).pipe(
         Effect.ensuring(
