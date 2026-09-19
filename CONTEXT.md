@@ -39,6 +39,14 @@ _Avoid_: Editor mode, external editor
 The external program the composer runs in place when the editor is system, resolved from `$VISUAL`, then `$EDITOR`, then `vi`.
 _Avoid_: The editor (that is the setting)
 
+**Settings section**:
+One area of the settings screen: Accounts, Mailboxes, Composer, Sending, Sync or Notifications.
+_Avoid_: Tab, page
+
+**Settings group**:
+An expandable block inside a settings section that holds one account's form or one account's mailboxes.
+_Avoid_: Collapsible, accordion
+
 **Mailbox**:
 An IMAP mailbox on a server, cached locally with its path, delimiter, special-use flags, UID validity and read state.
 _Avoid_: Folder
