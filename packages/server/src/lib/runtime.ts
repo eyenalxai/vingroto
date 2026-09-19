@@ -16,6 +16,7 @@ import { Imap } from "@/lib/mail/imap"
 import { MessagePrefetch } from "@/lib/mail/prefetch"
 import { SyncEngine } from "@/lib/mail/sync"
 import { Scheduler } from "@/lib/scheduler"
+import { Settings } from "@/lib/settings"
 
 const ServicesLayer = Layer.mergeAll(AppPaths.layer, Credential.layer).pipe(
   Layer.provideMerge(BunServices.layer),
@@ -47,6 +48,7 @@ const AppLayer = Layer.mergeAll(
   MailActions.layer.pipe(Layer.provide(CoreLayer)),
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
   Accounts.layer.pipe(Layer.provide(SchedulerLayer), Layer.provide(CoreLayer)),
+  Settings.layer.pipe(Layer.provide(CoreLayer)),
 )
 
 const ServerRuntime = ApiServer.pipe(Layer.provide(AppLayer))

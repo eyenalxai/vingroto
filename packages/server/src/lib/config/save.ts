@@ -18,7 +18,11 @@ const saveConfigFile = Effect.fnUntraced(function* saveFile(
   fs: FileSystem.FileSystem,
   config: AppConfig,
 ): Effect.fn.Return<void, ConfigWriteError> {
-  const file: AppConfigFile = { accounts: [...config.accounts], sync: config.sync }
+  const file: AppConfigFile = {
+    accounts: [...config.accounts],
+    sync: config.sync,
+    notifications: config.notifications,
+  }
   const encoded = yield* Schema.encodeEffect(Schema.fromJsonString(AppConfigFile, { space: 2 }))(
     file,
   ).pipe(

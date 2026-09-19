@@ -1,4 +1,4 @@
-import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { AccountId } from "@vingroto/core/ids"
 import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
 
@@ -12,11 +12,9 @@ import * as Layer from "effect/Layer"
 import type { AccountNotFound } from "@/lib/config/accounts"
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
 import type { ConfigWriteError } from "@/lib/config/save"
-import type { SyncSettingsInvalid } from "@/lib/config/sync"
 import type { CredentialError } from "@/lib/credential/service"
 
 import { makeSubmitAccount, makeUpdateAccount } from "@/lib/config/accounts"
-import { makeUpdateSyncSettings } from "@/lib/config/sync"
 import { usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
 import { ServerEvents } from "@/lib/events"
@@ -30,12 +28,6 @@ interface AccountsShape {
     id: AccountId,
     input: AccountSave,
   ) => Effect.Effect<AccountConfig, AccountWriteError | AccountNotFound>
-  readonly saveSyncSettings: (
-    settings: SyncConfig,
-  ) => Effect.Effect<
-    void,
-    ConfigInvalid | ConfigUnreadable | ConfigWriteError | SyncSettingsInvalid
-  >
   readonly username: (id: AccountId) => Effect.Effect<string | null>
 }
 
@@ -51,7 +43,6 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
 
       const submit = makeSubmitAccount({ configPath: paths.config, credential, fs })
       const persistUpdate = makeUpdateAccount({ configPath: paths.config, credential, fs })
-      const persistSyncSettings = makeUpdateSyncSettings(paths.config, fs)
 
       const create = Effect.fn("Accounts.create")(function* createAccount(input: NewAccount) {
         const account = yield* submit(input)
@@ -76,20 +67,13 @@ class Accounts extends Context.Service<Accounts, AccountsShape>()("vingroto/lib/
         return account
       })
 
-      const saveSyncSettings = Effect.fn("Accounts.saveSyncSettings")(function* persistSettings(
-        settings: SyncConfig,
-      ) {
-        yield* persistSyncSettings(settings)
-        yield* events.publish({ _tag: "config-changed" })
-      })
-
       const username = Effect.fn("Accounts.username")(function* accountUsername(id: AccountId) {
         return yield* credential
           .get(usernameReference(id))
           .pipe(Effect.orElseSucceed((): string | null => null))
       })
 
-      return Accounts.of({ create, update, saveSyncSettings, username })
+      return Accounts.of({ create, update, username })
     }),
   )
 }

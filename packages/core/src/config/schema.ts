@@ -28,9 +28,16 @@ const SyncConfig = Schema.Struct({
 
 type SyncConfig = Schema.Schema.Type<typeof SyncConfig>
 
+const NotificationsConfig = Schema.Struct({
+  enabled: Schema.Boolean,
+})
+
+type NotificationsConfig = Schema.Schema.Type<typeof NotificationsConfig>
+
 const AppConfig = Schema.Struct({
   accounts: Schema.Array(AccountConfig),
   sync: SyncConfig,
+  notifications: NotificationsConfig,
 })
 
 type AppConfig = Schema.Schema.Type<typeof AppConfig>
@@ -38,8 +45,9 @@ type AppConfig = Schema.Schema.Type<typeof AppConfig>
 const AppConfigFile = Schema.Struct({
   ...AppConfig.fields,
   sync: Schema.optionalKey(SyncConfig),
+  notifications: Schema.optionalKey(NotificationsConfig),
 })
 
 type AppConfigFile = Schema.Schema.Type<typeof AppConfigFile>
 
-export { AccountConfig, AppConfig, AppConfigFile, ServerConfig, SyncConfig }
+export { AccountConfig, AppConfig, AppConfigFile, NotificationsConfig, ServerConfig, SyncConfig }

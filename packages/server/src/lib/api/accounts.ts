@@ -66,36 +66,6 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
         Effect.flatMap((accounts) => accounts.username(params.accountId)),
         Effect.mapError(toInternal),
       ),
-    )
-    .handle("account.saveSyncSettings", ({ payload }) =>
-      Effect.gen(function* saveSyncSettings() {
-        if (payload.initialDays < 1) {
-          return yield* new InvalidRequestError({
-            field: "initialDays",
-            message: "initialDays must be at least 1",
-          })
-        }
-        if (payload.intervalMinutes < 1) {
-          return yield* new InvalidRequestError({
-            field: "intervalMinutes",
-            message: "intervalMinutes must be at least 1",
-          })
-        }
-        return yield* Accounts.pipe(
-          Effect.flatMap((accounts) => accounts.saveSyncSettings(payload)),
-          Effect.mapError((error): InvalidRequestError | InternalError => {
-            if (error._tag === "ConfigInvalid") {
-              return new InvalidRequestError({
-                message: `invalid config at ${error.path}: ${describeError(error.cause)}`,
-              })
-            }
-            if (error._tag === "SyncSettingsInvalid") {
-              return new InvalidRequestError({ message: error.message })
-            }
-            return toInternal(error)
-          }),
-        )
-      }),
     ),
 )
 

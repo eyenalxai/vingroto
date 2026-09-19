@@ -17,6 +17,7 @@ import { MessageHandlers } from "@/lib/api/messages"
 import { writeRegistration } from "@/lib/api/registration"
 import { schemaErrorLayer } from "@/lib/api/schema-error"
 import { ServerHandlers } from "@/lib/api/server"
+import { SettingsHandlers } from "@/lib/api/settings"
 import { SyncHandlers } from "@/lib/api/sync"
 import { readOrCreateToken } from "@/lib/api/token"
 
@@ -30,6 +31,7 @@ const HandlersLayer = Layer.mergeAll(
   MessageHandlers,
   AccountHandlers,
   SyncHandlers,
+  SettingsHandlers,
   EventHandlers,
 )
 

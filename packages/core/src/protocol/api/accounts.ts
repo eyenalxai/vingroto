@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 
-import { AccountConfig, SyncConfig } from "../../config/schema"
+import { AccountConfig } from "../../config/schema"
 import { AccountId } from "../../ids"
 import { AccountSave, DiscoveryResult, NewAccount } from "../accounts"
 import {
@@ -60,24 +60,6 @@ const username = HttpApiEndpoint.get("account.username", "/api/accounts/:account
   }),
 )
 
-const saveSyncSettings = HttpApiEndpoint.put("account.saveSyncSettings", "/api/sync-settings", {
-  payload: SyncConfig,
-  success: Schema.Void,
-  error: [InvalidRequestError, InternalError],
-}).annotateMerge(
-  OpenApi.annotations({
-    identifier: "account.saveSyncSettings",
-    summary: "Save sync settings",
-    description: "Replace the persisted sync settings.",
-  }),
-)
-
-const AccountGroup = HttpApiGroup.make("accounts").add(
-  discover,
-  create,
-  update,
-  username,
-  saveSyncSettings,
-)
+const AccountGroup = HttpApiGroup.make("accounts").add(discover, create, update, username)
 
 export { AccountGroup }

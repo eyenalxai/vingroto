@@ -1,4 +1,4 @@
-import type { AppConfig, SyncConfig } from "@vingroto/core/config/schema"
+import type { AppConfig, NotificationsConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { PlatformError } from "effect/PlatformError"
 
 import { AppPaths } from "@vingroto/core/app-paths"
@@ -9,7 +9,13 @@ import * as Schema from "effect/Schema"
 
 const defaultSync: SyncConfig = { initialDays: 30, intervalMinutes: 5 }
 
-const emptyConfig: AppConfig = { accounts: [], sync: defaultSync }
+const defaultNotifications: NotificationsConfig = { enabled: true }
+
+const emptyConfig: AppConfig = {
+  accounts: [],
+  sync: defaultSync,
+  notifications: defaultNotifications,
+}
 
 class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", {
   path: Schema.String,
@@ -42,7 +48,11 @@ const loadConfigFile = Effect.fnUntraced(function* loadFile(
   const decoded = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AppConfigFile))(raw).pipe(
     Effect.mapError((cause) => new ConfigInvalid({ path: configPath, cause })),
   )
-  const config: AppConfig = { accounts: decoded.accounts, sync: decoded.sync ?? defaultSync }
+  const config: AppConfig = {
+    accounts: decoded.accounts,
+    sync: decoded.sync ?? defaultSync,
+    notifications: decoded.notifications ?? defaultNotifications,
+  }
   yield* Effect.logInfo("configuration loaded").pipe(
     Effect.annotateLogs({ accounts: config.accounts.length, path: configPath }),
   )

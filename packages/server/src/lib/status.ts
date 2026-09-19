@@ -40,7 +40,11 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
       Effect.map((loaded) => {
         return {
           _tag: "ok" as const,
-          config: { accounts: [...loaded.accounts], sync: loaded.sync },
+          config: {
+            accounts: [...loaded.accounts],
+            sync: loaded.sync,
+            notifications: loaded.notifications,
+          },
         }
       }),
       Effect.catchTags({
