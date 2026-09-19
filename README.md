@@ -111,11 +111,20 @@ Credentials are written to the OS keyring (`secret-tool`) and never to disk in p
       "smtp": { "host": "smtp.example.com", "port": 465, "security": "tls" }
     }
   ],
-  "sync": { "initialDays": 30, "intervalMinutes": 5 }
+  "sync": { "initialDays": 30, "intervalMinutes": 5 },
+  "notifications": { "enabled": true }
 }
 ```
 
 `label` is the mailbox name shown in the sidebar and defaults to the account's email address; `name` is the optional sender name. Accounts are matched by email address, so re-running the setup for an existing address updates it in place instead of duplicating it.
+
+## Notifications
+
+New mail is announced by whichever process can judge it. While no client is attached, the daemon raises a freedesktop notification (`org.freedesktop.Notifications`) over the D-Bus session bus; while a client is attached, the daemon stays silent and the client raises one through the terminal instead. Neither ever announces a muted mailbox, a mailbox's first sync or a UID-validity reset, and a notification never carries sound. `notifications.enabled` in the config file turns new-mail alerts off for both sides.
+
+The daemon takes the session bus address from `DBUS_SESSION_BUS_ADDRESS`, falling back to `unix:path=$XDG_RUNTIME_DIR/bus`: a Wayland/systemd user session. It never discovers buses through X11, and a session without a notification daemon simply stays silent.
+
+The attached client asks OpenTUI for a terminal notification. Terminals that support OSC 99 notify natively; for the others OpenTUI writes an OSC 777 sequence, which Ghostty and foot display. Terminals that support neither stay silent. The client suppresses an alert only when it would interrupt someone already looking at the mail: it stays silent while the terminal is focused (an unknown focus counts as focused), no search is running and the new mail arrived in the list currently shown. A blurred terminal, mail in another list, or any mail while searching is announced.
 
 ## Layout
 
