@@ -20,6 +20,7 @@ import { ServerHandlers } from "@/lib/api/server"
 import { SettingsHandlers } from "@/lib/api/settings"
 import { SyncHandlers } from "@/lib/api/sync"
 import { readOrCreateToken } from "@/lib/api/token"
+import { ServerEvents } from "@/lib/events"
 
 const hostname = "127.0.0.1"
 const defaultPort = 8464
@@ -72,10 +73,13 @@ const ApiServer = Layer.effectDiscard(
     const token = yield* readOrCreateToken()
     const server = yield* bindWithFallback(port, token)
     const address = server.address
-    if (address._tag !== "InetAddressV4" && address._tag !== "InetAddressV6") {
-      return yield* Effect.die(new Error(`unexpected api address tag ${address._tag}`))
+    if (address._tag === "InetAddressV4" || address._tag === "InetAddressV6") {
+      yield* writeRegistration(address.port)
+      const events = yield* ServerEvents
+      yield* Effect.addFinalizer(() => events.shutdown())
+    } else {
+      yield* Effect.die(new Error(`unexpected api address tag ${address._tag}`))
     }
-    return yield* writeRegistration(address.port)
   }),
 )
 
