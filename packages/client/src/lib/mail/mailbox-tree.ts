@@ -145,36 +145,6 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
   return rows
 }
 
-const shallowEqualRow = <T extends object>(left: T, right: T): boolean => {
-  const leftKeys = Object.keys(left)
-  if (leftKeys.length !== Object.keys(right).length) {
-    return false
-  }
-  for (const key in left) {
-    if (left[key] !== right[key]) {
-      return false
-    }
-  }
-  return true
-}
-
-const reconcileMailboxTreeRows = (
-  previous: readonly MailboxTreeRow[],
-  next: readonly MailboxTreeRow[],
-): readonly MailboxTreeRow[] => {
-  const byKey = new Map(previous.map((row) => [row.key, row]))
-  let identical = previous.length === next.length
-  const reconciled = next.map((row, index) => {
-    const candidate = byKey.get(row.key)
-    const reused = candidate !== undefined && shallowEqualRow(candidate, row) ? candidate : row
-    if (reused !== previous[index]) {
-      identical = false
-    }
-    return reused
-  })
-  return identical ? previous : reconciled
-}
-
 const rowKeyAfterMove = (
   rows: readonly MailboxTreeRow[],
   current: string | undefined,
@@ -209,7 +179,6 @@ export {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
   parseListKey,
-  reconcileMailboxTreeRows,
   rowKeyAfterMove,
   type CountTone,
   type MailboxTreeRow,

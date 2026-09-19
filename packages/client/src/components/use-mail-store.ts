@@ -21,9 +21,9 @@ import {
   buildMailboxTreeRows,
   createInitialRowKeySelector,
   parseListKey,
-  reconcileMailboxTreeRows,
   rowKeyAfterMove,
 } from "@/lib/mail/mailbox-tree"
+import { reconcileRows } from "@/lib/rows"
 
 interface MailStoreOptions {
   readonly runtime: AppRuntime
@@ -52,7 +52,7 @@ const useMailStore = (options: MailStoreOptions) => {
 
   const mailboxTreeRows = createMemo<readonly MailboxTreeRow[]>(
     (previous) =>
-      reconcileMailboxTreeRows(
+      reconcileRows(
         previous,
         buildMailboxTreeRows({
           accounts: options.config()?.accounts ?? [],
@@ -61,6 +61,7 @@ const useMailStore = (options: MailStoreOptions) => {
           unread: unread(),
           collapsed: collapsedAccounts(),
         }),
+        (row) => row.key,
       ),
     [],
   )
@@ -94,7 +95,6 @@ const useMailStore = (options: MailStoreOptions) => {
   })
 
   const selectInitialKey = createInitialRowKeySelector()
-
   const selectInitialRow = () => {
     setSelectedListKey(selectInitialKey(mailboxTreeRows(), selectedListKey()))
   }
