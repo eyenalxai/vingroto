@@ -1,5 +1,6 @@
 import type { OxlintConfig } from "oxlint"
 
+import { recommended } from "@effect/tsgo/oxlint-presets"
 import { defineConfig } from "oxlint"
 
 type PluginConfig = NonNullable<OxlintConfig["plugins"]>
@@ -92,6 +93,23 @@ const baseRules: RuleConfig = {
   "no-underscore-dangle": ["error", { allow: ["__dirname", "__filename", "_tag"] }],
 }
 
+// The Effect recommended preset and this repository's all-error categories
+// raise these diagnostics to errors in packages/*/src, which this tooling
+// change does not own. Keep them visible as warnings until the package sources
+// adopt the suggestions.
+const effectRuleSeverities: RuleConfig = {
+  "effecttsgo/any-unknown-in-error-context": "warn",
+  "effecttsgo/deterministic-keys": "warn",
+  "effecttsgo/missing-pipeable-signature": "warn",
+  "effecttsgo/missing-return-yield-star": "warn",
+  "effecttsgo/missed-pipeable-opportunity": "warn",
+  "effecttsgo/nested-effect-gen-yield": "warn",
+  "effecttsgo/new-schema-class": "warn",
+  "effecttsgo/prefer-schema-type-property": "warn",
+  "effecttsgo/strict-effect-provide": "warn",
+  "effecttsgo/unnecessary-arrow-block": "warn",
+}
+
 const ignorePatterns = [
   "**/node_modules/**",
   "**/dist/**",
@@ -102,9 +120,10 @@ const ignorePatterns = [
 ]
 
 export default defineConfig({
+  extends: [recommended],
   plugins: basePlugins,
   categories,
-  rules: baseRules,
+  rules: { ...baseRules, ...effectRuleSeverities },
   overrides: [
     {
       files: ["packages/core/**/*.{ts,tsx}"],
