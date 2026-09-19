@@ -13,7 +13,7 @@ interface ClientConnectionShape {
 
 // Connection failures are published here so the ui can show the latest one while requests retry.
 class ClientConnection extends Context.Service<ClientConnection, ClientConnectionShape>()(
-  "vingroto/lib/client/ClientConnection",
+  "@vingroto/client/lib/connection/ClientConnection",
 ) {}
 
 const describeOpenError = (error: HttpClientError.HttpClientError | DaemonError): string => {

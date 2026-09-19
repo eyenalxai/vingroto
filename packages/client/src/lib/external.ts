@@ -40,15 +40,14 @@ const isHttpUrl = (value: string): boolean => {
 
 const openExternal = Effect.fn("External.open")(function* open(value: string) {
   if (!isHttpUrl(value)) {
-    yield* new ExternalOpenError({
+    return yield* new ExternalOpenError({
       url: value,
       message: "refusing to open a non-http link",
     })
-    return
   }
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
   const opener = openerCommand()
-  yield* spawner
+  return yield* spawner
     .spawn(
       ChildProcess.make(opener.command, [...opener.args, value], {
         stdin: "ignore",

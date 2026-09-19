@@ -35,14 +35,13 @@ const updateMailboxMute = Effect.fn("Mailbox.updateMute")(function* updateMailbo
   const events = yield* ServerEvents
   const mailbox = yield* getMailbox(mailboxId)
   if (mailbox === undefined) {
-    yield* new MailboxNotFound({
+    return yield* new MailboxNotFound({
       mailboxId,
       message: `mailbox ${mailboxId} was not found`,
     })
-    return
   }
   yield* setMailboxMuted(mailboxId, muted)
-  yield* events.publish({ _tag: "data-changed" })
+  return yield* events.publish({ _tag: "data-changed" })
 })
 
 export { MailboxNotFound, readMailboxSnapshot, updateMailboxMute }

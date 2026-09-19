@@ -32,7 +32,7 @@ const forceCloseClient = (account: AccountConfig, client: ImapFlow) =>
     try: () => {
       client.close()
     },
-    catch: (cause: unknown) => cause,
+    catch: (cause: unknown) => toImapError(account, "close", cause),
   }).pipe(
     Effect.matchEffect({
       onFailure: (error) =>
@@ -56,8 +56,10 @@ const guard = Effect.fn("Imap.guard")(function* guardCommand<A>(
     },
     catch: (cause: unknown) => toImapError(account, operation, cause),
   }).pipe(
-    Effect.timeout(timeout),
-    Effect.catchTag("TimeoutError", () => Effect.fail(timedOut(account, operation, timeout))),
+    Effect.timeoutOrElse({
+      duration: timeout,
+      orElse: () => Effect.fail(timedOut(account, operation, timeout)),
+    }),
   )
 })
 
@@ -85,12 +87,13 @@ const acquireMailboxLock = (
     },
     catch: (cause: unknown) => toImapError(account, operation, cause),
   }).pipe(
-    Effect.timeout(commandTimeout),
-    Effect.catchTag("TimeoutError", () =>
-      forceCloseClient(account, client).pipe(
-        Effect.andThen(Effect.fail(timedOut(account, operation, commandTimeout))),
-      ),
-    ),
+    Effect.timeoutOrElse({
+      duration: commandTimeout,
+      orElse: () =>
+        forceCloseClient(account, client).pipe(
+          Effect.andThen(Effect.fail(timedOut(account, operation, commandTimeout))),
+        ),
+    }),
     // An abandoned acquisition can still resolve later and take the lock.
     // The whole connection is closed instead of leaving it behind unreleased.
     Effect.onInterrupt(() => forceCloseClient(account, client)),

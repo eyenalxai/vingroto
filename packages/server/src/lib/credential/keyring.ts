@@ -34,8 +34,7 @@ const lookupSecret = Effect.fn("Keyring.lookupSecret")(function* lookup(
     "ref",
     reference,
   ]).pipe(
-    Effect.timeout(TIMEOUT),
-    Effect.catchTag("TimeoutError", () => Effect.fail(timedOut("lookup"))),
+    Effect.timeoutOrElse({ duration: TIMEOUT, orElse: () => Effect.fail(timedOut("lookup")) }),
     Effect.catchTag("PlatformError", (error) =>
       Effect.fail(new KeyringError({ operation: "lookup", message: error.message })),
     ),
@@ -76,18 +75,18 @@ const storeSecret = Effect.fn("Keyring.storeSecret")(function* store(
     return yield* handle.exitCode
   }).pipe(
     Effect.scoped,
-    Effect.timeout(TIMEOUT),
-    Effect.catchTag("TimeoutError", () => Effect.fail(timedOut("store"))),
+    Effect.timeoutOrElse({ duration: TIMEOUT, orElse: () => Effect.fail(timedOut("store")) }),
     Effect.catchTag("PlatformError", (error) =>
       Effect.fail(new KeyringError({ operation: "store", message: error.message })),
     ),
   )
   if (exitCode !== 0) {
-    yield* new KeyringError({
+    return yield* new KeyringError({
       operation: "store",
       message: `secret-tool store failed with exit code ${exitCode}`,
     })
   }
+  return yield* Effect.void
 })
 
 export { KeyringError, lookupSecret, storeSecret }

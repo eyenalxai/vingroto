@@ -138,7 +138,7 @@ interface MailClientShape {
 }
 
 class MailClient extends Context.Service<MailClient, MailClientShape>()(
-  "vingroto/lib/client/MailClient",
+  "@vingroto/client/lib/api/MailClient",
 ) {}
 
 export { ClientDefect, MailClient, type MailClientError, type MailClientShape, type SyncRequest }

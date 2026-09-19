@@ -111,12 +111,12 @@ const ApiServer = Layer.effectDiscard(
     const token = yield* readOrCreateToken()
     const server = yield* bindWithFallback(port, token)
     const address = server.address
-    if (address._tag !== "InetAddressV4" && address._tag !== "InetAddressV6") {
-      return yield* Effect.die(new Error(`unexpected api address tag ${address._tag}`))
+    if (address._tag === "InetAddressV4" || address._tag === "InetAddressV6") {
+      yield* writeRegistration(address.port)
+      const events = yield* ServerEvents
+      return yield* Effect.addFinalizer(() => events.shutdown())
     }
-    yield* writeRegistration(address.port)
-    const events = yield* ServerEvents
-    return yield* Effect.addFinalizer(() => events.shutdown())
+    return yield* Effect.die(new Error(`unexpected api address tag ${address._tag}`))
   }),
 )
 

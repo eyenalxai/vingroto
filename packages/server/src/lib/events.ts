@@ -18,7 +18,7 @@ interface ServerEventsShape {
 }
 
 class ServerEvents extends Context.Service<ServerEvents, ServerEventsShape>()(
-  "vingroto/lib/server/ServerEvents",
+  "@vingroto/server/lib/events/ServerEvents",
 ) {
   static readonly layer = Layer.effect(
     ServerEvents,

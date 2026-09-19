@@ -92,7 +92,7 @@ const readRegistration = Effect.fnUntraced(function* readRegistration(
         ),
       ),
     )
-  return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Registration))(raw).pipe(
+  return yield* Schema.decodeEffect(Schema.fromJsonString(Registration))(raw).pipe(
     Effect.mapError((cause) => new DaemonRegistrationInvalid({ path, cause })),
   )
 })
@@ -107,7 +107,7 @@ const readToken = Effect.fnUntraced(function* readToken(fs: FileSystem.FileSyste
     )
   const token = raw.trim()
   if (token.length === 0) {
-    return yield* Effect.fail(new DaemonTokenUnreadable({ path, cause: "the token file is empty" }))
+    return yield* new DaemonTokenUnreadable({ path, cause: "the token file is empty" })
   }
   return token
 })

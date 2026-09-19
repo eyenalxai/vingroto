@@ -19,7 +19,9 @@ interface DatabaseShape {
   readonly client: EffectSQLiteBunDatabase
 }
 
-class Database extends Context.Service<Database, DatabaseShape>()("vingroto/lib/db/Database") {
+class Database extends Context.Service<Database, DatabaseShape>()(
+  "@vingroto/server/lib/db/database",
+) {
   static readonly layer = Layer.unwrap(
     Effect.gen(function* databaseLayer() {
       const paths = yield* AppPaths

@@ -21,7 +21,7 @@ const packageJson = isStandaloneExecutable
 const readVersion = Effect.fnUntraced(function* readPackageVersion() {
   const fs = yield* FileSystem.FileSystem
   const raw = yield* fs.readFileString(packageJson)
-  const pkg = yield* Schema.decodeUnknownEffect(
+  const pkg = yield* Schema.decodeEffect(
     Schema.fromJsonString(Schema.Struct({ version: Schema.String })),
   )(raw)
   return pkg.version

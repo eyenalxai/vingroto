@@ -70,7 +70,9 @@ const emptyReport = (account: AccountConfig): SyncReport => {
   return { accountId: account.id, mailboxes: 0, fetched: 0, stored: 0, errors: [] }
 }
 
-class SyncEngine extends Context.Service<SyncEngine, SyncShape>()("vingroto/lib/mail/SyncEngine") {
+class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
+  "@vingroto/server/lib/mail/sync/SyncEngine",
+) {
   static readonly layer = Layer.effect(
     SyncEngine,
     Effect.gen(function* makeSyncEngine() {

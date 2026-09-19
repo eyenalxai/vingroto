@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
+import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import * as Semaphore from "effect/Semaphore"
 
@@ -41,6 +42,14 @@ interface NotificationConnection {
   readonly proxy: NotificationsInterface
 }
 
+class DesktopNotificationError extends Schema.TaggedError<DesktopNotificationError>()(
+  "DesktopNotificationError",
+  {
+    message: Schema.String,
+    cause: Schema.optionalKey(Schema.Defect()),
+  },
+) {}
+
 const disconnect = (bus: dbus.MessageBus) =>
   Effect.sync(() => {
     bus.disconnect()
@@ -60,7 +69,7 @@ const sessionBusAddress = Effect.gen(function* resolveSessionBusAddress() {
 })
 
 class DesktopNotifications extends Context.Service<DesktopNotifications, DesktopShape>()(
-  "vingroto/lib/notify/DesktopNotifications",
+  "@vingroto/server/lib/notify/desktop/DesktopNotifications",
 ) {
   static readonly layer = Layer.effect(
     DesktopNotifications,
@@ -75,7 +84,9 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
         Effect.gen(function* acquireConnection() {
           const busAddress = yield* sessionBusAddress
           if (busAddress === null) {
-            return yield* Effect.fail(new Error("no wayland session bus address"))
+            return yield* new DesktopNotificationError({
+              message: "no wayland session bus address",
+            })
           }
           const bus = dbus.sessionBus({ busAddress })
           bus.on("error", () => {
@@ -86,7 +97,11 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
               const proxyObject = await bus.getProxyObject(notificationsName, notificationsPath)
               return proxyObject
             },
-            catch: (cause) => cause,
+            catch: (cause: unknown) =>
+              new DesktopNotificationError({
+                message: "could not reach the notification service",
+                cause,
+              }),
           }).pipe(
             Effect.map((object) =>
               object.getInterface<NotificationsInterface>(notificationsInterface),
@@ -133,7 +148,11 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
               -1,
             )
           },
-          catch: (cause) => cause,
+          catch: (cause: unknown) =>
+            new DesktopNotificationError({
+              message: "could not send a desktop notification",
+              cause,
+            }),
         }).pipe(
           Effect.catch((error) =>
             Effect.logDebug("could not send a desktop notification").pipe(

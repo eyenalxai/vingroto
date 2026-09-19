@@ -165,7 +165,7 @@ interface DiscoveryShape {
 }
 
 class Discovery extends Context.Service<Discovery, DiscoveryShape>()(
-  "vingroto/lib/mail/Discovery",
+  "@vingroto/server/lib/mail/autoconfig/Discovery",
 ) {
   static readonly layer = Layer.effect(
     Discovery,

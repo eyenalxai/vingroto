@@ -5,6 +5,6 @@ const MailAddress = Schema.Struct({
   address: Schema.NonEmptyString,
 })
 
-type MailAddress = Schema.Schema.Type<typeof MailAddress>
+type MailAddress = typeof MailAddress.Type
 
 export { MailAddress }

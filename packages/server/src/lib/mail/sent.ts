@@ -63,7 +63,7 @@ const toEnvelope = (
 }
 
 class SentCopies extends Context.Service<SentCopies, SentCopiesShape>()(
-  "vingroto/lib/mail/SentCopies",
+  "@vingroto/server/lib/mail/sent/SentCopies",
 ) {
   static readonly layer = Layer.effect(
     SentCopies,
@@ -102,25 +102,23 @@ class SentCopies extends Context.Service<SentCopies, SentCopiesShape>()(
             const mailboxes = yield* listAccountMailboxes(account.id)
             const mailbox = mailboxes.find((row) => row.special_use === sentSpecialUse)
             if (mailbox === undefined) {
-              yield* new SentMailboxMissing({
+              return yield* new SentMailboxMissing({
                 accountId: account.id,
                 message: `account ${account.id} has no Sent mailbox`,
               })
-              return
             }
             const raw = yield* mailer.compile(account, message)
             const uid = yield* imap.appendMessage(account, mailbox.path, raw, [seenFlag])
             if (uid === undefined) {
-              yield* Effect.logWarning("sent copy was not saved").pipe(
+              return yield* Effect.logWarning("sent copy was not saved").pipe(
                 Effect.annotateLogs({
                   account: account.id,
                   mailbox: mailbox.path,
                   reason: "the server did not return the appended message's uid",
                 }),
               )
-              return
             }
-            yield* cacheCopy(account, message, mailbox, uid, raw).pipe(
+            return yield* cacheCopy(account, message, mailbox, uid, raw).pipe(
               Effect.catch((error) =>
                 Effect.logWarning("sent copy was not cached").pipe(
                   Effect.annotateLogs({

@@ -91,7 +91,7 @@ const claimPages = (
   return [pages, new Map([...map, replaced])]
 }
 
-class Search extends Context.Service<Search, SearchShape>()("vingroto/lib/mail/Search") {
+class Search extends Context.Service<Search, SearchShape>()("@vingroto/server/lib/mail/search") {
   static readonly layer = Layer.effect(
     Search,
     Effect.gen(function* makeSearch() {

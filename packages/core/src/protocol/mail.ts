@@ -19,14 +19,14 @@ const Mailbox = Schema.Struct({
   updated_at: Schema.Int,
 })
 
-type Mailbox = Schema.Schema.Type<typeof Mailbox>
+type Mailbox = typeof Mailbox.Type
 
 const MailboxCounts = Schema.Struct({
   total: Schema.Int,
   unread: Schema.Int,
 })
 
-type MailboxCounts = Schema.Schema.Type<typeof MailboxCounts>
+type MailboxCounts = typeof MailboxCounts.Type
 
 const ListScope = Schema.Union([
   Schema.Struct({ kind: Schema.tag("all") }),
@@ -53,7 +53,7 @@ const MailboxSnapshot = Schema.Struct({
   ),
 })
 
-type MailboxSnapshot = Schema.Schema.Type<typeof MailboxSnapshot>
+type MailboxSnapshot = typeof MailboxSnapshot.Type
 
 const MessageListItem = Schema.Struct({
   id: MessageId,
@@ -72,7 +72,7 @@ const MessageListItem = Schema.Struct({
   snippet: Schema.NullOr(Schema.String),
 })
 
-type MessageListItem = Schema.Schema.Type<typeof MessageListItem>
+type MessageListItem = typeof MessageListItem.Type
 
 const MessageDetail = Schema.Struct({
   ...MessageListItem.fields,
@@ -86,21 +86,21 @@ const MessageDetail = Schema.Struct({
   draft: Schema.Boolean,
 })
 
-type MessageDetail = Schema.Schema.Type<typeof MessageDetail>
+type MessageDetail = typeof MessageDetail.Type
 
 const MessageBody = Schema.Struct({
   text: Schema.NullOr(Schema.String),
   html: Schema.NullOr(Schema.String),
 })
 
-type MessageBody = Schema.Schema.Type<typeof MessageBody>
+type MessageBody = typeof MessageBody.Type
 
 const SeenOutcome = Schema.Struct({
   affected: Schema.Int,
   errors: Schema.Array(Schema.String),
 })
 
-type SeenOutcome = Schema.Schema.Type<typeof SeenOutcome>
+type SeenOutcome = typeof SeenOutcome.Type
 
 const MoveOutcome = Schema.Struct({
   moved: Schema.Int,
@@ -108,7 +108,7 @@ const MoveOutcome = Schema.Struct({
   errors: Schema.Array(Schema.String),
 })
 
-type MoveOutcome = Schema.Schema.Type<typeof MoveOutcome>
+type MoveOutcome = typeof MoveOutcome.Type
 
 const SyncReport = Schema.Struct({
   accountId: AccountId,
@@ -118,7 +118,7 @@ const SyncReport = Schema.Struct({
   errors: Schema.Array(Schema.String),
 })
 
-type SyncReport = Schema.Schema.Type<typeof SyncReport>
+type SyncReport = typeof SyncReport.Type
 
 const MessageTarget = Schema.Struct({
   id: MessageId,
@@ -126,14 +126,14 @@ const MessageTarget = Schema.Struct({
   mailboxPath: Schema.String,
 })
 
-type MessageTarget = Schema.Schema.Type<typeof MessageTarget>
+type MessageTarget = typeof MessageTarget.Type
 
 const SearchOutcome = Schema.Struct({
   messages: Schema.Array(MessageListItem),
   hasMore: Schema.Boolean,
 })
 
-type SearchOutcome = Schema.Schema.Type<typeof SearchOutcome>
+type SearchOutcome = typeof SearchOutcome.Type
 
 export {
   ListScope,

@@ -53,9 +53,7 @@ const resolveInitialMode = (
 const program = Effect.gen(function* main() {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     process.stderr.write("vingroto needs an interactive terminal on stdin and stdout\n")
-    yield* Effect.fail(
-      new StartupError({ message: "stdin and stdout must be an interactive terminal" }),
-    )
+    return yield* new StartupError({ message: "stdin and stdout must be an interactive terminal" })
   }
   const runtime = yield* Effect.acquireRelease(
     Effect.sync(() => createClientRuntime()),
@@ -93,7 +91,7 @@ const program = Effect.gen(function* main() {
       ),
     catch: (cause) => new StartupError({ message: "could not mount the interface", cause }),
   })
-  yield* Effect.callback((resume) => {
+  return yield* Effect.callback((resume) => {
     renderer.once("destroy", () => {
       resume(Effect.void)
     })

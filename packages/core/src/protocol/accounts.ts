@@ -13,7 +13,7 @@ const AccountSave = Schema.Struct({
   password: Schema.optionalKey(Schema.String),
 })
 
-type AccountSave = Schema.Schema.Type<typeof AccountSave>
+type AccountSave = typeof AccountSave.Type
 
 const NewAccount = Schema.Struct({
   ...AccountSave.fields,
@@ -21,7 +21,7 @@ const NewAccount = Schema.Struct({
   password: Schema.String,
 })
 
-type NewAccount = Schema.Schema.Type<typeof NewAccount>
+type NewAccount = typeof NewAccount.Type
 
 const DiscoveredServers = Schema.Struct({
   imap: ServerConfig,
@@ -30,7 +30,7 @@ const DiscoveredServers = Schema.Struct({
   source: Schema.String,
 })
 
-type DiscoveredServers = Schema.Schema.Type<typeof DiscoveredServers>
+type DiscoveredServers = typeof DiscoveredServers.Type
 
 const DiscoveryResult = Schema.Union([
   Schema.TaggedStruct("found", { servers: DiscoveredServers }),
@@ -58,6 +58,6 @@ const ServerStatus = Schema.Struct({
   ]).pipe(Schema.toTaggedUnion("_tag")),
 })
 
-type ServerStatus = Schema.Schema.Type<typeof ServerStatus>
+type ServerStatus = typeof ServerStatus.Type
 
 export { AccountSave, ConfigState, DiscoveredServers, DiscoveryResult, NewAccount, ServerStatus }

@@ -17,7 +17,7 @@ const parser = new XMLParser({
   parseAttributeValue: false,
 })
 
-const TextValue = Schema.Union([Schema.String, Schema.Number])
+const TextValue = Schema.Union([Schema.String, Schema.Finite])
 
 const ServerNode = Schema.Struct({
   "@_type": Schema.optionalKey(Schema.Unknown),
@@ -60,7 +60,7 @@ const readInteger = (value: unknown): number | undefined => {
   if (text === undefined) {
     return undefined
   }
-  const decoded = Schema.decodeUnknownOption(Schema.FiniteFromString)(text)
+  const decoded = Schema.decodeOption(Schema.FiniteFromString)(text)
   return Option.isSome(decoded) ? Math.trunc(decoded.value) : undefined
 }
 

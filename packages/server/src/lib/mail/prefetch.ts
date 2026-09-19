@@ -59,7 +59,7 @@ const groupByAccount = (targets: readonly PendingBody[]) => {
 }
 
 class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchShape>()(
-  "vingroto/lib/mail/MessagePrefetch",
+  "@vingroto/server/lib/mail/prefetch/MessagePrefetch",
 ) {
   static readonly layer = Layer.effect(
     MessagePrefetch,

@@ -23,7 +23,7 @@ interface CredentialShape {
 }
 
 class Credential extends Context.Service<Credential, CredentialShape>()(
-  "vingroto/lib/credential/Credential",
+  "@vingroto/server/lib/credential/service/Credential",
 ) {
   static readonly layer = Layer.effect(
     Credential,

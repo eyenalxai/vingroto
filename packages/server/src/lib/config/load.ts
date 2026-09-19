@@ -62,7 +62,7 @@ const loadConfigFile = Effect.fnUntraced(function* loadFile(
   const raw = yield* fs
     .readFileString(configPath)
     .pipe(Effect.catchTag("PlatformError", (error) => Effect.fail(unreadable(error))))
-  const config = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AppConfigFile))(raw).pipe(
+  const config = yield* Schema.decodeEffect(Schema.fromJsonString(AppConfigFile))(raw).pipe(
     Effect.mapError((cause) => new ConfigInvalid({ path: configPath, cause })),
   )
   if (fileStateChanged(configPath, raw)) {
