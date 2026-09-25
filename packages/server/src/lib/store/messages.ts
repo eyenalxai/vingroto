@@ -90,17 +90,14 @@ const storeMessages = Effect.fn("Message.store")(function* store(input: MessageS
           .values(fresh.map((envelope) => toMessageValues(input, envelope, now)))
           .onConflictDoNothing()
       }
-      yield* Effect.all(
-        stale.map((envelope) =>
-          tx
-            .update(MessageTable)
-            .set(toEnvelopeColumns(envelope, now))
-            .where(
-              and(eq(MessageTable.mailbox_id, input.mailboxId), eq(MessageTable.uid, envelope.uid)),
-            ),
-        ),
-        { discard: true },
-      )
+      for (const envelope of stale) {
+        yield* tx
+          .update(MessageTable)
+          .set(toEnvelopeColumns(envelope, now))
+          .where(
+            and(eq(MessageTable.mailbox_id, input.mailboxId), eq(MessageTable.uid, envelope.uid)),
+          )
+      }
     }),
   )
   return { inserted: fresh.length, updated: stale.length }

@@ -89,7 +89,7 @@ interface OutboxShape {
     OutboxEntry,
     AccountNotConfigured | ConfigInvalid | ConfigUnreadable | OutboxStoreError
   >
-  readonly list: () => Effect.Effect<readonly OutboxEntry[], EffectDrizzleQueryError>
+  readonly list: Effect.Effect<readonly OutboxEntry[], EffectDrizzleQueryError>
   readonly cancel: (outboxId: OutboxId) => Effect.Effect<void, OutboxNotFound | OutboxStoreError>
   readonly release: (
     outboxId: OutboxId,
@@ -248,11 +248,9 @@ class Outbox extends Context.Service<Outbox, OutboxShape>()("@vingroto/server/li
         Effect.provideService(Database, database),
       )
 
-      const list = Effect.fn("Outbox.list")(
-        function* listOutbox() {
-          return yield* listOutboxEntries()
-        },
+      const list = listOutboxEntries().pipe(
         Effect.provideService(Database, database),
+        Effect.withSpan("Outbox.list"),
       )
 
       const cancel = Effect.fn("Outbox.cancel")(

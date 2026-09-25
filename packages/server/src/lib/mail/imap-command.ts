@@ -51,10 +51,7 @@ const guard = Effect.fn("Imap.guard")(function* guardCommand<A>(
   run: () => Promise<A>,
 ): Effect.fn.Return<A, ImapError> {
   return yield* Effect.tryPromise({
-    try: async () => {
-      const value = await run()
-      return value
-    },
+    try: run,
     catch: (cause: unknown) => toImapError(account, operation, cause),
   }).pipe(
     Effect.timeoutOrElse({

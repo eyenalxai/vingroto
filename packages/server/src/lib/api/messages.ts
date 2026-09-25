@@ -1,6 +1,7 @@
 import { describeError } from "@vingroto/core/errors"
 import { InvalidRequestError, MessageNotFoundError } from "@vingroto/core/protocol/api/errors"
 import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 
 import { ServerApi } from "@/lib/api/api"
@@ -25,15 +26,13 @@ const MessageHandlers = HttpApiBuilder.group(ServerApi, "messages", (handlers) =
       sanitizeFailure(
         Messages.pipe(Effect.flatMap((messages) => messages.get(params.messageId))),
       ).pipe(
-        Effect.flatMap((message) =>
-          message === undefined
-            ? Effect.fail(
-                new MessageNotFoundError({
-                  messageId: params.messageId,
-                  message: `message ${params.messageId} was not found`,
-                }),
-              )
-            : Effect.succeed(message),
+        Effect.filterOrFail(
+          Predicate.isNotUndefined,
+          () =>
+            new MessageNotFoundError({
+              messageId: params.messageId,
+              message: `message ${params.messageId} was not found`,
+            }),
         ),
       ),
     )

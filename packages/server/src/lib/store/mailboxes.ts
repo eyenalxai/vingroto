@@ -78,9 +78,9 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
   const database = yield* Database
   const now = yield* Clock.currentTimeMillis
   yield* database.client.transaction((tx) =>
-    Effect.all(
-      infos.map((info) =>
-        tx
+    Effect.gen(function* upsertAll() {
+      for (const info of infos) {
+        yield* tx
           .insert(MailboxTable)
           .values({
             account_id: accountId,
@@ -100,10 +100,9 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
               selectable: info.selectable,
               updated_at: now,
             },
-          }),
-      ),
-      { discard: true },
-    ),
+          })
+      }
+    }),
   )
 })
 
