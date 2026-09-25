@@ -1,12 +1,12 @@
 import type { Draft, OutboxEntry } from "@vingroto/core/protocol/outgoing"
 
-import { Effect } from "effect"
+import { Effect, Fiber, Schedule } from "effect"
 import * as DateTime from "effect/DateTime"
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 
 import type { MailClientError } from "@/lib/api"
 import type { MailViewKind } from "@/lib/mail/mailbox-tree"
-import type { AppRuntime } from "@/lib/runtime"
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
@@ -32,7 +32,7 @@ const useOutboxView = (options: OutboxViewOptions) => {
   const [loading, setLoading] = createSignal(false)
   const [armed, setArmed] = createSignal<ArmedAction | undefined>()
   const [now, setNow] = createSignal(DateTime.nowUnsafe().epochMilliseconds)
-  let armTimer: ReturnType<typeof setTimeout> | null = null
+  let armFiber: Fiber.Fiber<void, AppRuntimeError> | null = null
   let loadToken = 0
 
   const selectedEntry = createMemo(() => entries()[selectedIndex()])
@@ -50,9 +50,9 @@ const useOutboxView = (options: OutboxViewOptions) => {
   }
 
   const disarm = () => {
-    if (armTimer !== null) {
-      clearTimeout(armTimer)
-      armTimer = null
+    if (armFiber !== null) {
+      options.runtime.runFork(Fiber.interrupt(armFiber))
+      armFiber = null
     }
     setArmed(undefined)
   }
@@ -60,10 +60,16 @@ const useOutboxView = (options: OutboxViewOptions) => {
   const arm = (action: ArmedAction) => {
     disarm()
     setArmed(action)
-    armTimer = setTimeout(() => {
-      armTimer = null
-      setArmed(undefined)
-    }, armDurationMs)
+    armFiber = options.runtime.runFork(
+      Effect.sleep(armDurationMs).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            armFiber = null
+            setArmed(undefined)
+          }),
+        ),
+      ),
+    )
   }
 
   const applyLoaded = (nextEntries: readonly OutboxEntry[], nextDrafts: readonly Draft[]) => {
@@ -79,22 +85,19 @@ const useOutboxView = (options: OutboxViewOptions) => {
       const token = loadToken
       setLoading(true)
       const program = Effect.gen(function* loadOutboxView() {
-        yield* Effect.gen(function* queryOutboxView() {
-          const client = yield* MailClient
-          const [outbox, nextDrafts] = yield* Effect.all([client.listOutbox(), client.listDrafts()])
-          yield* Effect.sync(() => {
-            if (loadToken === token) {
-              applyLoaded(outbox, nextDrafts)
-            }
-          })
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              reportFailure("could not load the outbox", error)
-            }),
-          ),
-        )
+        const client = yield* MailClient
+        const [outbox, nextDrafts] = yield* Effect.all([client.listOutbox, client.listDrafts])
+        yield* Effect.sync(() => {
+          if (loadToken === token) {
+            applyLoaded(outbox, nextDrafts)
+          }
+        })
       }).pipe(
+        Effect.tapError((error) =>
+          Effect.sync(() => {
+            reportFailure("could not load the outbox", error)
+          }),
+        ),
         Effect.ensuring(
           Effect.sync(() => {
             if (loadToken === token) {
@@ -102,6 +105,7 @@ const useOutboxView = (options: OutboxViewOptions) => {
             }
           }),
         ),
+        Effect.ignore,
       )
       options.runtime.runFork(program)
     })
@@ -120,15 +124,14 @@ const useOutboxView = (options: OutboxViewOptions) => {
     label: string,
     program: Effect.Effect<void, MailClientError, MailClient>,
   ): Effect.Effect<void, never, MailClient> =>
-    Effect.gen(function* runGuardedProgram() {
-      yield* program.pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            reportFailure(label, error)
-          }),
-        ),
-      )
-    })
+    program.pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          reportFailure(label, error)
+        }),
+      ),
+      Effect.ignore,
+    )
 
   const cancelSelected = () => {
     const entry = selectedEntry()
@@ -253,11 +256,16 @@ const useOutboxView = (options: OutboxViewOptions) => {
     setSelectedIndex(0)
     disarm()
     setNow(DateTime.nowUnsafe().epochMilliseconds)
-    const timer = setInterval(() => {
-      setNow(DateTime.nowUnsafe().epochMilliseconds)
-    }, 1000)
+    const fiber = options.runtime.runFork(
+      Effect.repeat(
+        Effect.sync(() => {
+          setNow(DateTime.nowUnsafe().epochMilliseconds)
+        }),
+        Schedule.spaced("1 seconds"),
+      ),
+    )
     onCleanup(() => {
-      clearInterval(timer)
+      options.runtime.runFork(Fiber.interrupt(fiber))
     })
   })
 

@@ -189,19 +189,19 @@ const MailClientLayer = Layer.unwrap(
           "getMessage",
           api.messages["message.get"]({ params: { messageId: id } }).pipe(
             Effect.asSome,
-            Effect.catchTag("MessageNotFoundError", () => Effect.succeed(Option.none())),
+            Effect.catchTag("MessageNotFoundError", () => Effect.succeedNone),
           ),
         ),
-      listDrafts: () => readMethod("listDrafts", api.drafts["draft.list"]()),
+      listDrafts: readMethod("listDrafts", api.drafts["draft.list"]()),
       listMessages: (scope, limit) =>
         readMethod(
           "listMessages",
           api.messages["message.list"]({ query: listQuery(scope, limit) }),
         ),
-      listOutbox: () => readMethod("listOutbox", api.outbox["outbox.list"]()),
+      listOutbox: readMethod("listOutbox", api.outbox["outbox.list"]()),
       loadBody: (id) =>
         readMethod("loadBody", api.messages["message.body"]({ params: { messageId: id } })),
-      mailboxSnapshot: () => readMethod("mailboxSnapshot", api.mailboxes["mailbox.snapshot"]()),
+      mailboxSnapshot: readMethod("mailboxSnapshot", api.mailboxes["mailbox.snapshot"]()),
       moveMessages: (ids, targetMailboxId) =>
         clientMethod(
           "moveMessages",
@@ -254,7 +254,7 @@ const MailClientLayer = Layer.unwrap(
           "startSearch",
           api.search["search.start"]({ payload: { ...scopeFields(scope), query } }),
         ),
-      status: () => readMethod("status", api.server["server.status"]()),
+      status: readMethod("status", api.server["server.status"]()),
       sync: (request) => clientMethod("sync", api.sync["sync.run"]({ payload: request })),
       updateAccount: (id, input) =>
         clientMethod(

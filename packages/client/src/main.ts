@@ -2,8 +2,10 @@ import { BunRuntime } from "@effect/platform-bun"
 import { isStandaloneExecutable } from "@vingroto/core/standalone"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { CliConfig, Command, GlobalFlag } from "effect/unstable/cli"
+import { FetchHttpClient } from "effect/unstable/http"
 import path from "node:path"
 
 import { apiCommand } from "@/lib/cli/api"
@@ -39,4 +41,6 @@ const main = Effect.gen(function* main() {
   yield* Command.run(root, { version }).pipe(Effect.provide(CliConfig.layer({ builtIns })))
 })
 
-BunRuntime.runMain(main.pipe(Effect.provide(ServicesLayer)))
+const CliLayer = Layer.merge(ServicesLayer, FetchHttpClient.layer)
+
+BunRuntime.runMain(main.pipe(Effect.provide(CliLayer)))

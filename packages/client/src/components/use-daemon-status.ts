@@ -55,7 +55,7 @@ const useDaemonStatus = (runtime: AppRuntime) => {
     const program = Effect.gen(function* pollStatus() {
       const client = yield* MailClient
       yield* retryTransientFailures(
-        client.status().pipe(
+        client.status.pipe(
           Effect.tap((nextStatus) =>
             Effect.sync(() => {
               setStatus(nextStatus)
@@ -88,7 +88,7 @@ const useDaemonStatus = (runtime: AppRuntime) => {
 
   const refresh = Effect.gen(function* refetchStatus() {
     const client = yield* MailClient
-    const result = yield* client.status().pipe(Effect.result)
+    const result = yield* client.status.pipe(Effect.result)
     if (result._tag === "Success") {
       yield* Effect.sync(() => {
         setStatus(result.success)

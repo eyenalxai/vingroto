@@ -6,7 +6,6 @@ import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import { FetchHttpClient } from "effect/unstable/http"
 import * as HttpBody from "effect/unstable/http/HttpBody"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
@@ -60,7 +59,6 @@ const sendRequest = (
         : { body: HttpBody.text(body, headers.get("content-type") ?? "application/json") }),
     }),
   ).pipe(
-    Effect.provide(FetchHttpClient.layer),
     Effect.mapError(
       (cause) =>
         new DaemonUnreachable({

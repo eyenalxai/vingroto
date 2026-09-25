@@ -193,37 +193,33 @@ const useComposer = (options: ComposerOptions) => {
     report("queuing…")
     setBusy(true)
     const program = Effect.gen(function* queueComposerMessage() {
-      yield* Effect.gen(function* runQueueComposerMessage() {
-        const entry = yield* enqueueMessage({
-          account,
-          texts: texts(),
-          recipients: parsed,
-          seed: options.seed,
-          draftId: draftId(),
-        })
-        const now = yield* DateTime.now
-        yield* Effect.sync(() => {
-          setDraftId(undefined)
-          setQueued(true)
-          const seconds = Math.max(
-            0,
-            Math.round((entry.sendAt - DateTime.toEpochMillis(now)) / 1000),
-          )
-          report(
-            options.sendDelaySeconds === 0 || seconds === 0
-              ? "queued · sending now"
-              : `queued · sends in ${seconds}s`,
-          )
-        })
-      }).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            autosave.schedule()
-            reportFailure("could not queue the message", error)
-          }),
-        ),
-      )
-    })
+      const entry = yield* enqueueMessage({
+        account,
+        texts: texts(),
+        recipients: parsed,
+        seed: options.seed,
+        draftId: draftId(),
+      })
+      const now = yield* DateTime.now
+      yield* Effect.sync(() => {
+        setDraftId(undefined)
+        setQueued(true)
+        const seconds = Math.max(0, Math.round((entry.sendAt - DateTime.toEpochMillis(now)) / 1000))
+        report(
+          options.sendDelaySeconds === 0 || seconds === 0
+            ? "queued · sending now"
+            : `queued · sends in ${seconds}s`,
+        )
+      })
+    }).pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          autosave.schedule()
+          reportFailure("could not queue the message", error)
+        }),
+      ),
+      Effect.ignore,
+    )
     options.runtime.runFork(program)
   }
 
@@ -235,35 +231,34 @@ const useComposer = (options: ComposerOptions) => {
     }
     setBusy(true)
     const program = Effect.gen(function* flushComposerDraft() {
-      yield* Effect.gen(function* runFlushComposerDraft() {
-        const account = fromAccount()
-        if (account === undefined) {
-          options.onClose()
-          return
-        }
-        const parsed = recipients()
-        if (parsed._tag === "error") {
-          report(`${parsed.field} · ${parsed.message}`, true)
-          return
-        }
-        yield* saveDraft({
-          account,
-          texts: texts(),
-          recipients: parsed,
-          seed: options.seed,
-          draftId: draftId(),
-        })
-        yield* Effect.sync(() => {
-          options.onClose()
-        })
-      }).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            reportFailure("could not save the draft", error)
-          }),
-        ),
-      )
-    })
+      const account = fromAccount()
+      if (account === undefined) {
+        options.onClose()
+        return
+      }
+      const parsed = recipients()
+      if (parsed._tag === "error") {
+        report(`${parsed.field} · ${parsed.message}`, true)
+        return
+      }
+      yield* saveDraft({
+        account,
+        texts: texts(),
+        recipients: parsed,
+        seed: options.seed,
+        draftId: draftId(),
+      })
+      yield* Effect.sync(() => {
+        options.onClose()
+      })
+    }).pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          reportFailure("could not save the draft", error)
+        }),
+      ),
+      Effect.ignore,
+    )
     options.runtime.runFork(program)
   }
 
