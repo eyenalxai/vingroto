@@ -22,7 +22,7 @@ import { loadConfigFile } from "@/lib/config/load"
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
 import { Mailer } from "@/lib/mail/mailer"
-import { SentCopies } from "@/lib/mail/sent"
+import { SentCopies, warnSentCopy } from "@/lib/mail/sent"
 import {
   cancelOutboxEntry,
   deleteOutboxEntry,
@@ -172,7 +172,15 @@ class Outbox extends Context.Service<Outbox, OutboxShape>()("@vingroto/server/li
           return
         }
         yield* deleteOutboxEntry(entry.id)
-        yield* sentCopies.save(account, toOutgoingMessage(entry))
+        yield* sentCopies.save(account, toOutgoingMessage(entry)).pipe(
+          Effect.catchTags({
+            SentMailboxMissing: (error) => warnSentCopy(account, error.message),
+            SentCopyAppendFailed: (error) =>
+              warnSentCopy(account, error.message, error.mailboxPath),
+            EffectDrizzleQueryError: (error) => warnSentCopy(account, error.message),
+            SmtpError: (error) => warnSentCopy(account, error.message),
+          }),
+        )
         yield* publishChanged
         yield* Effect.logInfo("outbox message sent").pipe(
           Effect.annotateLogs({ outbox: entry.id, attempts: entry.attempts }),
