@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
 import { ImapFlow } from "imapflow"
 
 import type {
@@ -52,7 +53,7 @@ interface ImapShape {
   readonly fetchMailboxWindows: (
     account: AccountConfig,
     requests: readonly MailboxWindowRequest[],
-  ) => Effect.Effect<readonly MailboxWindowResult[], ImapServiceError>
+  ) => Stream.Stream<MailboxWindowResult, ImapServiceError>
   readonly fetchMessageSource: (
     account: AccountConfig,
     mailboxPath: string,
@@ -61,7 +62,7 @@ interface ImapShape {
   readonly fetchMessageSources: (
     account: AccountConfig,
     requests: readonly MessageSourceRequest[],
-  ) => Effect.Effect<readonly MessageSourceResult[], ImapServiceError>
+  ) => Stream.Stream<MessageSourceResult, ImapServiceError>
   readonly setFlags: (
     account: AccountConfig,
     mailboxPath: string,
@@ -145,6 +146,18 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
           ),
         )
 
+      // The client scope spans the whole stream.
+      // An early stop or an interrupted consumer still runs the release finalizer.
+      const withClientStream = <A, E, R>(
+        account: AccountConfig,
+        use: (client: ImapFlow) => Stream.Stream<A, E, R>,
+      ): Stream.Stream<A, E | ImapServiceError, R> =>
+        Stream.scoped(
+          Stream.fromEffect(
+            Effect.acquireRelease(connect(account), (client) => releaseClient(account, client)),
+          ),
+        ).pipe(Stream.flatMap((client) => use(client)))
+
       return Imap.of({
         listMailboxes: Effect.fn("Imap.listMailboxes")(function* listMailboxes(
           account: AccountConfig,
@@ -155,17 +168,18 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
             ),
           )
         }),
-        fetchMailboxWindows: Effect.fn("Imap.fetchMailboxWindows")(function* fetchMailboxWindows(
-          account: AccountConfig,
-          requests: readonly MailboxWindowRequest[],
-        ) {
-          return yield* withClient(account, (client) =>
-            Effect.all(
-              requests.map((request) => fetchMailboxResult(client, account, request)),
-              { concurrency: 1 },
+        fetchMailboxWindows: (account, requests) => {
+          if (requests.length === 0) {
+            return Stream.empty
+          }
+          return withClientStream(account, (client) =>
+            Stream.fromIterable(requests).pipe(
+              Stream.mapEffect((request) => fetchMailboxResult(client, account, request), {
+                concurrency: 1,
+              }),
             ),
-          )
-        }),
+          ).pipe(Stream.withSpan("Imap.fetchMailboxWindows"))
+        },
         fetchMessageSource: Effect.fn("Imap.fetchMessageSource")(function* fetchMessageSource(
           account: AccountConfig,
           mailboxPath: string,
@@ -175,23 +189,19 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
             readMessageSource(client, account, mailboxPath, uid),
           )
         }),
-        fetchMessageSources: Effect.fn("Imap.fetchMessageSources")(function* fetchMessageSources(
-          account: AccountConfig,
-          requests: readonly MessageSourceRequest[],
-        ) {
+        fetchMessageSources: (account, requests) => {
           const groups = groupRequestsByMailbox(requests)
           if (groups.length === 0) {
-            return []
+            return Stream.empty
           }
-          return yield* withClient(account, (client) =>
-            Effect.all(
-              groups.map((group) =>
+          return withClientStream(account, (client) =>
+            Stream.fromIterable(groups).pipe(
+              Stream.flatMap((group) =>
                 readMailboxSources(client, account, group.mailboxPath, group.uids),
               ),
-              { concurrency: 1 },
-            ).pipe(Effect.map((chunks) => chunks.flat())),
-          )
-        }),
+            ),
+          ).pipe(Stream.withSpan("Imap.fetchMessageSources"))
+        },
         setFlags: Effect.fn("Imap.setFlags")(function* setFlags(
           account: AccountConfig,
           mailboxPath: string,

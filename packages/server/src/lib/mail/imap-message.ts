@@ -3,10 +3,16 @@ import type { Uid } from "@vingroto/core/ids"
 import type { ImapFlow } from "imapflow"
 
 import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
 
 import type { MessageSourceRequest, MessageSourceResult } from "@/lib/mail/imap-types"
 
-import { commandTimeout, guard, withMailboxLock } from "@/lib/mail/imap-command"
+import {
+  commandTimeout,
+  guard,
+  withMailboxLock,
+  withMailboxLockStream,
+} from "@/lib/mail/imap-command"
 import { ImapError, messageSourceResult } from "@/lib/mail/imap-types"
 
 const maxSourceBytes = 32 * 1024 * 1024
@@ -48,29 +54,28 @@ const readMailboxSources = (
   account: AccountConfig,
   mailboxPath: string,
   uids: readonly Uid[],
-) =>
-  withMailboxLock(
+): Stream.Stream<MessageSourceResult, ImapError> =>
+  withMailboxLockStream(
     client,
     account,
     mailboxPath,
     true,
-    Effect.gen(function* readMessageSources() {
-      const sources: MessageSourceResult[] = []
-      for (const uid of uids) {
-        const result = yield* readSource(client, account, mailboxPath, uid).pipe(
-          Effect.map((source): MessageSourceResult =>
-            messageSourceResult.ok({ mailboxPath, uid, source }),
-          ),
-          Effect.catch((error) =>
-            Effect.succeed<MessageSourceResult>(
-              messageSourceResult.error({ mailboxPath, uid, message: error.message }),
+    Stream.fromIterable(uids).pipe(
+      Stream.mapEffect(
+        (uid) =>
+          readSource(client, account, mailboxPath, uid).pipe(
+            Effect.map((source): MessageSourceResult =>
+              messageSourceResult.ok({ mailboxPath, uid, source }),
+            ),
+            Effect.catchTag("ImapError", (error) =>
+              Effect.succeed<MessageSourceResult>(
+                messageSourceResult.error({ mailboxPath, uid, message: error.message }),
+              ),
             ),
           ),
-        )
-        sources.push(result)
-      }
-      return sources
-    }),
+        { concurrency: 1 },
+      ),
+    ),
   )
 
 const readMessageSource = (

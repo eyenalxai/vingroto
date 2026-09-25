@@ -9,8 +9,13 @@ import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
+import * as Stream from "effect/Stream"
 
-import type { MailboxSnapshot, MailboxWindowRequest } from "@/lib/mail/imap-types"
+import type {
+  MailboxSnapshot,
+  MailboxWindowRequest,
+  MailboxWindowResult,
+} from "@/lib/mail/imap-types"
 
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
@@ -178,73 +183,70 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
           yield* events.publish({ _tag: "mailbox-start", accountId: account.id, path: row.path })
         }
         const rowsByPath = new Map(stored.map((row) => [row.path, row]))
-        const results = yield* imap.fetchMailboxWindows(
-          account,
-          targets.map((row) => toWindowRequest(row, config, now)),
-        )
         const errors: SyncFailure[] = []
         const recreated: Mailbox[] = []
-        const processable: {
-          readonly row: Mailbox
-          readonly snapshot: MailboxSnapshot
-          readonly reset: boolean
-        }[] = []
-        for (const result of results) {
-          const row = rowsByPath.get(result.path)
-          if (row === undefined) {
-            continue
-          }
-          if (result._tag === "error") {
-            errors.push(mailboxFailure(account.id, result.path, result.message))
-            yield* reportMailboxError(account, result.path, result.message)
-            continue
-          }
-          if (row.uidValidity !== null && row.uidValidity !== result.snapshot.uidValidity) {
-            // The server reassigned the UID space: every cached UID for this mailbox is meaningless.
-            // The cached window is kept until the replacement fetch succeeds, so a failure leaves it intact.
-            yield* Effect.logWarning("uid validity changed, refreshing mailbox from scratch").pipe(
-              Effect.annotateLogs({
-                account: account.id,
-                mailbox: row.path,
-                previous: row.uidValidity,
-                current: result.snapshot.uidValidity,
-              }),
-            )
-            recreated.push(row)
-            continue
-          }
-          processable.push({ row, snapshot: result.snapshot, reset: false })
-        }
-        if (recreated.length > 0) {
-          for (const row of recreated) {
-            yield* events.publish({ _tag: "mailbox-start", accountId: account.id, path: row.path })
-          }
-          const refreshed = yield* imap.fetchMailboxWindows(
-            account,
-            recreated.map((row) => initialWindow(row, config, now)),
-          )
-          const recreatedByPath = new Map(recreated.map((row) => [row.path, row]))
-          for (const result of refreshed) {
-            const row = recreatedByPath.get(result.path)
+        let fetched = 0
+        let storedCount = 0
+
+        const processResult = (
+          row: Mailbox | undefined,
+          result: MailboxWindowResult,
+          reset: boolean,
+        ) =>
+          Effect.gen(function* processWindow() {
             if (row === undefined) {
-              continue
+              return
             }
             if (result._tag === "error") {
               errors.push(mailboxFailure(account.id, result.path, result.message))
               yield* reportMailboxError(account, result.path, result.message)
-              continue
+              return
             }
-            processable.push({ row, snapshot: result.snapshot, reset: true })
+            const staleUidValidity =
+              !reset && row.uidValidity !== null && row.uidValidity !== result.snapshot.uidValidity
+            if (staleUidValidity) {
+              // The server reassigned the UID space: every cached UID for this mailbox is meaningless.
+              // The cached window is kept until the replacement fetch succeeds, so a failure leaves it intact.
+              yield* Effect.logWarning(
+                "uid validity changed, refreshing mailbox from scratch",
+              ).pipe(
+                Effect.annotateLogs({
+                  account: account.id,
+                  mailbox: row.path,
+                  previous: row.uidValidity,
+                  current: result.snapshot.uidValidity,
+                }),
+              )
+              recreated.push(row)
+              return
+            }
+            const outcome = reset
+              ? yield* storeReplacement(account, row, result.snapshot)
+              : yield* storeSnapshot(account, row, result.snapshot)
+            fetched += outcome.fetched
+            storedCount += outcome.stored
+          })
+
+        const initialRequests = targets.map((row) => toWindowRequest(row, config, now))
+        yield* imap
+          .fetchMailboxWindows(account, initialRequests)
+          .pipe(
+            Stream.runForEach((result) =>
+              processResult(rowsByPath.get(result.path), result, false),
+            ),
+          )
+        if (recreated.length > 0) {
+          for (const row of recreated) {
+            yield* events.publish({ _tag: "mailbox-start", accountId: account.id, path: row.path })
           }
-        }
-        let fetched = 0
-        let storedCount = 0
-        for (const entry of processable) {
-          const outcome = entry.reset
-            ? yield* storeReplacement(account, entry.row, entry.snapshot)
-            : yield* storeSnapshot(account, entry.row, entry.snapshot)
-          fetched += outcome.fetched
-          storedCount += outcome.stored
+          const refreshedRequests = recreated.map((row) => initialWindow(row, config, now))
+          yield* imap
+            .fetchMailboxWindows(account, refreshedRequests)
+            .pipe(
+              Stream.runForEach((result) =>
+                processResult(rowsByPath.get(result.path), result, true),
+              ),
+            )
         }
         yield* Effect.logDebug("account synced").pipe(
           Effect.annotateLogs({
