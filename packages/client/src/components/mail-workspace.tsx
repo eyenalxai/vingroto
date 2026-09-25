@@ -148,15 +148,14 @@ const MailWorkspace = (props: MailWorkspaceProps) => {
   )
 
   const openLink = (url: string) => {
-    const program = Effect.gen(function* openLinkInBrowser() {
-      yield* openExternal(url).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            props.onStatus(`could not open link · ${error.message}`)
-          }),
-        ),
-      )
-    })
+    const program = openExternal(url).pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          props.onStatus(`could not open link · ${error.message}`)
+        }),
+      ),
+      Effect.ignore,
+    )
     // The runtime keeps platform services private, so opening a browser brings its own Bun layer.
     runtime.runFork(program.pipe(Effect.provide(BunServices.layer)))
   }

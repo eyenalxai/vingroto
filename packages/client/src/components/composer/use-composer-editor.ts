@@ -40,28 +40,27 @@ const useComposerEditor = (options: ComposerEditorOptions) => {
     setEditing(true)
     options.report("opening editor…")
     const program = Effect.gen(function* openComposerEditor() {
-      yield* Effect.gen(function* runComposerEditor() {
-        const editedText = yield* editTextExternally(renderer, options.body())
-        yield* Effect.sync(() => {
+      const editedText = yield* editTextExternally(renderer, options.body())
+      yield* Effect.sync(() => {
+        setEditing(false)
+        options.setBody(editedText)
+        const target = textarea()
+        if (target !== undefined) {
+          target.setText(editedText)
+          target.focus()
+        }
+        options.setField("body")
+        options.report("body updated from the editor")
+      })
+    }).pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
           setEditing(false)
-          options.setBody(editedText)
-          const target = textarea()
-          if (target !== undefined) {
-            target.setText(editedText)
-            target.focus()
-          }
-          options.setField("body")
-          options.report("body updated from the editor")
-        })
-      }).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            setEditing(false)
-            options.report(error.message, true)
-          }),
-        ),
-      )
-    })
+          options.report(error.message, true)
+        }),
+      ),
+      Effect.ignore,
+    )
     // The runtime keeps platform services private, so the external editor brings its own Bun layer.
     options.runtime.runFork(program.pipe(Effect.provide(BunServices.layer)))
   }

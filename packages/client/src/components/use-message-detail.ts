@@ -39,22 +39,19 @@ const useMessageDetail = (options: MessageDetailOptions) => {
   const loadDetail = (messageId: MessageId) => {
     setLoadingDetail(true)
     const program = Effect.gen(function* loadMessageDetail() {
-      yield* Effect.gen(function* queryMessageDetail() {
-        const client = yield* MailClient
-        const value = yield* client.getMessage(messageId)
-        yield* Effect.sync(() => {
-          if (options.selectedMessageId() === messageId) {
-            setDetail(Option.getOrUndefined(value))
-          }
-        })
-      }).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            reportFailure("could not load the message", error)
-          }),
-        ),
-      )
+      const client = yield* MailClient
+      const value = yield* client.getMessage(messageId)
+      yield* Effect.sync(() => {
+        if (options.selectedMessageId() === messageId) {
+          setDetail(Option.getOrUndefined(value))
+        }
+      })
     }).pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          reportFailure("could not load the message", error)
+        }),
+      ),
       Effect.ensuring(
         Effect.sync(() => {
           if (options.selectedMessageId() === messageId) {
@@ -62,6 +59,7 @@ const useMessageDetail = (options: MessageDetailOptions) => {
           }
         }),
       ),
+      Effect.ignore,
     )
     options.runtime.runFork(program)
   }

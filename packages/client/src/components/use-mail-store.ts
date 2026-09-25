@@ -119,32 +119,29 @@ const useMailStore = (options: MailStoreOptions) => {
       const token = mailboxLoadToken
       setLoadingMailboxes(true)
       const program = Effect.gen(function* loadMailboxTreeRows() {
-        yield* Effect.gen(function* queryMailboxTreeRows() {
-          const client = yield* MailClient
-          const snapshot = yield* client.mailboxSnapshot()
-          yield* Effect.sync(() => {
-            setMailboxes(snapshot.mailboxes)
-            const next = new Map<MailboxId, MailboxCounts>()
-            for (const entry of snapshot.counts) {
-              next.set(entry.mailboxId, entry.counts)
-            }
-            setCounts(next)
-            const nextAccountUnread = new Map<AccountId, number>()
-            for (const entry of snapshot.accountUnread) {
-              nextAccountUnread.set(entry.accountId, entry.unread)
-            }
-            setAccountUnread(nextAccountUnread)
-            setUnread(snapshot.unread)
-            selectInitialRow()
-          })
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              reportFailure("could not load the mailboxes", error)
-            }),
-          ),
-        )
+        const client = yield* MailClient
+        const snapshot = yield* client.mailboxSnapshot
+        yield* Effect.sync(() => {
+          setMailboxes(snapshot.mailboxes)
+          const next = new Map<MailboxId, MailboxCounts>()
+          for (const entry of snapshot.counts) {
+            next.set(entry.mailboxId, entry.counts)
+          }
+          setCounts(next)
+          const nextAccountUnread = new Map<AccountId, number>()
+          for (const entry of snapshot.accountUnread) {
+            nextAccountUnread.set(entry.accountId, entry.unread)
+          }
+          setAccountUnread(nextAccountUnread)
+          setUnread(snapshot.unread)
+          selectInitialRow()
+        })
       }).pipe(
+        Effect.tapError((error) =>
+          Effect.sync(() => {
+            reportFailure("could not load the mailboxes", error)
+          }),
+        ),
         Effect.ensuring(
           Effect.sync(() => {
             if (mailboxLoadToken === token) {
@@ -152,6 +149,7 @@ const useMailStore = (options: MailStoreOptions) => {
             }
           }),
         ),
+        Effect.ignore,
       )
       options.runtime.runFork(
         program.pipe(reportDefects("could not load the mailboxes", options.onStatus)),

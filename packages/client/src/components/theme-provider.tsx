@@ -45,23 +45,22 @@ const ThemeProvider = (props: {
 
   const refreshPalette = () => {
     renderer.clearPaletteCache()
-    const program = Effect.gen(function* refreshTerminalPalette() {
-      yield* Effect.tryPromise({
-        try: async () => renderer.getPalette({ size: 16, timeout: paletteQueryTimeoutMs }),
-        catch: (cause) => new ThemePaletteError({ message: describeError(cause) }),
-      }).pipe(
-        Effect.tap((palette) =>
-          Effect.sync(() => {
-            applyPalette(palette)
-          }),
+    const program = Effect.tryPromise({
+      try: async () => renderer.getPalette({ size: 16, timeout: paletteQueryTimeoutMs }),
+      catch: (cause) => new ThemePaletteError({ message: describeError(cause) }),
+    }).pipe(
+      Effect.tap((palette) =>
+        Effect.sync(() => {
+          applyPalette(palette)
+        }),
+      ),
+      Effect.tapError((error) =>
+        Effect.logWarning("could not read the terminal palette").pipe(
+          Effect.annotateLogs({ reason: error.message }),
         ),
-        Effect.catch((error) =>
-          Effect.logWarning("could not read the terminal palette").pipe(
-            Effect.annotateLogs({ reason: error.message }),
-          ),
-        ),
-      )
-    })
+      ),
+      Effect.ignore,
+    )
     runtime.runFork(program)
   }
 

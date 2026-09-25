@@ -36,33 +36,32 @@ const useDraftAutosave = (options: DraftAutosaveOptions) => {
   }
 
   const autosaveDraft = Effect.gen(function* autosaveDraft() {
-    yield* Effect.gen(function* persistAutosaveDraft() {
-      const account = options.account()
-      if (account === undefined) {
-        return
-      }
-      const parsed = options.recipients()
-      if (parsed._tag === "error") {
-        return
-      }
-      const outcome = yield* saveDraft({
-        account,
-        texts: options.texts(),
-        recipients: parsed,
-        seed: options.seed,
-        draftId: options.draftId(),
-      })
-      yield* Effect.sync(() => {
-        options.onSaved(outcome)
-      })
-    }).pipe(
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          options.onFailure("could not save the draft", error)
-        }),
-      ),
-    )
-  })
+    const account = options.account()
+    if (account === undefined) {
+      return
+    }
+    const parsed = options.recipients()
+    if (parsed._tag === "error") {
+      return
+    }
+    const outcome = yield* saveDraft({
+      account,
+      texts: options.texts(),
+      recipients: parsed,
+      seed: options.seed,
+      draftId: options.draftId(),
+    })
+    yield* Effect.sync(() => {
+      options.onSaved(outcome)
+    })
+  }).pipe(
+    Effect.tapError((error) =>
+      Effect.sync(() => {
+        options.onFailure("could not save the draft", error)
+      }),
+    ),
+    Effect.ignore,
+  )
 
   const schedule = () => {
     cancel()

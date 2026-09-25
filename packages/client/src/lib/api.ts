@@ -76,8 +76,8 @@ interface SyncRequest {
 }
 
 interface MailClientShape {
-  readonly status: () => Effect.Effect<ServerStatus, MailClientError>
-  readonly mailboxSnapshot: () => Effect.Effect<MailboxSnapshot, MailClientError>
+  readonly status: Effect.Effect<ServerStatus, MailClientError>
+  readonly mailboxSnapshot: Effect.Effect<MailboxSnapshot, MailClientError>
   readonly listMessages: (
     scope: ListScope,
     limit: number,
@@ -128,10 +128,10 @@ interface MailClientShape {
   readonly enqueueMessage: (
     message: OutgoingMessage & { readonly draftId?: DraftId },
   ) => Effect.Effect<OutboxEntry, MailClientError>
-  readonly listOutbox: () => Effect.Effect<readonly OutboxEntry[], MailClientError>
+  readonly listOutbox: Effect.Effect<readonly OutboxEntry[], MailClientError>
   readonly cancelOutbox: (outboxId: OutboxId) => Effect.Effect<void, MailClientError>
   readonly releaseOutbox: (outboxId: OutboxId) => Effect.Effect<OutboxEntry, MailClientError>
-  readonly listDrafts: () => Effect.Effect<readonly Draft[], MailClientError>
+  readonly listDrafts: Effect.Effect<readonly Draft[], MailClientError>
   readonly saveDraft: (draft: DraftSave) => Effect.Effect<Draft, MailClientError>
   readonly deleteDraft: (draftId: DraftId) => Effect.Effect<void, MailClientError>
   readonly events: Stream.Stream<ServerEvent, MailClientError>

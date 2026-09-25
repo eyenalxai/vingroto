@@ -109,24 +109,21 @@ const useMessagePane = (options: MessagePaneOptions) => {
       const token = messageLoadToken
       setLoadingMessages(true)
       const program = Effect.gen(function* loadMessageRows() {
-        yield* Effect.gen(function* queryMessageRows() {
-          const client = yield* MailClient
-          const rows = yield* client.listMessages(target, messageWindow)
-          yield* Effect.sync(() => {
-            // The selection may have moved on while the query ran: never apply rows for another list.
-            if (options.listKey() !== key) {
-              return
-            }
-            readOnDisplay.applyMessageRows(rows)
-          })
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              reportFailure("could not load the messages", error)
-            }),
-          ),
-        )
+        const client = yield* MailClient
+        const rows = yield* client.listMessages(target, messageWindow)
+        yield* Effect.sync(() => {
+          // The selection may have moved on while the query ran: never apply rows for another list.
+          if (options.listKey() !== key) {
+            return
+          }
+          readOnDisplay.applyMessageRows(rows)
+        })
       }).pipe(
+        Effect.tapError((error) =>
+          Effect.sync(() => {
+            reportFailure("could not load the messages", error)
+          }),
+        ),
         Effect.ensuring(
           Effect.sync(() => {
             if (messageLoadToken === token) {
@@ -134,6 +131,7 @@ const useMessagePane = (options: MessagePaneOptions) => {
             }
           }),
         ),
+        Effect.ignore,
       )
       options.runtime.runFork(program)
     })
