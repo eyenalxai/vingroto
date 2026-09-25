@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test"
 import { eq } from "drizzle-orm"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Stream from "effect/Stream"
 
 import type { FlagMode } from "@/lib/mail/imap-types"
 
@@ -59,9 +60,9 @@ const recordStores = (calls: StoreCall[]): Layer.Layer<Imap> =>
     Imap.of({
       appendMessage: () => Effect.die("appendMessage must not be called"),
       fetchEnvelopes: () => Effect.die("fetchEnvelopes must not be called"),
-      fetchMailboxWindows: () => Effect.succeed([]),
+      fetchMailboxWindows: () => Stream.empty,
       fetchMessageSource: () => Effect.succeed(Buffer.alloc(0)),
-      fetchMessageSources: () => Effect.succeed([]),
+      fetchMessageSources: () => Stream.empty,
       listMailboxes: () => Effect.succeed([]),
       moveMessages: () => Effect.die("moveMessages must not be called"),
       searchMessages: () => Effect.die("searchMessages must not be called"),

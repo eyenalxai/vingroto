@@ -5,6 +5,7 @@ import { describeError } from "@vingroto/core/errors"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
 
 import { ImapError } from "@/lib/mail/imap-types"
 
@@ -100,6 +101,21 @@ const acquireMailboxLock = (
   )
 }
 
+const mailboxLock = (
+  account: AccountConfig,
+  client: ImapFlow,
+  mailboxPath: string,
+  readOnly: boolean,
+) =>
+  Effect.acquireRelease(
+    acquireMailboxLock(account, client, mailboxPath, readOnly),
+    (lock) =>
+      Effect.sync(() => {
+        lock.release()
+      }),
+    { interruptible: true },
+  )
+
 const withMailboxLock = <A, E, R>(
   client: ImapFlow,
   account: AccountConfig,
@@ -107,15 +123,17 @@ const withMailboxLock = <A, E, R>(
   readOnly: boolean,
   use: Effect.Effect<A, E, R>,
 ) =>
-  Effect.scoped(
-    Effect.acquireRelease(
-      acquireMailboxLock(account, client, mailboxPath, readOnly),
-      (lock) =>
-        Effect.sync(() => {
-          lock.release()
-        }),
-      { interruptible: true },
-    ).pipe(Effect.flatMap(() => use)),
+  Effect.scoped(mailboxLock(account, client, mailboxPath, readOnly).pipe(Effect.flatMap(() => use)))
+
+const withMailboxLockStream = <A, E, R>(
+  client: ImapFlow,
+  account: AccountConfig,
+  mailboxPath: string,
+  readOnly: boolean,
+  use: Stream.Stream<A, E, R>,
+): Stream.Stream<A, E | ImapError, R> =>
+  Stream.scoped(Stream.fromEffect(mailboxLock(account, client, mailboxPath, readOnly))).pipe(
+    Stream.flatMap(() => use),
   )
 
 const releaseClient = Effect.fn("Imap.releaseClient")(
@@ -139,4 +157,5 @@ export {
   guardRead,
   releaseClient,
   withMailboxLock,
+  withMailboxLockStream,
 }

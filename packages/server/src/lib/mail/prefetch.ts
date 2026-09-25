@@ -8,6 +8,7 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
+import * as Stream from "effect/Stream"
 
 import type { PendingBody } from "@/lib/store/bodies"
 
@@ -100,43 +101,65 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
         account: AccountConfig,
         targets: readonly PendingBody[],
       ) {
-        const results = yield* imap.fetchMessageSources(
-          account,
-          targets.map((target) => {
-            return { mailboxPath: target.mailboxPath, uid: target.uid }
-          }),
-        )
-        const resultsByKey = new Map(results.map((result) => [prefetchKey(result), result]))
+        const targetsByKey = new Map(targets.map((target) => [prefetchKey(target), target]))
+        const handled = new Set<string>()
         let fetched = 0
         let failedCount = 0
-        for (const target of targets) {
-          const result = resultsByKey.get(prefetchKey(target))
-          if (result === undefined) {
-            failedCount += 1
-            yield* recordFailure(
-              target,
-              account.id,
-              "the server returned no result for this message",
-            )
-            continue
-          }
-          if (result._tag === "error") {
-            failedCount += 1
-            yield* recordFailure(target, account.id, result.message)
-            continue
-          }
-          const stored = yield* storeSource(target, result.source).pipe(
-            Effect.as(true),
+        yield* imap
+          .fetchMessageSources(
+            account,
+            targets.map((target) => {
+              return { mailboxPath: target.mailboxPath, uid: target.uid }
+            }),
+          )
+          .pipe(
+            Stream.runForEach((result) =>
+              Effect.gen(function* consumeSource() {
+                const key = prefetchKey(result)
+                const target = targetsByKey.get(key)
+                if (target === undefined) {
+                  return
+                }
+                handled.add(key)
+                if (result._tag === "error") {
+                  failedCount += 1
+                  yield* recordFailure(target, account.id, result.message)
+                  return
+                }
+                const stored = yield* storeSource(target, result.source).pipe(
+                  Effect.as(true),
+                  Effect.catch((error) =>
+                    recordFailure(target, account.id, describeError(error)).pipe(Effect.as(false)),
+                  ),
+                )
+                if (stored) {
+                  fetched += 1
+                } else {
+                  failedCount += 1
+                }
+              }),
+            ),
             Effect.catch((error) =>
-              recordFailure(target, account.id, describeError(error)).pipe(Effect.as(false)),
+              Effect.gen(function* failRemaining() {
+                const reason = describeError(error)
+                for (const target of targets) {
+                  const key = prefetchKey(target)
+                  if (handled.has(key)) {
+                    continue
+                  }
+                  failedCount += 1
+                  yield* recordFailure(target, account.id, reason)
+                }
+                yield* Effect.logWarning("body prefetch failed for an account").pipe(
+                  Effect.annotateLogs({
+                    account: account.id,
+                    messages: targets.length - handled.size,
+                    reason,
+                  }),
+                )
+              }),
             ),
           )
-          if (stored) {
-            fetched += 1
-          } else {
-            failedCount += 1
-          }
-        }
         return { fetched, failed: failedCount }
       })
 
@@ -160,23 +183,7 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
             }
             continue
           }
-          const outcome = yield* runAccount(account, rows).pipe(
-            Effect.catch((error) =>
-              Effect.gen(function* failChunk() {
-                for (const target of rows) {
-                  yield* rememberFailure(target.messageId)
-                }
-                yield* Effect.logWarning("body prefetch failed for an account").pipe(
-                  Effect.annotateLogs({
-                    account: accountId,
-                    messages: rows.length,
-                    reason: describeError(error),
-                  }),
-                )
-                return { fetched: 0, failed: rows.length }
-              }),
-            ),
-          )
+          const outcome = yield* runAccount(account, rows)
           fetched += outcome.fetched
           failedCount += outcome.failed
         }
