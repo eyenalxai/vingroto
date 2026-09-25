@@ -29,7 +29,7 @@ interface DraftsShape {
     Draft,
     AccountNotConfigured | ConfigInvalid | ConfigUnreadable | EffectDrizzleQueryError
   >
-  readonly list: () => Effect.Effect<readonly Draft[], EffectDrizzleQueryError>
+  readonly list: Effect.Effect<readonly Draft[], EffectDrizzleQueryError>
   readonly delete: (
     draftId: DraftId,
   ) => Effect.Effect<void, DraftNotFound | EffectDrizzleQueryError>
@@ -62,11 +62,9 @@ class Drafts extends Context.Service<Drafts, DraftsShape>()("@vingroto/server/li
         Effect.provideService(Database, database),
       )
 
-      const list = Effect.fn("Drafts.list")(
-        function* listStoredDrafts() {
-          return yield* listDrafts()
-        },
+      const list = listDrafts().pipe(
         Effect.provideService(Database, database),
+        Effect.withSpan("Drafts.list"),
       )
 
       const remove = Effect.fn("Drafts.delete")(

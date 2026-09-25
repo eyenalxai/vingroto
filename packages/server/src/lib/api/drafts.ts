@@ -32,7 +32,7 @@ const DraftHandlers = HttpApiBuilder.group(ServerApi, "drafts", (handlers) =>
       ),
     )
     .handle("draft.list", () =>
-      sanitizeFailure(Drafts.pipe(Effect.flatMap((drafts) => drafts.list()))),
+      sanitizeFailure(Drafts.pipe(Effect.flatMap((drafts) => drafts.list))),
     )
     .handle("draft.delete", ({ params }) =>
       Effect.catchTags(

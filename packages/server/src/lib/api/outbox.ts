@@ -36,7 +36,7 @@ const OutboxHandlers = HttpApiBuilder.group(ServerApi, "outbox", (handlers) =>
       )
     })
     .handle("outbox.list", () =>
-      sanitizeFailure(Outbox.pipe(Effect.flatMap((outbox) => outbox.list()))),
+      sanitizeFailure(Outbox.pipe(Effect.flatMap((outbox) => outbox.list))),
     )
     .handle("outbox.cancel", ({ params }) =>
       Effect.catchTags(
