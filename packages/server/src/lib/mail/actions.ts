@@ -1,6 +1,6 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
-import type { MoveOutcome, SeenOutcome } from "@vingroto/core/protocol/mail"
+import type { ActionFailure, MoveOutcome, SeenOutcome } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
 import { AppPaths } from "@vingroto/core/app-paths"
@@ -81,30 +81,52 @@ const groupByAccount = (requests: readonly MessageActionTarget[]) => {
   return groups
 }
 
-const imapFailureHandlers = (account: AccountConfig, mailboxPath: string, errors: string[]) => {
+const imapFailureHandlers = (
+  account: AccountConfig,
+  mailboxPath: string,
+  errors: ActionFailure[],
+) => {
   return {
     ImapError: (error: ImapError) =>
       Effect.sync(() => {
-        errors.push(
-          `account ${account.id} mailbox ${mailboxPath}: ${error.operation} failed: ${error.message}`,
-        )
+        errors.push({
+          _tag: "imap",
+          accountId: account.id,
+          mailboxPath,
+          operation: error.operation,
+          message: error.message,
+        })
       }),
     KeyringError: (error: KeyringError) =>
       Effect.sync(() => {
-        errors.push(
-          `account ${account.id} mailbox ${mailboxPath}: credential ${error.operation} failed: ${error.message}`,
-        )
+        errors.push({
+          _tag: "keyring",
+          accountId: account.id,
+          mailboxPath,
+          operation: error.operation,
+          message: error.message,
+        })
       }),
     CredentialNotFound: (error: CredentialNotFound) =>
       Effect.sync(() => {
-        errors.push(`account ${account.id} mailbox ${mailboxPath}: ${error.message}`)
+        errors.push({
+          _tag: "credential-missing",
+          accountId: account.id,
+          mailboxPath,
+          reference: error.reference,
+          message: error.message,
+        })
       }),
   }
 }
 
-const cacheFailure = (account: AccountConfig, error: unknown, errors: string[]) =>
+const cacheFailure = (account: AccountConfig, error: unknown, errors: ActionFailure[]) =>
   Effect.sync(() => {
-    errors.push(`account ${account.id}: could not update the local cache · ${describeError(error)}`)
+    errors.push({
+      _tag: "cache-write",
+      accountId: account.id,
+      message: describeError(error),
+    })
   })
 
 class MailActions extends Context.Service<MailActions, MailActionsShape>()(
@@ -125,7 +147,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
         seen: boolean,
       ) {
         const updated: MessageId[] = []
-        const errors: string[] = []
+        const errors: ActionFailure[] = []
         for (const group of groupByMailbox(requests)) {
           yield* imap
             .setFlags(
@@ -161,7 +183,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
       ) {
         const eligible = requests.filter((request) => request.mailboxPath !== targetPath)
         const moved: MessageId[] = []
-        const errors: string[] = []
+        const errors: ActionFailure[] = []
         for (const group of groupByMailbox(eligible)) {
           yield* imap
             .moveMessages(
@@ -196,11 +218,11 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
           const requestedIds = new Set(targets.requested.map((target) => target.messageId))
           const accounts = new Map(config.accounts.map((account) => [account.id, account]))
           let affected = 0
-          const errors: string[] = []
+          const errors: ActionFailure[] = []
           for (const [accountId, group] of groupByAccount(targets.copies)) {
             const account = accounts.get(accountId)
             if (account === undefined) {
-              errors.push(`account ${accountId} is not configured`)
+              errors.push({ _tag: "account-not-configured", accountId })
               continue
             }
             const outcome = yield* setSeen(account, group, seen)
@@ -213,7 +235,7 @@ class MailActions extends Context.Service<MailActions, MailActionsShape>()(
           }
           const missing = new Set(ids).size - targets.requested.length
           if (missing > 0) {
-            errors.push(`${missing} message(s) were not found locally`)
+            errors.push({ _tag: "messages-not-found", count: missing })
           }
           yield* events.publish({ _tag: "data-changed" })
           return { affected, errors }

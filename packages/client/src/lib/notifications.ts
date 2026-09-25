@@ -8,6 +8,6 @@ const shouldAnnounceNewMail = (
   mailbox: Mailbox,
   enabled: boolean,
 ): boolean =>
-  enabled && !mailbox.muted && mailbox.synced_at !== null && (focus === "blurred" || !visible)
+  enabled && !mailbox.muted && mailbox.syncedAt !== null && (focus === "blurred" || !visible)
 
 export { shouldAnnounceNewMail }

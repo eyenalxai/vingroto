@@ -5,18 +5,18 @@ import { MailAddress } from "../mail/address"
 
 const Mailbox = Schema.Struct({
   id: MailboxId,
-  account_id: AccountId,
+  accountId: AccountId,
   path: Schema.String,
   name: Schema.String,
   delimiter: Schema.String,
-  special_use: Schema.NullOr(Schema.String),
+  specialUse: Schema.NullOr(Schema.String),
   selectable: Schema.Boolean,
   muted: Schema.Boolean,
-  uid_validity: Schema.NullOr(Schema.Int),
-  last_seen_uid: Uid,
-  synced_at: Schema.NullOr(Schema.Int),
-  created_at: Schema.Int,
-  updated_at: Schema.Int,
+  uidValidity: Schema.NullOr(Schema.Int),
+  lastSeenUid: Uid,
+  syncedAt: Schema.NullOr(Schema.Int),
+  createdAt: Schema.Int,
+  updatedAt: Schema.Int,
 })
 
 type Mailbox = typeof Mailbox.Type
@@ -95,9 +95,56 @@ const MessageBody = Schema.Struct({
 
 type MessageBody = typeof MessageBody.Type
 
+const ActionFailure = Schema.Union([
+  Schema.TaggedStruct("imap", {
+    accountId: AccountId,
+    mailboxPath: Schema.String,
+    operation: Schema.String,
+    message: Schema.String,
+  }),
+  Schema.TaggedStruct("keyring", {
+    accountId: AccountId,
+    mailboxPath: Schema.String,
+    operation: Schema.Literals(["lookup", "store"]),
+    message: Schema.String,
+  }),
+  Schema.TaggedStruct("credential-missing", {
+    accountId: AccountId,
+    mailboxPath: Schema.String,
+    reference: Schema.String,
+    message: Schema.String,
+  }),
+  Schema.TaggedStruct("cache-write", {
+    accountId: AccountId,
+    message: Schema.String,
+  }),
+  Schema.TaggedStruct("account-not-configured", {
+    accountId: AccountId,
+  }),
+  Schema.TaggedStruct("messages-not-found", {
+    count: Schema.Int,
+  }),
+]).pipe(Schema.toTaggedUnion("_tag"))
+
+type ActionFailure = typeof ActionFailure.Type
+
+const SyncFailure = Schema.Union([
+  Schema.TaggedStruct("mailbox", {
+    accountId: AccountId,
+    mailboxPath: Schema.String,
+    message: Schema.String,
+  }),
+  Schema.TaggedStruct("sync", {
+    accountId: AccountId,
+    message: Schema.String,
+  }),
+]).pipe(Schema.toTaggedUnion("_tag"))
+
+type SyncFailure = typeof SyncFailure.Type
+
 const SeenOutcome = Schema.Struct({
   affected: Schema.Int,
-  errors: Schema.Array(Schema.String),
+  errors: Schema.Array(ActionFailure),
 })
 
 type SeenOutcome = typeof SeenOutcome.Type
@@ -105,7 +152,7 @@ type SeenOutcome = typeof SeenOutcome.Type
 const MoveOutcome = Schema.Struct({
   moved: Schema.Int,
   skipped: Schema.Int,
-  errors: Schema.Array(Schema.String),
+  errors: Schema.Array(ActionFailure),
 })
 
 type MoveOutcome = typeof MoveOutcome.Type
@@ -115,7 +162,7 @@ const SyncReport = Schema.Struct({
   mailboxes: Schema.Int,
   fetched: Schema.Int,
   stored: Schema.Int,
-  errors: Schema.Array(Schema.String),
+  errors: Schema.Array(SyncFailure),
 })
 
 type SyncReport = typeof SyncReport.Type
@@ -136,6 +183,7 @@ const SearchOutcome = Schema.Struct({
 type SearchOutcome = typeof SearchOutcome.Type
 
 export {
+  ActionFailure,
   ListScope,
   MailboxSnapshot,
   Mailbox,
@@ -147,5 +195,6 @@ export {
   MoveOutcome,
   SearchOutcome,
   SeenOutcome,
+  SyncFailure,
   SyncReport,
 }

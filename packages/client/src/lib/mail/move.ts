@@ -35,7 +35,7 @@ const resolveMoveTargets = (
   const sources = new Set(items.map((item) => item.mailboxPath))
   const candidates = mailboxes.filter(
     (mailbox) =>
-      mailbox.account_id === accountId && mailbox.selectable && !sources.has(mailbox.path),
+      mailbox.accountId === accountId && mailbox.selectable && !sources.has(mailbox.path),
   )
   if (candidates.length === 0) {
     return moveTargets.error({ message: "no other mailbox in this account" })

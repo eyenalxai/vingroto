@@ -1,5 +1,6 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { AccountId } from "@vingroto/core/ids"
+import type { Mailbox, SyncFailure, SyncReport } from "@vingroto/core/protocol/mail"
 
 import { describeError } from "@vingroto/core/errors"
 import { Uid } from "@vingroto/core/ids"
@@ -10,7 +11,6 @@ import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
 
 import type { MailboxSnapshot, MailboxWindowRequest } from "@/lib/mail/imap-types"
-import type { MailboxRow } from "@/lib/store/mailboxes"
 
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
@@ -18,14 +18,6 @@ import { Imap } from "@/lib/mail/imap"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/lib/store/mailboxes"
 import { replaceMailboxMessages, storeMessages } from "@/lib/store/messages"
-
-interface SyncReport {
-  readonly accountId: AccountId
-  readonly mailboxes: number
-  readonly fetched: number
-  readonly stored: number
-  readonly errors: readonly string[]
-}
 
 interface SyncShape {
   readonly syncMailboxes: (
@@ -35,8 +27,12 @@ interface SyncShape {
   ) => Effect.Effect<SyncReport>
 }
 
+const mailboxFailure = (accountId: AccountId, path: string, message: string): SyncFailure => {
+  return { _tag: "mailbox", accountId, mailboxPath: path, message }
+}
+
 const initialWindow = (
-  row: MailboxRow,
+  row: Mailbox,
   config: SyncConfig,
   now: DateTime.Utc,
 ): MailboxWindowRequest => {
@@ -48,20 +44,20 @@ const initialWindow = (
 }
 
 const toWindowRequest = (
-  row: MailboxRow,
+  row: Mailbox,
   config: SyncConfig,
   now: DateTime.Utc,
 ): MailboxWindowRequest => {
-  if (row.synced_at === null) {
+  if (row.syncedAt === null) {
     return initialWindow(row, config, now)
   }
-  if (row.last_seen_uid > 0) {
-    return { path: row.path, fromUid: Uid.make(row.last_seen_uid + 1), since: undefined }
+  if (row.lastSeenUid > 0) {
+    return { path: row.path, fromUid: Uid.make(row.lastSeenUid + 1), since: undefined }
   }
   // Synced before without a UID watermark: rewind a day to cover day-granular date searches.
   return {
     path: row.path,
-    since: DateTime.subtract(DateTime.makeUnsafe(row.synced_at), { days: 1 }),
+    since: DateTime.subtract(DateTime.makeUnsafe(row.syncedAt), { days: 1 }),
     fromUid: undefined,
   }
 }
@@ -93,7 +89,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
 
       const announceStored = Effect.fn("Sync.announceStored")(function* announceMailboxStored(
         account: AccountConfig,
-        row: MailboxRow,
+        row: Mailbox,
         fetched: number,
         stored: number,
         reset: boolean,
@@ -111,10 +107,10 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
 
       const storeSnapshot = Effect.fn("Sync.storeSnapshot")(function* storeSnapshot(
         account: AccountConfig,
-        row: MailboxRow,
+        row: Mailbox,
         snapshot: MailboxSnapshot,
       ) {
-        let lastSeenUid: number = row.last_seen_uid
+        let lastSeenUid: number = row.lastSeenUid
         for (const message of snapshot.messages) {
           lastSeenUid = Math.max(lastSeenUid, message.uid)
         }
@@ -143,7 +139,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
 
       const storeReplacement = Effect.fn("Sync.storeReplacement")(function* storeReplacement(
         account: AccountConfig,
-        row: MailboxRow,
+        row: Mailbox,
         snapshot: MailboxSnapshot,
       ) {
         const fetched = snapshot.messages.length
@@ -186,10 +182,10 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
           account,
           targets.map((row) => toWindowRequest(row, config, now)),
         )
-        const errors: string[] = []
-        const recreated: MailboxRow[] = []
+        const errors: SyncFailure[] = []
+        const recreated: Mailbox[] = []
         const processable: {
-          readonly row: MailboxRow
+          readonly row: Mailbox
           readonly snapshot: MailboxSnapshot
           readonly reset: boolean
         }[] = []
@@ -199,18 +195,18 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
             continue
           }
           if (result._tag === "error") {
-            errors.push(`${result.path}: ${result.message}`)
+            errors.push(mailboxFailure(account.id, result.path, result.message))
             yield* reportMailboxError(account, result.path, result.message)
             continue
           }
-          if (row.uid_validity !== null && row.uid_validity !== result.snapshot.uidValidity) {
+          if (row.uidValidity !== null && row.uidValidity !== result.snapshot.uidValidity) {
             // The server reassigned the UID space: every cached UID for this mailbox is meaningless.
             // The cached window is kept until the replacement fetch succeeds, so a failure leaves it intact.
             yield* Effect.logWarning("uid validity changed, refreshing mailbox from scratch").pipe(
               Effect.annotateLogs({
                 account: account.id,
                 mailbox: row.path,
-                previous: row.uid_validity,
+                previous: row.uidValidity,
                 current: result.snapshot.uidValidity,
               }),
             )
@@ -234,7 +230,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
               continue
             }
             if (result._tag === "error") {
-              errors.push(`${result.path}: ${result.message}`)
+              errors.push(mailboxFailure(account.id, result.path, result.message))
               yield* reportMailboxError(account, result.path, result.message)
               continue
             }
@@ -283,7 +279,8 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
               Effect.gen(function* reportFailure() {
                 const message = describeError(error)
                 yield* events.publish({ _tag: "sync-error", accountId: account.id, message })
-                return { ...emptyReport(account), errors: [message] }
+                const failure: SyncFailure = { _tag: "sync", accountId: account.id, message }
+                return { ...emptyReport(account), errors: [failure] }
               }),
             ),
             Effect.ensuring(Ref.set(busy, false)),
@@ -297,4 +294,4 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
   )
 }
 
-export { SyncEngine, type SyncReport, type SyncShape }
+export { SyncEngine, type SyncShape }

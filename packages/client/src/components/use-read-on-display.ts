@@ -9,6 +9,7 @@ import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
+import { summarizeActionFailures } from "@/lib/mail/failure-text"
 import { parseListKey } from "@/lib/mail/mailbox-tree"
 import { reconcileRows } from "@/lib/rows"
 
@@ -105,7 +106,7 @@ const useReadOnDisplay = (options: ReadOnDisplayOptions) => {
         const outcome = result.success
         if (outcome.errors.length > 0) {
           options.onStatus(
-            `marked ${outcome.affected} as read · ${outcome.errors.length} failed · ${outcome.errors[0]}`,
+            `marked ${outcome.affected} as read · ${summarizeActionFailures(outcome.errors)}`,
           )
         }
         if (outcome.affected === 0) {

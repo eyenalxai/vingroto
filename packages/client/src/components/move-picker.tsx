@@ -36,7 +36,7 @@ const MovePicker = (props: MovePickerProps) => {
 
   const filtered = createMemo(() =>
     mailboxes().filter((mailbox) =>
-      matchesQuery(`${mailbox.path} ${mailbox.name} ${mailbox.special_use ?? ""}`, query()),
+      matchesQuery(`${mailbox.path} ${mailbox.name} ${mailbox.specialUse ?? ""}`, query()),
     ),
   )
 
