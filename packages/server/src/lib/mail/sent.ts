@@ -1,5 +1,6 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { Uid } from "@vingroto/core/ids"
+import type { Mailbox } from "@vingroto/core/protocol/mail"
 import type { OutgoingMessage } from "@vingroto/core/protocol/outgoing"
 
 import { describeError } from "@vingroto/core/errors"
@@ -11,7 +12,6 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 import type { MessageEnvelope } from "@/lib/mail/imap-types"
-import type { MailboxRow } from "@/lib/store/mailboxes"
 
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
@@ -76,7 +76,7 @@ class SentCopies extends Context.Service<SentCopies, SentCopiesShape>()(
       const cacheCopy = Effect.fnUntraced(function* cacheCopy(
         account: AccountConfig,
         message: OutgoingMessage,
-        mailbox: MailboxRow,
+        mailbox: Mailbox,
         uid: Uid,
         raw: Buffer,
       ) {
@@ -100,7 +100,7 @@ class SentCopies extends Context.Service<SentCopies, SentCopiesShape>()(
           }
           const outcome = yield* Effect.gen(function* appendCopy() {
             const mailboxes = yield* listAccountMailboxes(account.id)
-            const mailbox = mailboxes.find((row) => row.special_use === sentSpecialUse)
+            const mailbox = mailboxes.find((row) => row.specialUse === sentSpecialUse)
             if (mailbox === undefined) {
               return yield* new SentMailboxMissing({
                 accountId: account.id,

@@ -9,6 +9,7 @@ import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
+import { summarizeActionFailures } from "@/lib/mail/failure-text"
 
 interface MessageActionsOptions {
   readonly runtime: AppRuntime
@@ -77,7 +78,7 @@ const useMessageActions = (options: MessageActionsOptions) => {
           options.onStatus(`marked ${outcome.affected} message(s) as ${label}`)
         } else {
           options.onStatus(
-            `marked ${outcome.affected} as ${label} · ${outcome.errors.length} failed · ${outcome.errors[0]}`,
+            `marked ${outcome.affected} as ${label} · ${summarizeActionFailures(outcome.errors)}`,
           )
         }
         if (outcome.affected > 0) {
@@ -139,7 +140,7 @@ const useMessageActions = (options: MessageActionsOptions) => {
           parts.push(`${outcome.skipped} already there`)
         }
         if (outcome.errors.length > 0) {
-          parts.push(`${outcome.errors.length} failed · ${outcome.errors[0]}`)
+          parts.push(summarizeActionFailures(outcome.errors))
         }
         options.onStatus(parts.join(" · "))
         if (outcome.moved > 0) {

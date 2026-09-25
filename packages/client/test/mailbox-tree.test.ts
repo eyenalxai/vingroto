@@ -29,18 +29,18 @@ const mailbox = (
 ): Mailbox => {
   return {
     id: MailboxId.make(id),
-    account_id: accountId,
+    accountId,
     path: mailboxPath,
     name,
     delimiter: "/",
-    special_use: null,
+    specialUse: null,
     selectable: true,
     muted,
-    uid_validity: null,
-    last_seen_uid: Uid.make(0),
-    synced_at: null,
-    created_at: 0,
-    updated_at: 0,
+    uidValidity: null,
+    lastSeenUid: Uid.make(0),
+    syncedAt: null,
+    createdAt: 0,
+    updatedAt: 0,
   }
 }
 

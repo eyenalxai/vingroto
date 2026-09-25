@@ -29,6 +29,7 @@ Inside a package, import through the `@/*` alias; `tsconfig.base.json` holds the
 - Comments only to explain a hard "why this way?"; code says what it does.
 - Implementation files live in `src/lib/`; the client's UI components live in `src/components/`.
 - Drizzle ORM only: query through the Drizzle schema, never raw SQL strings.
+- Wire payloads are camelCase; database columns stay snake_case and are mapped at the store boundary. Outcome payloads carry tagged failure structs, not display strings.
 - Migrations are generated with `bun db:generate` and validated with `bun db:check`; never write or edit a migration by hand, and never lose data.
 - Do not add tests.
 

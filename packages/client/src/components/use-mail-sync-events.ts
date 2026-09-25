@@ -43,7 +43,7 @@ const useMailSyncEvents = (options: MailSyncEventsOptions) => {
       if (event._tag === "mailbox-done" && event.stored > 0 && !event.reset) {
         const mailbox = options
           .mailboxes()
-          .find((row) => row.account_id === event.accountId && row.path === event.path)
+          .find((row) => row.accountId === event.accountId && row.path === event.path)
         if (mailbox !== undefined) {
           options.onNewMail(mailbox, listHasMailbox(target, options.searchActive(), mailbox))
         }
@@ -57,7 +57,7 @@ const useMailSyncEvents = (options: MailSyncEventsOptions) => {
         if (
           event._tag === "mailbox-done" &&
           mailbox !== undefined &&
-          event.accountId === mailbox.account_id &&
+          event.accountId === mailbox.accountId &&
           event.path === mailbox.path
         ) {
           options.onReloadCurrent()

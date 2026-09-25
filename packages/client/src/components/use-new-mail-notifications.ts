@@ -37,7 +37,7 @@ const useNewMailNotifications = (options: NewMailNotificationsOptions) => {
           }
           const accountLabel =
             options.accounts().length > 1
-              ? options.accounts().find((account) => account.id === mailbox.account_id)?.label
+              ? options.accounts().find((account) => account.id === mailbox.accountId)?.label
               : undefined
           const notification = formatNewMailNotification({
             accountLabel,

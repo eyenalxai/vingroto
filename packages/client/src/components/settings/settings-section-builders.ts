@@ -45,7 +45,7 @@ interface NotificationsSectionInput {
 const mailboxGroup = (account: AccountConfig, input: MailboxSectionInput): SettingsGroup => {
   const mailboxes = input
     .mailboxes()
-    .filter((mailbox) => mailbox.account_id === account.id && mailbox.selectable)
+    .filter((mailbox) => mailbox.accountId === account.id && mailbox.selectable)
     .toSorted((left, right) => left.path.localeCompare(right.path))
   const groupKey = `mailboxes:${account.id}`
   const unreadTotal = () => {

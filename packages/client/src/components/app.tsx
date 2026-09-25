@@ -149,14 +149,14 @@ const App = () => {
 
   createEffect(() => {
     const mailbox = store.selectedMailbox()
-    if (mailbox === undefined || mailbox.synced_at !== null) {
+    if (mailbox === undefined || mailbox.syncedAt !== null) {
       return
     }
     if (autoSyncedMailboxes.has(mailbox.id) || sync.syncing()) {
       return
     }
     autoSyncedMailboxes.add(mailbox.id)
-    sync.syncWindow([mailbox.path], mailbox.account_id)
+    sync.syncWindow([mailbox.path], mailbox.accountId)
   })
 
   return (

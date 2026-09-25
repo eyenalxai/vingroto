@@ -96,7 +96,7 @@ const listHasMailbox = (
     return target.mailboxId === mailbox.id
   }
   if (target.kind === "unread") {
-    return target.accountId === undefined || target.accountId === mailbox.account_id
+    return target.accountId === undefined || target.accountId === mailbox.accountId
   }
   return target.kind === "all"
 }
@@ -157,7 +157,7 @@ const buildMailboxTreeRows = (input: MailboxTreeInput): readonly MailboxTreeRow[
     },
   ]
   for (const account of input.accounts) {
-    const siblings = input.mailboxes.filter((row) => row.account_id === account.id)
+    const siblings = input.mailboxes.filter((row) => row.accountId === account.id)
     const folded = input.collapsed.has(account.id)
     const unread = input.accountUnread.get(account.id) ?? 0
     rows.push({
@@ -223,7 +223,7 @@ const findMailboxId = (
   accountId: AccountId,
   path: string,
 ): MailboxId | undefined =>
-  mailboxes.find((row) => row.account_id === accountId && row.path === path)?.id
+  mailboxes.find((row) => row.accountId === accountId && row.path === path)?.id
 
 const createInitialRowKeySelector = () => {
   let previousRows: readonly MailboxTreeRow[] = []

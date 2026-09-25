@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
@@ -8,8 +9,6 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 
-import type { MailboxRow } from "@/lib/store/mailboxes"
-
 import { loadConfigFile } from "@/lib/config/load"
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
@@ -18,7 +17,7 @@ import { listMessages } from "@/lib/store/messages"
 
 interface StoredMail {
   readonly account: AccountConfig
-  readonly mailbox: MailboxRow
+  readonly mailbox: Mailbox
   readonly stored: number
   readonly reset: boolean
 }
@@ -46,7 +45,7 @@ class NewMailNotifier extends Context.Service<NewMailNotifier, NewMailNotifierSh
           input.stored === 0 ||
           input.reset ||
           input.mailbox.muted ||
-          input.mailbox.synced_at === null
+          input.mailbox.syncedAt === null
         ) {
           return
         }

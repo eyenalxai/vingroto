@@ -1,5 +1,6 @@
 import type { AppConfig } from "@vingroto/core/config/schema"
 import type { AccountId } from "@vingroto/core/ids"
+import type { SyncFailure } from "@vingroto/core/protocol/mail"
 
 import { Effect } from "effect"
 import { createSignal, untrack } from "solid-js"
@@ -8,6 +9,7 @@ import type { AppRuntime } from "@/lib/runtime"
 
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
+import { formatSyncFailure } from "@/lib/mail/failure-text"
 
 interface MailSyncOptions {
   readonly runtime: AppRuntime
@@ -57,28 +59,26 @@ const useMailSyncWindow = (options: MailSyncOptions) => {
           })
           return
         }
-        const errors: string[] = []
+        const failures: SyncFailure[] = []
         let stored = 0
         for (const report of result.success) {
           stored += report.stored
-          for (const message of report.errors) {
-            errors.push(message)
-          }
+          failures.push(...report.errors)
         }
-        const failure = errors[0]
+        const first = failures[0]
         const message =
-          failure === undefined
+          first === undefined
             ? stored === 0
               ? "up to date"
               : `synced · ${stored} new`
-            : errors.length > 1
-              ? `sync failed · ${failure} (+${errors.length - 1} more)`
-              : `sync failed · ${failure}`
+            : failures.length > 1
+              ? `sync failed · ${formatSyncFailure(first)} (+${failures.length - 1} more)`
+              : `sync failed · ${formatSyncFailure(first)}`
         yield* Effect.sync(() => {
           options.onStatus(message)
         })
-        const failureMessage = errors.join(" · ")
-        yield* errors.length > 0
+        const failureMessage = failures.map((failure) => formatSyncFailure(failure)).join(" · ")
+        yield* failures.length > 0
           ? Effect.logWarning("sync failed").pipe(Effect.annotateLogs({ errors: failureMessage }))
           : Effect.logInfo("sync finished").pipe(Effect.annotateLogs({ stored }))
       }).pipe(

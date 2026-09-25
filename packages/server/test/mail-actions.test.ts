@@ -260,7 +260,7 @@ describe("MailActions.setSeenByIds", () => {
       expect(outcome.readNull).toEqual({ affected: 1, errors: [] })
       expect(callKeys(outcome.nullCalls)).toEqual([`${alpha}:INBOX:14:add`])
       expect(outcome.missing.affected).toBe(0)
-      expect(outcome.missing.errors).toEqual(["1 message(s) were not found locally"])
+      expect(outcome.missing.errors).toEqual([{ _tag: "messages-not-found", count: 1 }])
       expect(outcome.missingCalls).toEqual([])
     })
   })
