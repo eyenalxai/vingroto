@@ -38,9 +38,12 @@ const builtIns: readonly GlobalFlag.BuiltIn[] = [
 
 const main = Effect.gen(function* main() {
   const version = yield* readVersion
-  yield* Command.run(root, { version }).pipe(Effect.provide(CliConfig.layer({ builtIns })))
+  yield* Command.run(root, { version })
 })
 
-const CliLayer = Layer.merge(ServicesLayer, FetchHttpClient.layer)
+const CliLayer = Layer.merge(
+  Layer.merge(ServicesLayer, FetchHttpClient.layer),
+  CliConfig.layer({ builtIns }),
+)
 
 BunRuntime.runMain(main.pipe(Effect.provide(CliLayer)))

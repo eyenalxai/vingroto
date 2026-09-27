@@ -1,6 +1,9 @@
 import type { KeyEvent } from "@opentui/core"
 
+import { Effect, Fiber } from "effect"
 import { createSignal, onCleanup } from "solid-js"
+
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
 type LeaderAction = "add-account" | "open-settings" | "open-outbox" | "open-drafts" | "sync"
 
@@ -11,6 +14,7 @@ interface LeaderBinding {
 }
 
 interface LeaderKeyOptions {
+  readonly runtime: AppRuntime
   readonly onAction: (action: LeaderAction) => void
 }
 
@@ -35,25 +39,31 @@ const isUnmodified = (key: KeyEvent) => !key.ctrl && !key.meta && !key.option &&
 
 const useLeaderKey = (options: LeaderKeyOptions) => {
   const [active, setActive] = createSignal(false)
-  let timer: ReturnType<typeof setTimeout> | null = null
+  let timeoutFiber: Fiber.Fiber<void, AppRuntimeError> | null = null
 
   const clear = () => {
-    if (timer !== null) {
-      clearTimeout(timer)
-      timer = null
+    if (timeoutFiber !== null) {
+      options.runtime.runFork(Fiber.interrupt(timeoutFiber))
+      timeoutFiber = null
     }
     setActive(false)
   }
 
   const arm = () => {
-    if (timer !== null) {
-      clearTimeout(timer)
+    if (timeoutFiber !== null) {
+      options.runtime.runFork(Fiber.interrupt(timeoutFiber))
     }
     setActive(true)
-    timer = setTimeout(() => {
-      timer = null
-      setActive(false)
-    }, leaderTimeoutMs)
+    timeoutFiber = options.runtime.runFork(
+      Effect.sleep(leaderTimeoutMs).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            timeoutFiber = null
+            setActive(false)
+          }),
+        ),
+      ),
+    )
   }
 
   const handle = (key: KeyEvent): boolean => {

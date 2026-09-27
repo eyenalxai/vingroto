@@ -2,6 +2,7 @@ import type { ServerEvent } from "@vingroto/core/protocol/events"
 import type { ListScope } from "@vingroto/core/protocol/mail"
 import type { HttpClientError } from "effect/unstable/http"
 
+import { BunServices } from "@effect/platform-bun"
 import { AppPaths } from "@vingroto/core/app-paths"
 import { describeError } from "@vingroto/core/errors"
 import { LoggingLayer } from "@vingroto/core/logging"
@@ -277,11 +278,13 @@ const MailClientLayer = Layer.unwrap(
 
 const Logging = LoggingLayer.client.pipe(Layer.provide(ServicesLayer))
 
-// Why: the runtime exposes the mail client, its connection and the logger references only. AppPaths, FileSystem,
-// HttpClient and the rest of the Bun platform are provided to the layer and stay private to it.
+// Why: platform services are composed once at the runtime entry so components never provide layers.
 const ClientLayer = Layer.merge(
-  MailClientLayer.pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(ServicesLayer)),
-  Logging,
+  Layer.merge(
+    MailClientLayer.pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(ServicesLayer)),
+    Logging,
+  ),
+  BunServices.layer,
 )
 
 const createClientRuntime = () => ManagedRuntime.make(ClientLayer)

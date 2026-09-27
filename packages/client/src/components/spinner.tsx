@@ -1,26 +1,37 @@
+import { Effect, Fiber } from "effect"
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
 
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
+
+import { useRuntime } from "@/components/runtime-provider"
 import { useTheme } from "@/components/theme-provider"
 
 const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 const frameIntervalMs = 80
 
 const [frameIndex, setFrameIndex] = createSignal(0)
-let frameTimer: ReturnType<typeof setInterval> | null = null
+let frameFiber: Fiber.Fiber<void, AppRuntimeError> | null = null
 let frameSubscribers = 0
 
-const acquireFrameClock = () => {
-  frameSubscribers += 1
-  frameTimer ??= setInterval(() => {
-    setFrameIndex((index) => (index + 1) % frames.length)
-  }, frameIntervalMs)
+const advanceFrame = () => {
+  setFrameIndex((index) => (index + 1) % frames.length)
 }
 
-const releaseFrameClock = () => {
+const frameClock = Effect.sleep(frameIntervalMs).pipe(
+  Effect.andThen(Effect.sync(advanceFrame)),
+  Effect.forever,
+)
+
+const acquireFrameClock = (runtime: AppRuntime) => {
+  frameSubscribers += 1
+  frameFiber ??= runtime.runFork(frameClock)
+}
+
+const releaseFrameClock = (runtime: AppRuntime) => {
   frameSubscribers -= 1
-  if (frameSubscribers === 0 && frameTimer !== null) {
-    clearInterval(frameTimer)
-    frameTimer = null
+  if (frameSubscribers === 0 && frameFiber !== null) {
+    runtime.runFork(Fiber.interrupt(frameFiber))
+    frameFiber = null
   }
 }
 
@@ -31,10 +42,15 @@ interface SpinnerProps {
 
 // One shared clock drives every spinner so a long list of pending rows never schedules a timer per row.
 const Spinner = (props: SpinnerProps) => {
+  const runtime = useRuntime()
   const theme = useTheme()
   const color = () => props.color ?? theme.muted
-  onMount(acquireFrameClock)
-  onCleanup(releaseFrameClock)
+  onMount(() => {
+    acquireFrameClock(runtime)
+  })
+  onCleanup(() => {
+    releaseFrameClock(runtime)
+  })
   return (
     <box flexDirection="row" gap={1} flexShrink={0}>
       <text fg={color()}>{frames[frameIndex()] ?? frames[0]}</text>
