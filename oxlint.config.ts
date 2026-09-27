@@ -45,11 +45,27 @@ const baseRules: RuleConfig = {
   "id-length": "off",
   "no-inline-comments": "off",
   "unicorn/no-array-reduce": "error",
+  // Effect combinators share names with array and Promise methods, and these six
+  // rules match by name: `Effect.map` is read as an array iteration method,
+  // `Effect.forEach` as `Array#forEach`, and `Effect.catch` as
+  // `Promise.prototype.catch` (even its arity). No option scopes them to real
+  // arrays or promises, and the repository has no raw promise chains or array
+  // method references for them to protect, so they are disabled.
+  "unicorn/no-array-for-each": "off",
+  "unicorn/no-array-callback-reference": "off",
+  "unicorn/no-array-method-this-argument": "off",
+  "unicorn/prefer-top-level-await": "off",
+  "promise/prefer-await-to-then": "off",
+  "promise/valid-params": "off",
   "no-use-before-define": "error",
   "node/callback-return": "off", // Results in false positives
   "no-duplicate-imports": "off", // Does not work with oxfmt, yikes
   "no-void": "off",
   "typescript/explicit-member-accessibility": "off",
+  // Aligned with `effecttsgo/async-function`: arrow thunks adapt native promise
+  // APIs, so they are not forced to be `async`. Named functions and methods keep
+  // the rule.
+  "typescript/promise-function-async": ["error", { checkArrowFunctions: false }],
   complexity: "error",
   "max-classes-per-file": "off",
   "require-await": "off", // This rule is inferior to the accuracy of the type-aware typescript/require-await rule.
@@ -72,11 +88,14 @@ const baseRules: RuleConfig = {
   "new-cap": ["error", { capIsNew: false }],
   "unicorn/throw-new-error": "off",
   "one-var": ["error", "never"],
-  "arrow-body-style": ["error", "as-needed", { requireReturnForObjectLiteral: true }],
+  // Aligned with `effecttsgo/unnecessary-arrow-block`: forcing object-returning
+  // arrows into block form (`requireReturnForObjectLiteral`) was the only reason
+  // the Effect rule could not be followed. Concise object returns stay
+  // parenthesized.
+  "arrow-body-style": ["error", "as-needed"],
   "import/prefer-default-export": "off",
   "import/no-namespace": "off",
   "import/no-named-export": "off",
-  "promise/prefer-await-to-then": "error",
   "import/group-exports": "error",
   "promise/prefer-await-to-callbacks": "off",
   "node/no-process-env": "error",
@@ -93,17 +112,15 @@ const baseRules: RuleConfig = {
   "no-underscore-dangle": ["error", { allow: ["__dirname", "__filename", "_tag"] }],
 }
 
-// The Effect recommended preset and this repository's all-error categories
-// raise the diagnostics below to errors. Keep them visible as warnings because
-// they are either safe by the rule's own definition or conflict with another
-// configured rule. The `off` entries state why a rule does not fit this
-// application.
+// Effect diagnostics keep the recommended preset's warning severity unless a
+// rule needs a different one. `strict-effect-provide` reports the client entry
+// point and test harnesses that own their layers, which the rule itself calls
+// out as safe. `unnecessary-arrow-block` now asks for the same concise form that
+// `arrow-body-style` enforces at error, so it stays a warning instead of
+// duplicating the hard failure. The `off` entries state why a rule does not fit
+// this application.
 const effectRuleSeverities: RuleConfig = {
-  // The reported Effect.provide calls are the client entry point and test
-  // harnesses that own their layers, which the rule itself calls out as safe.
   "effecttsgo/strict-effect-provide": "warn",
-  // Every remaining occurrence returns an object literal, which the base
-  // arrow-body-style rule requires in block form (requireReturnForObjectLiteral).
   "effecttsgo/unnecessary-arrow-block": "warn",
 }
 
@@ -144,6 +161,15 @@ export default defineConfig({
         // for its decoded type. The rule does not distinguish the value and
         // type declaration spaces, so it reads the pair as a redeclaration.
         "no-redeclare": "off",
+      },
+    },
+    {
+      files: ["packages/*/test/**/*.{ts,tsx}"],
+      rules: {
+        // Test callbacks are native async functions that await `Effect.runPromise`;
+        // the rule's advice to model the flow with Effect values does not fit the
+        // test harness, and the tests are not rewritten for it.
+        "effecttsgo/async-function": "off",
       },
     },
   ],
