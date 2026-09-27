@@ -93,10 +93,7 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
             // An unreachable session bus must not crash the daemon through an unhandled emitter error; the calls below fail and the layer stays silent.
           })
           const proxy = yield* Effect.tryPromise({
-            try: async () => {
-              const proxyObject = await bus.getProxyObject(notificationsName, notificationsPath)
-              return proxyObject
-            },
+            try: () => bus.getProxyObject(notificationsName, notificationsPath),
             catch: (cause: unknown) =>
               new DesktopNotificationError({
                 message: "could not reach the notification service",
@@ -136,8 +133,8 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
           return
         }
         yield* Effect.tryPromise({
-          try: async () => {
-            await opened.value.proxy.Notify(
+          try: () =>
+            opened.value.proxy.Notify(
               paths.appName,
               0,
               "",
@@ -146,8 +143,7 @@ class DesktopNotifications extends Context.Service<DesktopNotifications, Desktop
               [],
               {},
               -1,
-            )
-          },
+            ),
           catch: (cause: unknown) =>
             new DesktopNotificationError({
               message: "could not send a desktop notification",

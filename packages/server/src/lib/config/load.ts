@@ -13,15 +13,13 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 
-const emptyConfig = (): AppConfig => {
-  return {
-    accounts: [],
-    sync: syncDefaults(),
-    notifications: defaultNotifications(),
-    send: defaultSend(),
-    editor: defaultEditor(),
-  }
-}
+const emptyConfig = (): AppConfig => ({
+  accounts: [],
+  sync: syncDefaults(),
+  notifications: defaultNotifications(),
+  send: defaultSend(),
+  editor: defaultEditor(),
+})
 
 class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", {
   path: Schema.String,

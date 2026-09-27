@@ -141,9 +141,7 @@ const failSession = (
   token: number,
 ) =>
   Ref.update(states, (map) =>
-    updateSession(map, normalized, entryId, key, token, (session) => {
-      return { ...session, done: true }
-    }),
+    updateSession(map, normalized, entryId, key, token, (session) => ({ ...session, done: true })),
   )
 
 const clearFetching = (
@@ -154,9 +152,10 @@ const clearFetching = (
   token: number,
 ) =>
   Ref.update(states, (map) =>
-    updateSession(map, normalized, entryId, key, token, (session) => {
-      return { ...session, fetching: undefined }
-    }),
+    updateSession(map, normalized, entryId, key, token, (session) => ({
+      ...session,
+      fetching: undefined,
+    })),
   )
 
 const touchEntry = (

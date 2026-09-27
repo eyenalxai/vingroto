@@ -115,13 +115,17 @@ const autoconfigServers = Effect.fn("Discovery.autoconfigServers")(function* det
   return {}
 })
 
-const guessImap = (domain: string): ServerConfig => {
-  return { host: `imap.${domain}`, port: 993, security: "tls" }
-}
+const guessImap = (domain: string): ServerConfig => ({
+  host: `imap.${domain}`,
+  port: 993,
+  security: "tls",
+})
 
-const guessSmtp = (domain: string): ServerConfig => {
-  return { host: `smtp.${domain}`, port: 465, security: "tls" }
-}
+const guessSmtp = (domain: string): ServerConfig => ({
+  host: `smtp.${domain}`,
+  port: 465,
+  security: "tls",
+})
 
 const describeSource = (xml: PartialServers, srv: PartialServers) => {
   if (xml.imap !== undefined && xml.smtp !== undefined) {

@@ -108,9 +108,7 @@ class MessagePrefetch extends Context.Service<MessagePrefetch, MessagePrefetchSh
         yield* imap
           .fetchMessageSources(
             account,
-            targets.map((target) => {
-              return { mailboxPath: target.mailboxPath, uid: target.uid }
-            }),
+            targets.map((target) => ({ mailboxPath: target.mailboxPath, uid: target.uid })),
           )
           .pipe(
             Stream.runForEach((result) =>

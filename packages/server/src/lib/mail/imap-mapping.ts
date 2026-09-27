@@ -27,15 +27,13 @@ const systemFlagNames: ReadonlySet<string> = new Set([
 ])
 
 const toMailboxInfos = (entries: readonly ListResponse[]): readonly MailboxInfo[] =>
-  entries.map((entry) => {
-    return {
-      path: entry.path,
-      name: entry.name,
-      delimiter: entry.delimiter,
-      specialUse: entry.specialUse,
-      selectable: !entry.flags.has(systemFlags.noSelect),
-    }
-  })
+  entries.map((entry) => ({
+    path: entry.path,
+    name: entry.name,
+    delimiter: entry.delimiter,
+    specialUse: entry.specialUse,
+    selectable: !entry.flags.has(systemFlags.noSelect),
+  }))
 
 const toMailAddresses = (
   entries: readonly MessageAddressObject[] | undefined,

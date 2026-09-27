@@ -17,7 +17,7 @@ const parseMessageSource = Effect.fn("Message.parseSource")(function* parseSourc
   source: Buffer,
 ): Effect.fn.Return<ParsedMessageSource, BodyParseError> {
   const parsed = yield* Effect.tryPromise({
-    try: async () => PostalMime.parse(source),
+    try: () => PostalMime.parse(source),
     catch: (cause: unknown) => new BodyParseError({ message: describeError(cause) }),
   })
   return {

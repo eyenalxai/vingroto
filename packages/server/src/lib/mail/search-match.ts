@@ -33,24 +33,22 @@ const headerFields = (row: MessageSearchRow) => [
   { text: row.snippet ?? "", weight: 0.6 },
 ]
 
-const toListItem = (row: MessageSearchRow): MessageListItem => {
-  return {
-    id: row.id,
-    uid: row.uid,
-    accountId: row.accountId,
-    mailboxId: row.mailboxId,
-    mailboxPath: row.mailboxPath,
-    subject: row.subject,
-    fromName: row.fromName,
-    fromAddress: row.fromAddress,
-    date: row.date,
-    seen: row.seen,
-    flagged: row.flagged,
-    size: row.size,
-    hasAttachments: row.hasAttachments,
-    snippet: row.snippet,
-  }
-}
+const toListItem = (row: MessageSearchRow): MessageListItem => ({
+  id: row.id,
+  uid: row.uid,
+  accountId: row.accountId,
+  mailboxId: row.mailboxId,
+  mailboxPath: row.mailboxPath,
+  subject: row.subject,
+  fromName: row.fromName,
+  fromAddress: row.fromAddress,
+  date: row.date,
+  seen: row.seen,
+  flagged: row.flagged,
+  size: row.size,
+  hasAttachments: row.hasAttachments,
+  snippet: row.snippet,
+})
 
 const byRank = (left: ScoredRow, right: ScoredRow) =>
   right.score - left.score ||

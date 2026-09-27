@@ -79,10 +79,7 @@ const acquireMailboxLock = (
 ) => {
   const operation = `select ${mailboxPath}`
   return Effect.tryPromise({
-    try: async () => {
-      const lock = await client.getMailboxLock(mailboxPath, { readOnly })
-      return lock
-    },
+    try: () => client.getMailboxLock(mailboxPath, { readOnly }),
     catch: (cause: unknown) => toImapError(account, operation, cause),
   }).pipe(
     Effect.timeoutOrElse({
@@ -135,7 +132,7 @@ const withMailboxLockStream = <A, E, R>(
 
 const releaseClient = Effect.fn("Imap.releaseClient")(
   function* releaseConnection(account: AccountConfig, client: ImapFlow) {
-    yield* guard(account, "logout", logoutTimeout, async () => client.logout()).pipe(
+    yield* guard(account, "logout", logoutTimeout, () => client.logout()).pipe(
       Effect.catch((error) =>
         Effect.logWarning("IMAP logout failed").pipe(
           Effect.annotateLogs({ account: account.id, reason: error.message }),

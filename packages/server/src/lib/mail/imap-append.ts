@@ -13,7 +13,7 @@ const appendToMailbox = Effect.fn("Imap.appendToMailbox")(function* append(
   source: Buffer,
   flags: readonly string[],
 ) {
-  const result = yield* guard(account, `append ${mailboxPath}`, commandTimeout, async () =>
+  const result = yield* guard(account, `append ${mailboxPath}`, commandTimeout, () =>
     client.append(mailboxPath, source, [...flags]),
   )
   return result === false || result.uid === undefined ? undefined : Uid.make(result.uid)

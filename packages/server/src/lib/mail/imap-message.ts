@@ -28,7 +28,7 @@ const readSource = Effect.fn("Imap.readSource")(function* fetchSource(
   mailboxPath: string,
   uid: Uid,
 ) {
-  const message = yield* guard(account, `fetch message ${uid}`, commandTimeout, async () =>
+  const message = yield* guard(account, `fetch message ${uid}`, commandTimeout, () =>
     client.fetchOne(uid, { source: true }, { uid: true }),
   )
   if (message === false || message === undefined || message.source === undefined) {
@@ -98,9 +98,7 @@ const groupRequestsByMailbox = (
     }
     uids.push(request.uid)
   }
-  return [...groups].map(([mailboxPath, uids]) => {
-    return { mailboxPath, uids }
-  })
+  return [...groups].map(([mailboxPath, uids]) => ({ mailboxPath, uids }))
 }
 
 export { groupRequestsByMailbox, readMailboxSources, readMessageSource }

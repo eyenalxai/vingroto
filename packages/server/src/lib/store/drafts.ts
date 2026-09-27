@@ -38,18 +38,16 @@ const toDraft = Effect.fnUntraced(function* toDraftRow(row: DraftRow) {
   }
 })
 
-const toDraftValues = (input: DraftSave) => {
-  return {
-    account_id: input.accountId,
-    to: input.to,
-    cc: input.cc,
-    bcc: input.bcc,
-    subject: input.subject,
-    body: input.body,
-    in_reply_to: input.inReplyTo ?? null,
-    references: input.references,
-  }
-}
+const toDraftValues = (input: DraftSave) => ({
+  account_id: input.accountId,
+  to: input.to,
+  cc: input.cc,
+  bcc: input.bcc,
+  subject: input.subject,
+  body: input.body,
+  in_reply_to: input.inReplyTo ?? null,
+  references: input.references,
+})
 
 const requireRow = <A>(rows: readonly A[]): Effect.Effect<A> =>
   rows[0] === undefined
@@ -89,7 +87,7 @@ const listDrafts = Effect.fn("Draft.list")(function* list(): Effect.fn.Return<
     .select()
     .from(DraftTable)
     .orderBy(desc(DraftTable.updated_at), desc(DraftTable.id))
-  return yield* Effect.all(rows.map((row) => toDraft(row)))
+  return yield* Effect.forEach(rows, (row) => toDraft(row))
 })
 
 const deleteDraft = Effect.fn("Draft.delete")(function* remove(

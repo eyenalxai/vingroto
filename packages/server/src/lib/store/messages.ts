@@ -59,14 +59,12 @@ const toEnvelopeColumns = (envelope: MessageEnvelope, now: number) => {
   }
 }
 
-const toMessageValues = (input: MessageStoreInput, envelope: MessageEnvelope, now: number) => {
-  return {
-    account_id: input.accountId,
-    mailbox_id: input.mailboxId,
-    uid: envelope.uid,
-    ...toEnvelopeColumns(envelope, now),
-  }
-}
+const toMessageValues = (input: MessageStoreInput, envelope: MessageEnvelope, now: number) => ({
+  account_id: input.accountId,
+  mailbox_id: input.mailboxId,
+  uid: envelope.uid,
+  ...toEnvelopeColumns(envelope, now),
+})
 
 const storeMessages = Effect.fn("Message.store")(function* store(input: MessageStoreInput) {
   if (input.envelopes.length === 0) {

@@ -54,28 +54,26 @@ const toEnvelope = (
   uid: Uid,
   raw: Buffer,
   now: number,
-): MessageEnvelope => {
-  return {
-    uid,
-    messageId: undefined,
-    inReplyTo: message.inReplyTo,
-    subject: message.subject,
-    from: [
-      account.name === undefined || account.name.trim().length === 0
-        ? { address: account.email }
-        : { name: account.name, address: account.email },
-    ],
-    to: message.to,
-    cc: message.cc,
-    date: now,
-    size: raw.length,
-    seen: true,
-    answered: false,
-    flagged: false,
-    draft: false,
-    keywords: [],
-  }
-}
+): MessageEnvelope => ({
+  uid,
+  messageId: undefined,
+  inReplyTo: message.inReplyTo,
+  subject: message.subject,
+  from: [
+    account.name === undefined || account.name.trim().length === 0
+      ? { address: account.email }
+      : { name: account.name, address: account.email },
+  ],
+  to: message.to,
+  cc: message.cc,
+  date: now,
+  size: raw.length,
+  seen: true,
+  answered: false,
+  flagged: false,
+  draft: false,
+  keywords: [],
+})
 
 const toAppendFailure = (account: AccountConfig, mailboxPath: string, message: string) =>
   new SentCopyAppendFailed({ accountId: account.id, mailboxPath, message })

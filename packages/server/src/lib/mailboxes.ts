@@ -18,13 +18,15 @@ const readMailboxSnapshot = Effect.fn("Mailbox.snapshot")(function* readMailboxS
   const { total, byAccount } = yield* unreadMessageCounts()
   return {
     mailboxes,
-    counts: Array.from(counts, ([mailboxId, mailboxCounts]) => {
-      return { mailboxId, counts: mailboxCounts }
-    }),
+    counts: Array.from(counts, ([mailboxId, mailboxCounts]) => ({
+      mailboxId,
+      counts: mailboxCounts,
+    })),
     unread: total,
-    accountUnread: Array.from(byAccount, ([accountId, accountUnread]) => {
-      return { accountId, unread: accountUnread }
-    }),
+    accountUnread: Array.from(byAccount, ([accountId, accountUnread]) => ({
+      accountId,
+      unread: accountUnread,
+    })),
   }
 })
 

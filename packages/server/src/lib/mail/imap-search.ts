@@ -25,9 +25,10 @@ const searchMailbox = Effect.fn("Imap.searchMailbox")(function* searchMailboxUid
     mailboxPath,
     true,
     Effect.gen(function* searchInsideMailbox() {
-      const found = yield* Effect.all(
-        terms.map((term) =>
-          guardRead(account, `search ${mailboxPath}`, commandTimeout, async () =>
+      const found = yield* Effect.forEach(
+        terms,
+        (term) =>
+          guardRead(account, `search ${mailboxPath}`, commandTimeout, () =>
             client.search(
               {
                 text: term,
@@ -37,7 +38,6 @@ const searchMailbox = Effect.fn("Imap.searchMailbox")(function* searchMailboxUid
               { uid: true },
             ),
           ),
-        ),
         { concurrency: 1 },
       )
       const sets = found.map((uids) => new Set(uids === false || uids === undefined ? [] : uids))

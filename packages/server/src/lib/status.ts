@@ -37,18 +37,16 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
   let config: ConfigState = { _tag: "empty" }
   if (exists) {
     config = yield* loadConfig().pipe(
-      Effect.map((loaded) => {
-        return {
-          _tag: "ok" as const,
-          config: {
-            accounts: [...loaded.accounts],
-            sync: loaded.sync,
-            notifications: loaded.notifications,
-            send: loaded.send,
-            editor: loaded.editor,
-          },
-        }
-      }),
+      Effect.map((loaded) => ({
+        _tag: "ok" as const,
+        config: {
+          accounts: [...loaded.accounts],
+          sync: loaded.sync,
+          notifications: loaded.notifications,
+          send: loaded.send,
+          editor: loaded.editor,
+        },
+      })),
       Effect.catchTags({
         ConfigInvalid: (error) =>
           Effect.succeed({
@@ -64,9 +62,7 @@ const readServerStatus = Effect.fn("ServerStatus.read")(function* readServerStat
     .select({ value: count() })
     .from(MailboxTable)
     .pipe(
-      Effect.map((): ServerStatus["database"] => {
-        return { _tag: "ok" }
-      }),
+      Effect.map((): ServerStatus["database"] => ({ _tag: "ok" })),
       Effect.catch((error) =>
         Effect.succeed({ _tag: "error" as const, message: describeError(error) }),
       ),

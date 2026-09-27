@@ -53,8 +53,9 @@ class Scheduler extends Context.Service<Scheduler, SchedulerShape>()(
               input.accountId === undefined
                 ? config.accounts
                 : config.accounts.filter((account) => account.id === input.accountId)
-            const reports = yield* Effect.all(
-              accounts.map((account) => sync.syncMailboxes(account, config.sync, input.paths)),
+            const reports = yield* Effect.forEach(
+              accounts,
+              (account) => sync.syncMailboxes(account, config.sync, input.paths),
               { concurrency: 1 },
             )
             yield* prefetch.unread(accounts)

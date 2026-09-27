@@ -1,5 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
-import type { FetchMessageObject, FetchQueryObject, ImapFlow } from "imapflow"
+import type { FetchQueryObject, ImapFlow } from "imapflow"
 
 import { Uid } from "@vingroto/core/ids"
 import * as DateTime from "effect/DateTime"
@@ -37,7 +37,7 @@ const collectUids = Effect.fn("Imap.collectUids")(function* collectMailboxUids(
     if (fromUid >= uidNext) {
       return []
     }
-    const found = yield* guardRead(account, `search ${request.path}`, commandTimeout, async () =>
+    const found = yield* guardRead(account, `search ${request.path}`, commandTimeout, () =>
       client.search({ uid: `${fromUid}:*` }, { uid: true }),
     )
     const uids = found === false || found === undefined ? [] : found
@@ -47,7 +47,7 @@ const collectUids = Effect.fn("Imap.collectUids")(function* collectMailboxUids(
   if (since === undefined) {
     return []
   }
-  const found = yield* guardRead(account, `search ${request.path}`, commandTimeout, async () =>
+  const found = yield* guardRead(account, `search ${request.path}`, commandTimeout, () =>
     client.search({ since: DateTime.toDateUtc(since) }, { uid: true }),
   )
   return found === false || found === undefined ? [] : found.map((uid) => Uid.make(uid))
@@ -61,13 +61,9 @@ const fetchEnvelopes = Effect.fn("Imap.fetchEnvelopes")(function* fetchMessageEn
   const messages: MessageEnvelope[] = []
   for (let index = 0; index < uids.length; index += fetchBatchSize) {
     const batch = uids.slice(index, index + fetchBatchSize)
-    const fetched = yield* guardRead(account, "fetch envelopes", commandTimeout, async () => {
-      const collected: FetchMessageObject[] = []
-      for await (const message of client.fetch(batch, envelopeQuery, { uid: true })) {
-        collected.push(message)
-      }
-      return collected
-    })
+    const fetched = yield* guardRead(account, "fetch envelopes", commandTimeout, () =>
+      Array.fromAsync(client.fetch(batch, envelopeQuery, { uid: true })),
+    )
     for (const message of fetched) {
       messages.push(toMessageEnvelope(message))
     }
