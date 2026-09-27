@@ -172,14 +172,6 @@ export default defineConfig({
         "effecttsgo/async-function": "off",
       },
     },
-    {
-      files: ["packages/client/src/main.ts"],
-      rules: {
-        // The rule cannot tell an entry point from any other provide; this file is the
-        // application entry point, the exact case the diagnostic says may disable it.
-        "effecttsgo/strict-effect-provide": "off",
-      },
-    },
   ],
   env: {
     builtin: true,

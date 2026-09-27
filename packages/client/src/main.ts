@@ -46,4 +46,6 @@ const CliLayer = Layer.merge(
   CliConfig.layer({ builtIns }),
 )
 
+// The application entry point, the one case the rule's own message says may disable.
+// oxlint-disable-next-line effecttsgo/strict-effect-provide
 BunRuntime.runMain(main.pipe(Effect.provide(CliLayer)))
