@@ -135,13 +135,9 @@ const scoreTerms = (
   terms: readonly string[],
 ): number | undefined => {
   const normalized = fields
-    .map((field) => {
-      return { text: normalizeText(field.text), weight: field.weight }
-    })
+    .map((field) => ({ text: normalizeText(field.text), weight: field.weight }))
     .filter((field) => field.text.length > 0)
-    .map((field) => {
-      return { ...field, words: wordsOf(field.text) }
-    })
+    .map((field) => ({ ...field, words: wordsOf(field.text) }))
   let total = 0
   for (const term of terms) {
     const normalizedTerm = normalizeText(term)

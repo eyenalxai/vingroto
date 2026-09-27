@@ -107,7 +107,7 @@ const connectOnce = (account: AccountConfig, username: string, password: string)
       logger: false,
       disableAutoIdle: true,
     })
-    return guard(account, "connect", connectTimeout, async () => client.connect()).pipe(
+    return guard(account, "connect", connectTimeout, () => client.connect()).pipe(
       Effect.onExit((exit) =>
         Exit.isSuccess(exit) ? Effect.void : forceCloseClient(account, client),
       ),
@@ -163,7 +163,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
           account: AccountConfig,
         ) {
           return yield* withClient(account, (client) =>
-            guardRead(account, "list mailboxes", commandTimeout, async () => client.list()).pipe(
+            guardRead(account, "list mailboxes", commandTimeout, () => client.list()).pipe(
               Effect.map((entries) => toMailboxInfos(entries)),
             ),
           )

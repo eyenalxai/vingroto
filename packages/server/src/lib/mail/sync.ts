@@ -11,15 +11,12 @@ import * as Layer from "effect/Layer"
 import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
 
-import type {
-  MailboxSnapshot,
-  MailboxWindowRequest,
-  MailboxWindowResult,
-} from "@/lib/mail/imap-types"
+import type { MailboxSnapshot, MailboxWindowResult } from "@/lib/mail/imap-types"
 
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
 import { Imap } from "@/lib/mail/imap"
+import { initialWindow, toWindowRequest } from "@/lib/mail/sync-windows"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/lib/store/mailboxes"
 import { replaceMailboxMessages, storeMessages } from "@/lib/store/messages"
@@ -32,44 +29,20 @@ interface SyncShape {
   ) => Effect.Effect<SyncReport>
 }
 
-const mailboxFailure = (accountId: AccountId, path: string, message: string): SyncFailure => {
-  return { _tag: "mailbox", accountId, mailboxPath: path, message }
-}
+const mailboxFailure = (accountId: AccountId, path: string, message: string): SyncFailure => ({
+  _tag: "mailbox",
+  accountId,
+  mailboxPath: path,
+  message,
+})
 
-const initialWindow = (
-  row: Mailbox,
-  config: SyncConfig,
-  now: DateTime.Utc,
-): MailboxWindowRequest => {
-  return {
-    path: row.path,
-    since: DateTime.subtract(now, { days: config.initialDays }),
-    fromUid: undefined,
-  }
-}
-
-const toWindowRequest = (
-  row: Mailbox,
-  config: SyncConfig,
-  now: DateTime.Utc,
-): MailboxWindowRequest => {
-  if (row.syncedAt === null) {
-    return initialWindow(row, config, now)
-  }
-  if (row.lastSeenUid > 0) {
-    return { path: row.path, fromUid: Uid.make(row.lastSeenUid + 1), since: undefined }
-  }
-  // Synced before without a UID watermark: rewind a day to cover day-granular date searches.
-  return {
-    path: row.path,
-    since: DateTime.subtract(DateTime.makeUnsafe(row.syncedAt), { days: 1 }),
-    fromUid: undefined,
-  }
-}
-
-const emptyReport = (account: AccountConfig): SyncReport => {
-  return { accountId: account.id, mailboxes: 0, fetched: 0, stored: 0, errors: [] }
-}
+const emptyReport = (account: AccountConfig): SyncReport => ({
+  accountId: account.id,
+  mailboxes: 0,
+  fetched: 0,
+  stored: 0,
+  errors: [],
+})
 
 class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
   "@vingroto/server/lib/mail/sync/SyncEngine",

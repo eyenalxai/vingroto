@@ -96,18 +96,16 @@ interface OutboxShape {
   ) => Effect.Effect<OutboxEntry, OutboxNotFound | EffectDrizzleQueryError>
 }
 
-const toOutgoingMessage = (entry: OutboxEntry): OutgoingMessage => {
-  return {
-    accountId: entry.accountId,
-    to: entry.to,
-    cc: entry.cc,
-    bcc: entry.bcc,
-    subject: entry.subject,
-    body: entry.body,
-    references: entry.references,
-    ...(entry.inReplyTo === null ? {} : { inReplyTo: entry.inReplyTo }),
-  }
-}
+const toOutgoingMessage = (entry: OutboxEntry): OutgoingMessage => ({
+  accountId: entry.accountId,
+  to: entry.to,
+  cc: entry.cc,
+  bcc: entry.bcc,
+  subject: entry.subject,
+  body: entry.body,
+  references: entry.references,
+  ...(entry.inReplyTo === null ? {} : { inReplyTo: entry.inReplyTo }),
+})
 
 class Outbox extends Context.Service<Outbox, OutboxShape>()("@vingroto/server/lib/outbox") {
   static readonly layer = Layer.effect(

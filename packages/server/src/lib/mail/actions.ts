@@ -63,9 +63,7 @@ const groupByMailbox = (requests: readonly MessageActionTarget[]): readonly Mail
     }
     bucket.push(request)
   }
-  return [...groups].map(([mailboxPath, entries]) => {
-    return { mailboxPath, requests: entries }
-  })
+  return [...groups].map(([mailboxPath, entries]) => ({ mailboxPath, requests: entries }))
 }
 
 const groupByAccount = (requests: readonly MessageActionTarget[]) => {
@@ -85,40 +83,38 @@ const imapFailureHandlers = (
   account: AccountConfig,
   mailboxPath: string,
   errors: ActionFailure[],
-) => {
-  return {
-    ImapError: (error: ImapError) =>
-      Effect.sync(() => {
-        errors.push({
-          _tag: "imap",
-          accountId: account.id,
-          mailboxPath,
-          operation: error.operation,
-          message: error.message,
-        })
-      }),
-    KeyringError: (error: KeyringError) =>
-      Effect.sync(() => {
-        errors.push({
-          _tag: "keyring",
-          accountId: account.id,
-          mailboxPath,
-          operation: error.operation,
-          message: error.message,
-        })
-      }),
-    CredentialNotFound: (error: CredentialNotFound) =>
-      Effect.sync(() => {
-        errors.push({
-          _tag: "credential-missing",
-          accountId: account.id,
-          mailboxPath,
-          reference: error.reference,
-          message: error.message,
-        })
-      }),
-  }
-}
+) => ({
+  ImapError: (error: ImapError) =>
+    Effect.sync(() => {
+      errors.push({
+        _tag: "imap",
+        accountId: account.id,
+        mailboxPath,
+        operation: error.operation,
+        message: error.message,
+      })
+    }),
+  KeyringError: (error: KeyringError) =>
+    Effect.sync(() => {
+      errors.push({
+        _tag: "keyring",
+        accountId: account.id,
+        mailboxPath,
+        operation: error.operation,
+        message: error.message,
+      })
+    }),
+  CredentialNotFound: (error: CredentialNotFound) =>
+    Effect.sync(() => {
+      errors.push({
+        _tag: "credential-missing",
+        accountId: account.id,
+        mailboxPath,
+        reference: error.reference,
+        message: error.message,
+      })
+    }),
+})
 
 const cacheFailure = (account: AccountConfig, error: unknown, errors: ActionFailure[]) =>
   Effect.sync(() => {

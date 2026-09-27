@@ -72,7 +72,7 @@ const listMailboxSearchRows = Effect.fn("Message.listSearch")(function* listSear
     .from(MessageTable)
     .innerJoin(MailboxTable, eq(MessageTable.mailbox_id, MailboxTable.id))
     .where(eq(MessageTable.mailbox_id, mailboxId))
-  return yield* Effect.all(rows.map((row) => decodeSearchRow(row)))
+  return yield* Effect.forEach(rows, (row) => decodeSearchRow(row))
 })
 
 export { listColumns, listMailboxSearchRows, searchColumns, type MessageSearchRow }

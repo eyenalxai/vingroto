@@ -113,7 +113,7 @@ const listOutboxEntries = Effect.fn("Outbox.list")(function* list(): Effect.fn.R
     .select()
     .from(OutboxTable)
     .orderBy(asc(OutboxTable.send_at), asc(OutboxTable.id))
-  return yield* Effect.all(rows.map((row) => toOutboxEntry(row)))
+  return yield* Effect.forEach(rows, (row) => toOutboxEntry(row))
 })
 
 const listDueOutboxEntries = Effect.fn("Outbox.listDue")(function* listDue(
@@ -125,7 +125,7 @@ const listDueOutboxEntries = Effect.fn("Outbox.listDue")(function* listDue(
     .from(OutboxTable)
     .where(and(eq(OutboxTable.state, "pending"), lte(OutboxTable.send_at, now)))
     .orderBy(asc(OutboxTable.send_at), asc(OutboxTable.id))
-  return yield* Effect.all(rows.map((row) => toOutboxEntry(row)))
+  return yield* Effect.forEach(rows, (row) => toOutboxEntry(row))
 })
 
 const getOutboxEntry = Effect.fn("Outbox.get")(function* get(

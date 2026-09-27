@@ -30,9 +30,7 @@ const SyncConfig = Schema.Struct({
 
 type SyncConfig = typeof SyncConfig.Type
 
-const syncDefaults = (): SyncConfig => {
-  return { initialDays: 30, intervalMinutes: 5 }
-}
+const syncDefaults = (): SyncConfig => ({ initialDays: 30, intervalMinutes: 5 })
 
 const NotificationsConfig = Schema.Struct({
   enabled: Schema.Boolean,
@@ -40,9 +38,7 @@ const NotificationsConfig = Schema.Struct({
 
 type NotificationsConfig = typeof NotificationsConfig.Type
 
-const defaultNotifications = (): NotificationsConfig => {
-  return { enabled: true }
-}
+const defaultNotifications = (): NotificationsConfig => ({ enabled: true })
 
 const SendConfig = Schema.Struct({
   delaySeconds: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -50,9 +46,7 @@ const SendConfig = Schema.Struct({
 
 type SendConfig = typeof SendConfig.Type
 
-const defaultSend = (): SendConfig => {
-  return { delaySeconds: 60 }
-}
+const defaultSend = (): SendConfig => ({ delaySeconds: 60 })
 
 const EditorConfig = Schema.Literals(["builtin", "system"])
 

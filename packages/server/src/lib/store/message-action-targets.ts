@@ -31,14 +31,12 @@ const emailActionTargetColumns = {
   headerMessageId: MessageTable.message_id,
 } as const
 
-const toActionTarget = (row: MessageActionTarget): MessageActionTarget => {
-  return {
-    accountId: row.accountId,
-    mailboxPath: row.mailboxPath,
-    messageId: row.messageId,
-    uid: row.uid,
-  }
-}
+const toActionTarget = (row: MessageActionTarget): MessageActionTarget => ({
+  accountId: row.accountId,
+  mailboxPath: row.mailboxPath,
+  messageId: row.messageId,
+  uid: row.uid,
+})
 
 const listMessageActionTargets = Effect.fn("Message.actionTargets")(function* actionTargets(
   messageIds: readonly MessageId[],

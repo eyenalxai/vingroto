@@ -40,7 +40,7 @@ const updateFlags = (
         return
       }
       const operation = `${mode === "add" ? "add" : "remove"} flags on ${mailboxPath}`
-      const accepted = yield* guard(account, operation, commandTimeout, async () =>
+      const accepted = yield* guard(account, operation, commandTimeout, () =>
         mode === "add"
           ? client.messageFlagsAdd([...uids], [...flags], { uid: true })
           : client.messageFlagsRemove([...uids], [...flags], { uid: true }),
@@ -66,7 +66,7 @@ const moveMessages = (
         return
       }
       const operation = `move ${uids.length} message(s) from ${sourcePath} to ${targetPath}`
-      const accepted = yield* guard(account, operation, commandTimeout, async () =>
+      const accepted = yield* guard(account, operation, commandTimeout, () =>
         client.messageMove([...uids], targetPath, { uid: true }),
       )
       yield* requireAccepted(account, operation, accepted !== false)

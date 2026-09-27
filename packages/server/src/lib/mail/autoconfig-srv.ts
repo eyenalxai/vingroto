@@ -36,7 +36,7 @@ const srvQuery = Effect.fn("Discovery.querySrv")(function* querySrv(
   name: string,
 ): Effect.fn.Return<readonly SrvRecord[], SrvLookupError> {
   return yield* Effect.tryPromise({
-    try: async () => resolveSrv(name),
+    try: () => resolveSrv(name),
     catch: (cause: unknown) => new SrvLookupError({ name, message: describeError(cause), cause }),
   }).pipe(
     Effect.timeoutOrElse({

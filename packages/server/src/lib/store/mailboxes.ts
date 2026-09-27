@@ -18,23 +18,21 @@ interface MailboxSyncState {
   readonly syncedAt: number | null
 }
 
-const toMailbox = (row: MailboxRow): Mailbox => {
-  return {
-    id: row.id,
-    accountId: row.account_id,
-    path: row.path,
-    name: row.name,
-    delimiter: row.delimiter,
-    specialUse: row.special_use,
-    selectable: row.selectable,
-    muted: row.muted,
-    uidValidity: row.uid_validity,
-    lastSeenUid: row.last_seen_uid,
-    syncedAt: row.synced_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }
-}
+const toMailbox = (row: MailboxRow): Mailbox => ({
+  id: row.id,
+  accountId: row.account_id,
+  path: row.path,
+  name: row.name,
+  delimiter: row.delimiter,
+  specialUse: row.special_use,
+  selectable: row.selectable,
+  muted: row.muted,
+  uidValidity: row.uid_validity,
+  lastSeenUid: row.last_seen_uid,
+  syncedAt: row.synced_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
 
 const listMailboxes = Effect.fn("Mailbox.listAll")(function* listAll() {
   const database = yield* Database

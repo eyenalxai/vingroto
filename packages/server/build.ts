@@ -4,15 +4,11 @@ import path from "node:path"
 const x11IsNotSupported: Bun.BunPlugin = {
   name: "x11-is-not-supported",
   setup(build) {
-    build.onResolve({ filter: /^x11$/u }, () => {
-      return { path: "x11", namespace: "x11-unsupported" }
-    })
-    build.onLoad({ filter: /.*/u, namespace: "x11-unsupported" }, () => {
-      return {
-        contents: 'throw new Error("x11 is not supported")',
-        loader: "js",
-      }
-    })
+    build.onResolve({ filter: /^x11$/u }, () => ({ path: "x11", namespace: "x11-unsupported" }))
+    build.onLoad({ filter: /.*/u, namespace: "x11-unsupported" }, () => ({
+      contents: 'throw new Error("x11 is not supported")',
+      loader: "js",
+    }))
   },
 }
 

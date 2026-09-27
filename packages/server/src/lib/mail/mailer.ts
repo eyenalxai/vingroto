@@ -73,17 +73,15 @@ const withTransport = <T>(
   message: SendMailOptions,
 ): Effect.Effect<T, SmtpError> =>
   Effect.tryPromise({
-    try: async (signal) => {
+    try: (signal) => {
       const close = () => {
         transport.close()
       }
       signal.addEventListener("abort", close, { once: true })
-      try {
-        return await transport.sendMail(message)
-      } finally {
+      return transport.sendMail(message).finally(() => {
         signal.removeEventListener("abort", close)
         transport.close()
-      }
+      })
     },
     catch: (cause: unknown) => toSmtpError(account, cause),
   }).pipe(

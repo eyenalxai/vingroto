@@ -116,16 +116,14 @@ const writeConfig = async (fixture: Fixture, accounts: readonly AccountConfig[])
   await writeFile(fixture.paths.config, JSON.stringify({ accounts }))
 }
 
-const accountConfig = (id: AccountId, label: string = id): AccountConfig => {
-  return {
-    id,
-    label,
-    email: id,
-    saveSent: true,
-    imap: { host: "127.0.0.1", port: 993, security: "tls" },
-    smtp: { host: "127.0.0.1", port: 465, security: "tls" },
-  }
-}
+const accountConfig = (id: AccountId, label: string = id): AccountConfig => ({
+  id,
+  label,
+  email: id,
+  saveSent: true,
+  imap: { host: "127.0.0.1", port: 993, security: "tls" },
+  smtp: { host: "127.0.0.1", port: 465, security: "tls" },
+})
 
 const mailboxId = (
   mailboxes: readonly MailboxRow[],
@@ -145,26 +143,22 @@ const seedMailboxes = Effect.fn("seedMailboxes")(function* insertMailboxes(
   const rows = yield* database.client
     .insert(MailboxTable)
     .values(
-      seeds.map((seed) => {
-        return {
-          account_id: seed.account,
-          path: seed.path,
-          name: seed.name ?? seed.path,
-          delimiter: "/",
-          special_use: seed.specialUse ?? null,
-          selectable: true,
-          muted: seed.muted ?? false,
-        }
-      }),
+      seeds.map((seed) => ({
+        account_id: seed.account,
+        path: seed.path,
+        name: seed.name ?? seed.path,
+        delimiter: "/",
+        special_use: seed.specialUse ?? null,
+        selectable: true,
+        muted: seed.muted ?? false,
+      })),
     )
     .returning({
       id: MailboxTable.id,
       account_id: MailboxTable.account_id,
       path: MailboxTable.path,
     })
-  return rows.map((row) => {
-    return { id: row.id, accountId: row.account_id, mailboxPath: row.path }
-  })
+  return rows.map((row) => ({ id: row.id, accountId: row.account_id, mailboxPath: row.path }))
 })
 
 const seedMessages = Effect.fn("seedMessages")(function* insertMessages(
@@ -180,18 +174,16 @@ const seedMessages = Effect.fn("seedMessages")(function* insertMessages(
   const rows = yield* database.client
     .insert(MessageTable)
     .values(
-      seeds.map((seed) => {
-        return {
-          account_id: seed.account,
-          mailbox_id: mailboxOf(seed.account, seed.path),
-          uid: Uid.make(seed.uid),
-          message_id: seed.messageId ?? null,
-          subject: seed.subject ?? `${seed.messageId ?? "no id"} ${seed.uid}`,
-          from_address: "sender@example.com",
-          date: seed.date ?? 1_700_000_000_000 + seed.uid * 1000,
-          seen: seed.seen ?? false,
-        }
-      }),
+      seeds.map((seed) => ({
+        account_id: seed.account,
+        mailbox_id: mailboxOf(seed.account, seed.path),
+        uid: Uid.make(seed.uid),
+        message_id: seed.messageId ?? null,
+        subject: seed.subject ?? `${seed.messageId ?? "no id"} ${seed.uid}`,
+        from_address: "sender@example.com",
+        date: seed.date ?? 1_700_000_000_000 + seed.uid * 1000,
+        seen: seed.seen ?? false,
+      })),
     )
     .returning({ id: MessageTable.id, mailbox_id: MessageTable.mailbox_id, uid: MessageTable.uid })
   const mailboxById = new Map(mailboxes.map((row) => [row.id, row]))

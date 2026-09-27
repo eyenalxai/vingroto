@@ -57,47 +57,43 @@ const isPreferredCopy = (candidate: VirtualCandidateRow, current: VirtualCandida
   return candidate.uid < current.uid
 }
 
-const toSearchRow = (row: VirtualCandidateRow): MessageSearchRow => {
-  return {
-    id: row.id,
-    uid: row.uid,
-    accountId: row.accountId,
-    mailboxId: row.mailboxId,
-    mailboxPath: row.mailboxPath,
-    subject: row.subject,
-    fromName: row.fromName,
-    fromAddress: row.fromAddress,
-    date: row.date,
-    seen: row.seen,
-    flagged: row.flagged,
-    size: row.size,
-    hasAttachments: row.hasAttachments,
-    snippet: row.snippet,
-    messageId: row.messageId,
-    to: row.to,
-    cc: row.cc,
-    bodyFetchedAt: row.bodyFetchedAt,
-  }
-}
+const toSearchRow = (row: VirtualCandidateRow): MessageSearchRow => ({
+  id: row.id,
+  uid: row.uid,
+  accountId: row.accountId,
+  mailboxId: row.mailboxId,
+  mailboxPath: row.mailboxPath,
+  subject: row.subject,
+  fromName: row.fromName,
+  fromAddress: row.fromAddress,
+  date: row.date,
+  seen: row.seen,
+  flagged: row.flagged,
+  size: row.size,
+  hasAttachments: row.hasAttachments,
+  snippet: row.snippet,
+  messageId: row.messageId,
+  to: row.to,
+  cc: row.cc,
+  bodyFetchedAt: row.bodyFetchedAt,
+})
 
-const toListItem = (row: MessageSearchRow): MessageListItem => {
-  return {
-    id: row.id,
-    uid: row.uid,
-    accountId: row.accountId,
-    mailboxId: row.mailboxId,
-    mailboxPath: row.mailboxPath,
-    subject: row.subject,
-    fromName: row.fromName,
-    fromAddress: row.fromAddress,
-    date: row.date,
-    seen: row.seen,
-    flagged: row.flagged,
-    size: row.size,
-    hasAttachments: row.hasAttachments,
-    snippet: row.snippet,
-  }
-}
+const toListItem = (row: MessageSearchRow): MessageListItem => ({
+  id: row.id,
+  uid: row.uid,
+  accountId: row.accountId,
+  mailboxId: row.mailboxId,
+  mailboxPath: row.mailboxPath,
+  subject: row.subject,
+  fromName: row.fromName,
+  fromAddress: row.fromAddress,
+  date: row.date,
+  seen: row.seen,
+  flagged: row.flagged,
+  size: row.size,
+  hasAttachments: row.hasAttachments,
+  snippet: row.snippet,
+})
 
 const representatives = (rows: readonly VirtualCandidateRow[]): readonly MessageSearchRow[] => {
   const byIdentity = new Map<string, VirtualCandidateRow>()
