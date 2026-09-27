@@ -63,6 +63,7 @@ const toMessageValues = (input: MessageStoreInput, envelope: MessageEnvelope, no
   account_id: input.accountId,
   mailbox_id: input.mailboxId,
   uid: envelope.uid,
+  created_at: now,
   ...toEnvelopeColumns(envelope, now),
 })
 

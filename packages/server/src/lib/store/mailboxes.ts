@@ -87,6 +87,7 @@ const upsertMailboxes = Effect.fn("Mailbox.upsert")(function* upsert(
             delimiter: info.delimiter,
             special_use: info.specialUse ?? null,
             selectable: info.selectable,
+            created_at: now,
             updated_at: now,
           })
           .onConflictDoUpdate({

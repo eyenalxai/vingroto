@@ -4,13 +4,8 @@ import type { MailAddress } from "@vingroto/core/mail/address"
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core"
 
 const timestamps = {
-  created_at: integer()
-    .notNull()
-    .$default(() => Date.now()),
-  updated_at: integer()
-    .notNull()
-    .$default(() => Date.now())
-    .$onUpdate(() => Date.now()),
+  created_at: integer().notNull(),
+  updated_at: integer().notNull(),
 }
 
 const MailboxTable = sqliteTable(
