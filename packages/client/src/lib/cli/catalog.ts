@@ -80,15 +80,13 @@ const buildCatalog = (): readonly CatalogOperation[] => {
         fragment: operation,
         method: requestMethod(method),
         operationId: operation.operationId,
-        parameters: operation.parameters.map((parameter) => {
-          return {
-            choices: schemaChoices(parameter.schema),
-            default: schemaDefault(parameter.schema),
-            location: parameter.in,
-            name: parameter.name,
-            required: parameter.required,
-          }
-        }),
+        parameters: operation.parameters.map((parameter) => ({
+          choices: schemaChoices(parameter.schema),
+          default: schemaDefault(parameter.schema),
+          location: parameter.in,
+          name: parameter.name,
+          required: parameter.required,
+        })),
         path,
         summary: operation.summary,
       })

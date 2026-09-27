@@ -23,9 +23,11 @@ interface MessagePaneOptions {
   readonly onDisconnected: (message: string) => void
 }
 
-const targetOf = (row: MessageListItem): MessageTarget => {
-  return { id: row.id, accountId: row.accountId, mailboxPath: row.mailboxPath }
-}
+const targetOf = (row: MessageListItem): MessageTarget => ({
+  id: row.id,
+  accountId: row.accountId,
+  mailboxPath: row.mailboxPath,
+})
 
 const useMessagePane = (options: MessagePaneOptions) => {
   const [messages, setMessages] = createSignal<readonly MessageListItem[]>([])

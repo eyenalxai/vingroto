@@ -88,15 +88,13 @@ const useComposer = (options: ComposerOptions) => {
     return editor.textarea()?.plainText ?? body()
   }
 
-  const texts = (): ComposerTexts => {
-    return {
-      to: toText(),
-      cc: ccText(),
-      bcc: bccText(),
-      subject: subject(),
-      body: bodyText(),
-    }
-  }
+  const texts = (): ComposerTexts => ({
+    to: toText(),
+    cc: ccText(),
+    bcc: bccText(),
+    subject: subject(),
+    body: bodyText(),
+  })
 
   const recipients = (): RecipientParse => parseRecipients(texts())
 

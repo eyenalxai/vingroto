@@ -70,72 +70,64 @@ const mailboxGroup = (account: AccountConfig, input: MailboxSectionInput): Setti
     toggle: () => {
       input.expansion.toggle(groupKey)
     },
-    rows: mailboxes.map((mailbox): SettingsRow => {
-      return {
-        kind: "mailbox",
-        key: `mailbox:${mailbox.id}`,
-        name: mailbox.name,
-        path: mailbox.path,
-        unread: () => input.counts().get(mailbox.id)?.unread ?? 0,
-        muted: mailbox.muted,
-        pending: () => input.mailboxMute.mutingIds().has(mailbox.id),
-        toggle: () => {
-          input.mailboxMute.toggleMute(mailbox.id, mailbox.name, mailbox.muted)
-        },
-      }
-    }),
-  }
-}
-
-const buildMailboxSection = (input: MailboxSectionInput): SettingsSection => {
-  return {
-    key: "mailboxes",
-    title: "Mailboxes",
-    groups: input.accounts().map((account) => mailboxGroup(account, input)),
-    rows: [],
-  }
-}
-
-const buildComposerSection = (input: ComposerSectionInput): SettingsSection => {
-  return {
-    key: "composer",
-    title: "Composer",
-    dirty: () => input.editorSetting.dirty(),
-    groups: [],
-    rows: [
-      {
-        kind: "choice",
-        key: "editor",
-        label: "Editor",
-        value: () =>
-          input.editorSetting.value() === "system" ? `system (${input.systemEditor()})` : "builtin",
-        cycle: (delta) => {
-          input.editorSetting.cycle(delta)
-        },
-        save: () => {
-          input.editorSetting.save()
-        },
+    rows: mailboxes.map((mailbox): SettingsRow => ({
+      kind: "mailbox",
+      key: `mailbox:${mailbox.id}`,
+      name: mailbox.name,
+      path: mailbox.path,
+      unread: () => input.counts().get(mailbox.id)?.unread ?? 0,
+      muted: mailbox.muted,
+      pending: () => input.mailboxMute.mutingIds().has(mailbox.id),
+      toggle: () => {
+        input.mailboxMute.toggleMute(mailbox.id, mailbox.name, mailbox.muted)
       },
-    ],
+    })),
   }
 }
+
+const buildMailboxSection = (input: MailboxSectionInput): SettingsSection => ({
+  key: "mailboxes",
+  title: "Mailboxes",
+  groups: input.accounts().map((account) => mailboxGroup(account, input)),
+  rows: [],
+})
+
+const buildComposerSection = (input: ComposerSectionInput): SettingsSection => ({
+  key: "composer",
+  title: "Composer",
+  dirty: () => input.editorSetting.dirty(),
+  groups: [],
+  rows: [
+    {
+      kind: "choice",
+      key: "editor",
+      label: "Editor",
+      value: () =>
+        input.editorSetting.value() === "system" ? `system (${input.systemEditor()})` : "builtin",
+      cycle: (delta) => {
+        input.editorSetting.cycle(delta)
+      },
+      save: () => {
+        input.editorSetting.save()
+      },
+    },
+  ],
+})
 
 const buildSendingSection = (input: SendingSectionInput): SettingsSection => {
-  const rows: readonly SettingsRow[] = sendFields.map((field) => {
-    return {
-      kind: "text",
-      key: `send:${field.id}`,
-      label: field.label,
-      value: () => input.sendProfile.value(field.id),
-      input: (next) => {
-        input.sendProfile.input(field.id, next)
-      },
-      placeholder: field.placeholder,
-      save: () => {
-        input.sendProfile.save()
-      },
-    }
-  })
+  const rows: readonly SettingsRow[] = sendFields.map((field) => ({
+    kind: "text",
+    key: `send:${field.id}`,
+    label: field.label,
+    value: () => input.sendProfile.value(field.id),
+    input: (next) => {
+      input.sendProfile.input(field.id, next)
+    },
+    placeholder: field.placeholder,
+    save: () => {
+      input.sendProfile.save()
+    },
+  }))
   return {
     key: "sending",
     title: "Sending",
@@ -146,21 +138,19 @@ const buildSendingSection = (input: SendingSectionInput): SettingsSection => {
 }
 
 const buildSyncSection = (input: SyncSectionInput): SettingsSection => {
-  const rows: readonly SettingsRow[] = syncFields.map((field) => {
-    return {
-      kind: "text",
-      key: `sync:${field.id}`,
-      label: field.label,
-      value: () => input.syncProfile.value(field.id),
-      input: (next) => {
-        input.syncProfile.input(field.id, next)
-      },
-      placeholder: field.placeholder,
-      save: () => {
-        input.syncProfile.save()
-      },
-    }
-  })
+  const rows: readonly SettingsRow[] = syncFields.map((field) => ({
+    kind: "text",
+    key: `sync:${field.id}`,
+    label: field.label,
+    value: () => input.syncProfile.value(field.id),
+    input: (next) => {
+      input.syncProfile.input(field.id, next)
+    },
+    placeholder: field.placeholder,
+    save: () => {
+      input.syncProfile.save()
+    },
+  }))
   return {
     key: "sync",
     title: "Sync",
@@ -170,29 +160,27 @@ const buildSyncSection = (input: SyncSectionInput): SettingsSection => {
   }
 }
 
-const buildNotificationsSection = (input: NotificationsSectionInput): SettingsSection => {
-  return {
-    key: "notifications",
-    title: "Notifications",
-    dirty: () => input.notificationsSetting.dirty(),
-    groups: [],
-    rows: [
-      {
-        kind: "toggle",
-        key: "notifications",
-        label: "Enabled",
-        value: () => input.notificationsSetting.value(),
-        toggle: () => {
-          input.notificationsSetting.toggle()
-        },
-        save: () => {
-          input.notificationsSetting.save(input.notificationsSetting.value())
-        },
-        pending: () => input.notificationsSetting.saving(),
+const buildNotificationsSection = (input: NotificationsSectionInput): SettingsSection => ({
+  key: "notifications",
+  title: "Notifications",
+  dirty: () => input.notificationsSetting.dirty(),
+  groups: [],
+  rows: [
+    {
+      kind: "toggle",
+      key: "notifications",
+      label: "Enabled",
+      value: () => input.notificationsSetting.value(),
+      toggle: () => {
+        input.notificationsSetting.toggle()
       },
-    ],
-  }
-}
+      save: () => {
+        input.notificationsSetting.save(input.notificationsSetting.value())
+      },
+      pending: () => input.notificationsSetting.saving(),
+    },
+  ],
+})
 
 export {
   buildComposerSection,

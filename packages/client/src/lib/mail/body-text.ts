@@ -40,9 +40,10 @@ const hiddenStyleFragments = [
 ]
 
 const hiddenSelectors: readonly SelectorDefinition[] = [
-  ...hiddenStyleFragments.map((fragment) => {
-    return { selector: `[style*="${fragment}" i]`, format: "skip" }
-  }),
+  ...hiddenStyleFragments.map((fragment) => ({
+    selector: `[style*="${fragment}" i]`,
+    format: "skip",
+  })),
   { selector: "[hidden]", format: "skip" },
   { selector: '[style$="opacity:0" i]', format: "skip" },
   { selector: '[style$="opacity: 0" i]', format: "skip" },
