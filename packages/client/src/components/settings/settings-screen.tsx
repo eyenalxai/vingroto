@@ -62,7 +62,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const runtime = useRuntime()
   const dimensions = useTerminalDimensions()
   const expansion = useSettingsExpansion()
-  const discard = useArmedDiscard()
+  const discard = useArmedDiscard(runtime)
   const [status, setStatus] = createSignal("")
   const [statusError, setStatusError] = createSignal(false)
   const [systemEditor, setSystemEditor] = createSignal("vi")

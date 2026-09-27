@@ -1,17 +1,20 @@
+import { Effect, Fiber } from "effect"
 import { createSignal, onCleanup } from "solid-js"
+
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
 const armDurationMs = 3000
 
 const discardMessage = "unsaved changes · esc again to discard"
 
-const useArmedDiscard = () => {
+const useArmedDiscard = (runtime: AppRuntime) => {
   const [armed, setArmed] = createSignal(false)
-  let armTimer: ReturnType<typeof setTimeout> | null = null
+  let armFiber: Fiber.Fiber<void, AppRuntimeError> | null = null
 
   const disarm = () => {
-    if (armTimer !== null) {
-      clearTimeout(armTimer)
-      armTimer = null
+    if (armFiber !== null) {
+      runtime.runFork(Fiber.interrupt(armFiber))
+      armFiber = null
     }
     setArmed(false)
   }
@@ -19,10 +22,16 @@ const useArmedDiscard = () => {
   const arm = () => {
     disarm()
     setArmed(true)
-    armTimer = setTimeout(() => {
-      armTimer = null
-      setArmed(false)
-    }, armDurationMs)
+    armFiber = runtime.runFork(
+      Effect.sleep(armDurationMs).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            armFiber = null
+            setArmed(false)
+          }),
+        ),
+      ),
+    )
   }
 
   onCleanup(disarm)

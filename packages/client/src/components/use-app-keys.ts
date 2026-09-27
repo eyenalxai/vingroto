@@ -11,6 +11,7 @@ import type { MailStore } from "@/components/use-mail-store"
 import { handleSearchKey, handleSelectionKey } from "@/components/editing-keys"
 import { useLeaderKey } from "@/components/leader-key"
 import { handleQuitKey } from "@/components/quit-key"
+import { useRuntime } from "@/components/runtime-provider"
 import { usePaneNavigation } from "@/components/use-pane-navigation"
 
 interface AppKeysOptions {
@@ -38,6 +39,7 @@ interface AppKeysOptions {
 }
 const isSearchPane = (pane: Pane) => pane === "list" || pane === "mailbox"
 const useAppKeys = (options: AppKeysOptions) => {
+  const runtime = useRuntime()
   const navigation = usePaneNavigation({
     store: options.store,
     pane: options.pane,
@@ -63,6 +65,7 @@ const useAppKeys = (options: AppKeysOptions) => {
   }
 
   const leader = useLeaderKey({
+    runtime,
     onAction: (action) => {
       if (action === "add-account") {
         options.onAddAccount()
@@ -95,17 +98,7 @@ const useAppKeys = (options: AppKeysOptions) => {
     toggleFocusedAccount,
   } = navigation
 
-  const handleSearch = (key: KeyEvent): boolean =>
-    handleSearchKey(
-      {
-        onSearchBackspace: options.onSearchBackspace,
-        onSearchClear: options.onSearchClear,
-        onSearchCommit: options.onSearchCommit,
-        onSearchType: options.onSearchType,
-        searchEditing: options.searchEditing,
-      },
-      key,
-    )
+  const handleSearch = (key: KeyEvent): boolean => handleSearchKey(options, key)
 
   const handleListActionKey = (key: KeyEvent): boolean => {
     if (viewKind() !== undefined) {
