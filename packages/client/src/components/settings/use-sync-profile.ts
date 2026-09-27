@@ -35,12 +35,10 @@ const parseWholeNumber = (value: string) => {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
-const draftFromConfig = (sync: SyncConfig): SyncDraft => {
-  return {
-    initialDays: String(sync.initialDays),
-    intervalMinutes: String(sync.intervalMinutes),
-  }
-}
+const draftFromConfig = (sync: SyncConfig): SyncDraft => ({
+  initialDays: String(sync.initialDays),
+  intervalMinutes: String(sync.intervalMinutes),
+})
 
 const draftMatchesConfig = (draft: SyncDraft, sync: SyncConfig): boolean =>
   draft.initialDays === String(sync.initialDays) &&

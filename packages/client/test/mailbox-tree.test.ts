@@ -9,16 +9,14 @@ import { buildMailboxTreeRows } from "@/lib/mail/mailbox-tree"
 const alpha = AccountId.make("alpha@example.com")
 const beta = AccountId.make("beta@example.com")
 
-const account = (id: AccountId, label: string): AccountConfig => {
-  return {
-    id,
-    label,
-    email: id,
-    saveSent: true,
-    imap: { host: "127.0.0.1", port: 993, security: "tls" },
-    smtp: { host: "127.0.0.1", port: 465, security: "tls" },
-  }
-}
+const account = (id: AccountId, label: string): AccountConfig => ({
+  id,
+  label,
+  email: id,
+  saveSent: true,
+  imap: { host: "127.0.0.1", port: 993, security: "tls" },
+  smtp: { host: "127.0.0.1", port: 465, security: "tls" },
+})
 
 const mailbox = (
   id: number,
@@ -26,23 +24,21 @@ const mailbox = (
   name: string,
   mailboxPath: string,
   muted: boolean,
-): Mailbox => {
-  return {
-    id: MailboxId.make(id),
-    accountId,
-    path: mailboxPath,
-    name,
-    delimiter: "/",
-    specialUse: null,
-    selectable: true,
-    muted,
-    uidValidity: null,
-    lastSeenUid: Uid.make(0),
-    syncedAt: null,
-    createdAt: 0,
-    updatedAt: 0,
-  }
-}
+): Mailbox => ({
+  id: MailboxId.make(id),
+  accountId,
+  path: mailboxPath,
+  name,
+  delimiter: "/",
+  specialUse: null,
+  selectable: true,
+  muted,
+  uidValidity: null,
+  lastSeenUid: Uid.make(0),
+  syncedAt: null,
+  createdAt: 0,
+  updatedAt: 0,
+})
 
 describe("buildMailboxTreeRows unread counts", () => {
   test("account rows use the distinct unread instead of the per-mailbox sum", () => {

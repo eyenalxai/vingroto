@@ -23,7 +23,7 @@ const themeQueryTimeoutMs = 1000
 
 const readInitialPalette = (renderer: CliRenderer, runtime: AppRuntime) =>
   Effect.tryPromise({
-    try: async () => renderer.getPalette({ size: 16, timeout: themeQueryTimeoutMs }),
+    try: () => renderer.getPalette({ size: 16, timeout: themeQueryTimeoutMs }),
     catch: (cause) => new StartupError({ message: "could not read the terminal palette", cause }),
   }).pipe(
     Effect.tapError((error) =>
@@ -40,7 +40,7 @@ const readInitialPalette = (renderer: CliRenderer, runtime: AppRuntime) =>
 
 const readInitialThemeMode = (renderer: CliRenderer) =>
   Effect.tryPromise({
-    try: async () => renderer.waitForThemeMode(themeQueryTimeoutMs),
+    try: () => renderer.waitForThemeMode(themeQueryTimeoutMs),
     catch: (cause) =>
       new StartupError({ message: "could not detect the terminal theme mode", cause }),
   }).pipe(Effect.orElseSucceed(() => null))
@@ -57,11 +57,11 @@ const program = Effect.gen(function* main() {
   }
   const runtime = yield* Effect.acquireRelease(
     Effect.sync(() => createClientRuntime()),
-    (value) => Effect.promise(async () => value.dispose()),
+    (value) => Effect.promise(() => value.dispose()),
   )
   const renderer = yield* Effect.acquireRelease(
     Effect.tryPromise({
-      try: async () => createCliRenderer({ exitOnCtrlC: false }),
+      try: () => createCliRenderer({ exitOnCtrlC: false }),
       catch: (cause) =>
         new StartupError({ message: "could not start the terminal renderer", cause }),
     }),
@@ -78,7 +78,7 @@ const program = Effect.gen(function* main() {
   )
   const initialMode = resolveInitialMode(detectedMode, palette)
   yield* Effect.tryPromise({
-    try: async () =>
+    try: () =>
       render(
         () => (
           <RuntimeProvider runtime={runtime}>

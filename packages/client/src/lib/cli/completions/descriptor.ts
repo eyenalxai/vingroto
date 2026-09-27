@@ -89,32 +89,28 @@ const apiDescriptor: Completions.CommandDescriptor = {
   subcommands: [describeDescriptor, listDescriptor],
 }
 
-const completionsDescriptor = (): Completions.CommandDescriptor => {
-  return {
-    name: completionsName,
-    description: completionsDescription,
-    flags: [],
-    arguments: [
-      {
-        name: "shell",
-        description: shellDescription,
-        required: true,
-        variadic: false,
-        type: { _tag: "Choice", values: shells },
-      },
-    ],
-    subcommands: [],
-  }
-}
+const completionsDescriptor = (): Completions.CommandDescriptor => ({
+  name: completionsName,
+  description: completionsDescription,
+  flags: [],
+  arguments: [
+    {
+      name: "shell",
+      description: shellDescription,
+      required: true,
+      variadic: false,
+      type: { _tag: "Choice", values: shells },
+    },
+  ],
+  subcommands: [],
+})
 
-const clientDescriptor = (): Completions.CommandDescriptor => {
-  return {
-    name: rootName,
-    description: rootDescription,
-    flags: [],
-    arguments: [],
-    subcommands: [apiDescriptor, completionsDescriptor()],
-  }
-}
+const clientDescriptor = (): Completions.CommandDescriptor => ({
+  name: rootName,
+  description: rootDescription,
+  flags: [],
+  arguments: [],
+  subcommands: [apiDescriptor, completionsDescriptor()],
+})
 
 export { clientDescriptor }

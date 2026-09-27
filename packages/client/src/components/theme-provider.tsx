@@ -46,7 +46,7 @@ const ThemeProvider = (props: {
   const refreshPalette = () => {
     renderer.clearPaletteCache()
     const program = Effect.tryPromise({
-      try: async () => renderer.getPalette({ size: 16, timeout: paletteQueryTimeoutMs }),
+      try: () => renderer.getPalette({ size: 16, timeout: paletteQueryTimeoutMs }),
       catch: (cause) => new ThemePaletteError({ message: describeError(cause) }),
     }).pipe(
       Effect.tap((palette) =>

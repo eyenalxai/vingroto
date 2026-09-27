@@ -33,9 +33,9 @@ const parseDelay = (value: string) => {
   return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed
 }
 
-const draftFromConfig = (send: SendConfig): SendDraft => {
-  return { delaySeconds: String(send.delaySeconds) }
-}
+const draftFromConfig = (send: SendConfig): SendDraft => ({
+  delaySeconds: String(send.delaySeconds),
+})
 
 const useSendProfile = (options: UseSendProfileOptions) => {
   const [draft, setDraft] = createStore<SendDraft>(draftFromConfig(options.send()))

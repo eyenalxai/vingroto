@@ -4,22 +4,20 @@ import type { AccountDraft } from "@/components/setup/form-model"
 
 import { emptyDraft } from "@/components/setup/form-model"
 
-const draftFromAccount = (account: AccountConfig, username: string | undefined): AccountDraft => {
-  return {
-    ...emptyDraft(),
-    email: account.email,
-    label: account.label,
-    name: account.name ?? "",
-    username: username ?? account.email,
-    imapHost: account.imap.host,
-    imapPort: String(account.imap.port),
-    imapSecurity: account.imap.security,
-    smtpHost: account.smtp.host,
-    smtpPort: String(account.smtp.port),
-    smtpSecurity: account.smtp.security,
-    saveSent: account.saveSent,
-  }
-}
+const draftFromAccount = (account: AccountConfig, username: string | undefined): AccountDraft => ({
+  ...emptyDraft(),
+  email: account.email,
+  label: account.label,
+  name: account.name ?? "",
+  username: username ?? account.email,
+  imapHost: account.imap.host,
+  imapPort: String(account.imap.port),
+  imapSecurity: account.imap.security,
+  smtpHost: account.smtp.host,
+  smtpPort: String(account.smtp.port),
+  smtpSecurity: account.smtp.security,
+  saveSent: account.saveSent,
+})
 
 const draftsMatch = (left: AccountDraft, right: AccountDraft): boolean =>
   left.email === right.email &&

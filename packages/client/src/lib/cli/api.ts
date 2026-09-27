@@ -27,14 +27,12 @@ interface ListEntry {
 }
 
 const listEntries = (): readonly ListEntry[] =>
-  operations.map((operation) => {
-    return {
-      method: operation.method,
-      operationId: operation.operationId,
-      path: operation.path,
-      summary: operation.summary ?? null,
-    }
-  })
+  operations.map((operation) => ({
+    method: operation.method,
+    operationId: operation.operationId,
+    path: operation.path,
+    summary: operation.summary ?? null,
+  }))
 
 const describeEntry = (operation: CatalogOperation) => {
   const { description, parameters, requestBody, responses, summary } = operation.fragment
@@ -132,9 +130,7 @@ const apiCommand = Command.make(
         return yield* writeJson(listEntries())
       }
       const path = Option.getOrUndefined(config.path)
-      const params = Option.getOrElse(config.param, () => {
-        return {}
-      })
+      const params = Option.getOrElse(config.param, () => ({}))
       const data = Option.getOrUndefined(config.data)
       const request = yield* resolveTarget(operation, path, params, data !== undefined)
       const body = data === undefined ? undefined : yield* resolveBody(data)

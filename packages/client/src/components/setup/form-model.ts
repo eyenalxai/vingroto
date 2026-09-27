@@ -99,22 +99,20 @@ const securityOrder: readonly Security[] = ["tls", "starttls", "none"]
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u
 
-const emptyDraft = (): AccountDraft => {
-  return {
-    email: "",
-    password: "",
-    label: "",
-    name: "",
-    username: "",
-    imapHost: "",
-    imapPort: "",
-    imapSecurity: "tls",
-    smtpHost: "",
-    smtpPort: "",
-    smtpSecurity: "tls",
-    saveSent: true,
-  }
-}
+const emptyDraft = (): AccountDraft => ({
+  email: "",
+  password: "",
+  label: "",
+  name: "",
+  username: "",
+  imapHost: "",
+  imapPort: "",
+  imapSecurity: "tls",
+  smtpHost: "",
+  smtpPort: "",
+  smtpSecurity: "tls",
+  saveSent: true,
+})
 
 const isServerField = (id: FieldId) =>
   id === "imapHost" ||

@@ -204,22 +204,20 @@ const accountGroup = (account: AccountConfig, input: AccountSectionInput): Setti
   }
 }
 
-const buildAccountSection = (input: AccountSectionInput): SettingsSection => {
-  return {
-    key: "accounts",
-    title: "Accounts",
-    dirty: () => input.accountProfile.dirtyAny(),
-    groups: input.accounts().map((account) => accountGroup(account, input)),
-    rows: [
-      {
-        kind: "action",
-        key: "add-account",
-        label: "+ Add account",
-        run: input.onAddAccount,
-      },
-    ],
-  }
-}
+const buildAccountSection = (input: AccountSectionInput): SettingsSection => ({
+  key: "accounts",
+  title: "Accounts",
+  dirty: () => input.accountProfile.dirtyAny(),
+  groups: input.accounts().map((account) => accountGroup(account, input)),
+  rows: [
+    {
+      kind: "action",
+      key: "add-account",
+      label: "+ Add account",
+      run: input.onAddAccount,
+    },
+  ],
+})
 
 export {
   buildAccountSection,

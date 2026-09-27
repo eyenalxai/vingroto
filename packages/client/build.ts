@@ -11,9 +11,9 @@ const completionsDirectory = path.join(import.meta.dirname, "completions")
 
 await mkdir(completionsDirectory, { recursive: true })
 await Promise.all(
-  shells.map(async (shell) => {
-    await Bun.write(path.join(completionsDirectory, completionFileNames[shell]), scriptFor(shell))
-  }),
+  shells.map((shell) =>
+    Bun.write(path.join(completionsDirectory, completionFileNames[shell]), scriptFor(shell)),
+  ),
 )
 
 const result = await Bun.build({

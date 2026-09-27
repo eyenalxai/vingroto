@@ -203,7 +203,7 @@ const resolveTarget = Effect.fnUntraced(function* resolveTarget(
 const resolveBody = Effect.fnUntraced(function* resolveBody(data: string) {
   if (data === "-") {
     return yield* Effect.tryPromise({
-      try: async () => new Response(Bun.stdin).text(),
+      try: () => new Response(Bun.stdin).text(),
       catch: (cause) =>
         new UsageError({
           message: `could not read the request body from stdin: ${describeError(cause)}`,
