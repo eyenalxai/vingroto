@@ -2,7 +2,6 @@ import type { TextareaRenderable } from "@opentui/core"
 import type { EditorConfig } from "@vingroto/core/config/schema"
 import type { Setter } from "solid-js"
 
-import { BunServices } from "@effect/platform-bun"
 import { useRenderer } from "@opentui/solid"
 import { Effect } from "effect"
 import { createEffect, createSignal } from "solid-js"
@@ -61,8 +60,7 @@ const useComposerEditor = (options: ComposerEditorOptions) => {
       ),
       Effect.ignore,
     )
-    // The runtime keeps platform services private, so the external editor brings its own Bun layer.
-    options.runtime.runFork(program.pipe(Effect.provide(BunServices.layer)))
+    options.runtime.runFork(program)
   }
 
   return { editExternally, setTextarea, textarea }
