@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test"
 import { eq } from "drizzle-orm"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as ManagedRuntime from "effect/ManagedRuntime"
 import * as Stream from "effect/Stream"
 
 import type { FlagMode } from "@/lib/mail/imap-types"
@@ -78,14 +79,15 @@ const makeHarness = async (): Promise<Harness> => {
   const calls: StoreCall[] = []
   const services = Layer.mergeAll(fixture.layers, recordStores(calls), ServerEvents.layer)
   const layers = Layer.merge(services, MailActions.layer.pipe(Layer.provide(services)))
+  const runtime = ManagedRuntime.make(layers)
   return {
     calls,
-    cleanup: fixture.cleanup,
-    fixture,
-    run: async (program) => {
-      const result = await Effect.runPromise(Effect.provide(program, layers))
-      return result
+    cleanup: async () => {
+      await runtime.dispose()
+      await fixture.cleanup()
     },
+    fixture,
+    run: (program) => runtime.runPromise(program),
   }
 }
 

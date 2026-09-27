@@ -5,9 +5,11 @@ import type { AccountId, MailboxId, MessageId } from "@vingroto/core/ids"
 import { BunServices } from "@effect/platform-bun"
 import { AppPaths } from "@vingroto/core/app-paths"
 import { Uid } from "@vingroto/core/ids"
+import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Logger from "effect/Logger"
+import * as ManagedRuntime from "effect/ManagedRuntime"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -90,16 +92,15 @@ const makeFixture = async (): Promise<Fixture> => {
     platform,
     Database.layer.pipe(Layer.provide(platform)),
   )
+  const runtime = ManagedRuntime.make(layers)
   return {
     paths,
     layers,
     cleanup: async () => {
+      await runtime.dispose()
       await rm(root, { force: true, recursive: true })
     },
-    run: async (program) => {
-      const result = await Effect.runPromise(Effect.provide(program, layers))
-      return result
-    },
+    run: (program) => runtime.runPromise(program),
   }
 }
 
@@ -140,6 +141,7 @@ const seedMailboxes = Effect.fn("seedMailboxes")(function* insertMailboxes(
   seeds: readonly MailboxSeed[],
 ) {
   const database = yield* Database
+  const now = yield* Clock.currentTimeMillis
   const rows = yield* database.client
     .insert(MailboxTable)
     .values(
@@ -151,6 +153,8 @@ const seedMailboxes = Effect.fn("seedMailboxes")(function* insertMailboxes(
         special_use: seed.specialUse ?? null,
         selectable: true,
         muted: seed.muted ?? false,
+        created_at: now,
+        updated_at: now,
       })),
     )
     .returning({
@@ -166,6 +170,7 @@ const seedMessages = Effect.fn("seedMessages")(function* insertMessages(
   seeds: readonly MessageSeed[],
 ) {
   const database = yield* Database
+  const now = yield* Clock.currentTimeMillis
   const ids = new Map(mailboxes.map((row) => [`${row.accountId}\u0000${row.mailboxPath}`, row.id]))
   const mailboxOf = (account: AccountId, mailboxPath: string): MailboxId => {
     const id = ids.get(`${account}\u0000${mailboxPath}`)
@@ -183,6 +188,8 @@ const seedMessages = Effect.fn("seedMessages")(function* insertMessages(
         from_address: "sender@example.com",
         date: seed.date ?? 1_700_000_000_000 + seed.uid * 1000,
         seen: seed.seen ?? false,
+        created_at: now,
+        updated_at: now,
       })),
     )
     .returning({ id: MessageTable.id, mailbox_id: MessageTable.mailbox_id, uid: MessageTable.uid })
