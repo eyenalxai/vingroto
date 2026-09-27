@@ -14,7 +14,7 @@ interface ServerEventsShape {
   readonly publish: (event: ServerEvent) => Effect.Effect<void>
   readonly stream: Stream.Stream<ServerEvent>
   readonly subscribers: Effect.Effect<number>
-  readonly shutdown: () => Effect.Effect<void>
+  readonly shutdown: Effect.Effect<void>
 }
 
 class ServerEvents extends Context.Service<ServerEvents, ServerEventsShape>()(
@@ -36,9 +36,7 @@ class ServerEvents extends Context.Service<ServerEvents, ServerEventsShape>()(
         ).pipe(Effect.as(Stream.fromPubSub(pubsub))),
       )
       // Shutting the bus down ends open event streams so the HTTP server can close its SSE responses.
-      const shutdown = Effect.fnUntraced(function* shutdownEvents() {
-        yield* PubSub.shutdown(pubsub)
-      })
+      const shutdown = PubSub.shutdown(pubsub)
       return ServerEvents.of({ publish, stream, subscribers: Ref.get(subscribers), shutdown })
     }),
   )

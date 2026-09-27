@@ -92,6 +92,7 @@ const insertOutboxEntry = Effect.fn("Outbox.insert")(function* insert(
           in_reply_to: input.inReplyTo,
           references: input.references,
           send_at: input.sendAt,
+          created_at: now,
           updated_at: now,
         })
         .returning()

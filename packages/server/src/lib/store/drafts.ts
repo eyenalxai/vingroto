@@ -64,11 +64,11 @@ const saveDraft = Effect.fn("Draft.save")(function* save(
     draftId === undefined
       ? yield* database.client
           .insert(DraftTable)
-          .values({ ...toDraftValues(input), updated_at: now })
+          .values({ ...toDraftValues(input), created_at: now, updated_at: now })
           .returning()
       : yield* database.client
           .insert(DraftTable)
-          .values({ id: draftId, ...toDraftValues(input), updated_at: now })
+          .values({ id: draftId, ...toDraftValues(input), created_at: now, updated_at: now })
           .onConflictDoUpdate({
             target: DraftTable.id,
             set: { ...toDraftValues(input), updated_at: now },
