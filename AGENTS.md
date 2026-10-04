@@ -31,7 +31,7 @@ Inside a package, import through the `@/*` alias; `tsconfig.base.json` holds the
 - Drizzle ORM only: query through the Drizzle schema, never raw SQL strings.
 - Wire payloads are camelCase; database columns stay snake_case and are mapped at the store boundary. Outcome payloads carry tagged failure structs, not display strings.
 - Migrations are generated with `bun db:generate` and validated with `bun db:check`; never write or edit a migration by hand, and never lose data.
-- Do not add tests.
+- Tests are welcome when they are meaningful: cover real behaviour and failure modes, not implementation restatements or trivial wiring. Never add a test just to raise a number.
 
 ### Effect
 
