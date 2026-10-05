@@ -121,6 +121,7 @@ const accountConfig = (id: AccountId, label: string = id): AccountConfig => ({
   id,
   label,
   email: id,
+  auth: "password",
   saveSent: true,
   imap: { host: "127.0.0.1", port: 993, security: "tls" },
   smtp: { host: "127.0.0.1", port: 465, security: "tls" },

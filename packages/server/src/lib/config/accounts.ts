@@ -1,4 +1,4 @@
-import type { AccountConfig, AppConfig } from "@vingroto/core/config/schema"
+import type { AccountConfig, AppConfig, AuthMethod } from "@vingroto/core/config/schema"
 import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
 import type * as FileSystem from "effect/FileSystem"
 
@@ -18,6 +18,10 @@ class AccountNotFound extends Schema.TaggedError<AccountNotFound>()("AccountNotF
 }) {}
 
 class AccountOrderInvalid extends Schema.TaggedError<AccountOrderInvalid>()("AccountOrderInvalid", {
+  message: Schema.String,
+}) {}
+
+class AccountAuthInvalid extends Schema.TaggedError<AccountAuthInvalid>()("AccountAuthInvalid", {
   message: Schema.String,
 }) {}
 
@@ -41,31 +45,67 @@ const upsertAccount = (config: AppConfig, account: AccountConfig): AppConfig => 
   return { ...config, accounts }
 }
 
+const authMethod = (input: AccountSave): AuthMethod => input.auth ?? "password"
+
+const authError = (
+  email: string,
+  auth: AuthMethod,
+  input: AccountSave,
+  requirePassword: boolean,
+): AccountAuthInvalid | undefined => {
+  if (auth === "oauth2" && input.oauth === undefined) {
+    return new AccountAuthInvalid({
+      message: `${email} uses oauth2 authentication without oauth settings`,
+    })
+  }
+  if (auth === "password" && requirePassword && input.password === undefined) {
+    return new AccountAuthInvalid({
+      message: `${email} uses password authentication without a password`,
+    })
+  }
+  return undefined
+}
+
+const buildAccountConfig = (
+  id: AccountId,
+  email: string,
+  auth: AuthMethod,
+  input: AccountSave,
+): AccountConfig => ({
+  id,
+  label: input.label,
+  email,
+  auth,
+  ...(auth === "oauth2" && input.oauth !== undefined ? { oauth: input.oauth } : {}),
+  saveSent: input.saveSent,
+  imap: input.imap,
+  smtp: input.smtp,
+  ...(input.name === undefined ? {} : { name: input.name }),
+})
+
 const storeCredentials = Effect.fnUntraced(function* storeAccountCredentials(
   credential: Credential["Service"],
   id: AccountId,
+  auth: AuthMethod,
   input: AccountSave,
 ) {
   yield* credential.set(usernameReference(id), input.username)
-  if (input.password !== undefined) {
+  if (auth === "password" && input.password !== undefined) {
     yield* credential.set(passwordReference(id), input.password)
   }
 })
 
 const makeSubmitAccount = (deps: AccountWriteDeps) =>
   Effect.fn("Account.submit")(function* persistAccount(input: NewAccount) {
+    const auth = authMethod(input)
+    const invalid = authError(input.email, auth, input, true)
+    if (invalid !== undefined) {
+      return yield* invalid
+    }
     const config = yield* loadConfigFile(deps.configPath, deps.fs)
     const id = resolveAccountId(config.accounts, input.email)
-    const account: AccountConfig = {
-      id,
-      label: input.label,
-      email: input.email,
-      saveSent: input.saveSent,
-      imap: input.imap,
-      smtp: input.smtp,
-      ...(input.name === undefined ? {} : { name: input.name }),
-    }
-    yield* storeCredentials(deps.credential, id, input)
+    const account = buildAccountConfig(id, input.email, auth, input)
+    yield* storeCredentials(deps.credential, id, auth, input)
     yield* saveConfigFile(deps.configPath, deps.fs, upsertAccount(config, account))
     yield* Effect.logInfo("account saved").pipe(
       Effect.annotateLogs({ account: id, email: input.email }),
@@ -80,16 +120,13 @@ const makeUpdateAccount = (deps: AccountWriteDeps) =>
     if (existing === undefined) {
       return yield* new AccountNotFound({ id, message: `account ${id} is not configured` })
     }
-    const account: AccountConfig = {
-      id: existing.id,
-      label: input.label,
-      email: existing.email,
-      saveSent: input.saveSent,
-      imap: input.imap,
-      smtp: input.smtp,
-      ...(input.name === undefined ? {} : { name: input.name }),
+    const auth = authMethod(input)
+    const invalid = authError(existing.email, auth, input, existing.auth === "oauth2")
+    if (invalid !== undefined) {
+      return yield* invalid
     }
-    yield* storeCredentials(deps.credential, id, input)
+    const account = buildAccountConfig(existing.id, existing.email, auth, input)
+    yield* storeCredentials(deps.credential, id, auth, input)
     yield* saveConfigFile(deps.configPath, deps.fs, upsertAccount(config, account))
     yield* Effect.logInfo("account updated").pipe(
       Effect.annotateLogs({ account: id, email: existing.email }),
@@ -129,6 +166,7 @@ const makeReorderAccounts = (configPath: string, fs: FileSystem.FileSystem) =>
   })
 
 export {
+  AccountAuthInvalid,
   AccountNotFound,
   AccountOrderInvalid,
   makeReorderAccounts,

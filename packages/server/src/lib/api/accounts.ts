@@ -33,6 +33,8 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
       Effect.catchTags(
         Accounts.pipe(Effect.flatMap((accounts) => accounts.create(payload))),
         {
+          AccountAuthInvalid: (error) =>
+            Effect.fail(new InvalidRequestError({ message: error.message })),
           CredentialNotFound: (error) =>
             Effect.fail(new CredentialsError({ message: error.message })),
           KeyringError: credentialStoreFailure,
@@ -52,6 +54,8 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
         {
           AccountNotFound: (error) =>
             Effect.fail(new AccountNotFoundError({ accountId: error.id, message: error.message })),
+          AccountAuthInvalid: (error) =>
+            Effect.fail(new InvalidRequestError({ message: error.message })),
           CredentialNotFound: (error) =>
             Effect.fail(new CredentialsError({ message: error.message })),
           KeyringError: credentialStoreFailure,

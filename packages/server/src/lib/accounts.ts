@@ -9,7 +9,11 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 
-import type { AccountNotFound, AccountOrderInvalid } from "@/lib/config/accounts"
+import type {
+  AccountAuthInvalid,
+  AccountNotFound,
+  AccountOrderInvalid,
+} from "@/lib/config/accounts"
 import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
 import type { ConfigWriteError } from "@/lib/config/save"
 import type { KeyringError } from "@/lib/credential/keyring"
@@ -21,7 +25,12 @@ import { Credential } from "@/lib/credential/service"
 import { ServerEvents } from "@/lib/events"
 import { Scheduler } from "@/lib/scheduler"
 
-type AccountWriteError = ConfigInvalid | ConfigUnreadable | ConfigWriteError | CredentialError
+type AccountWriteError =
+  | AccountAuthInvalid
+  | ConfigInvalid
+  | ConfigUnreadable
+  | ConfigWriteError
+  | CredentialError
 
 interface AccountsShape {
   readonly create: (input: NewAccount) => Effect.Effect<AccountConfig, AccountWriteError>

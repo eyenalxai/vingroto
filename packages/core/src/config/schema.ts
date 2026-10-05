@@ -11,15 +11,34 @@ const ServerConfig = Schema.Struct({
 
 type ServerConfig = typeof ServerConfig.Type
 
+const AuthMethod = Schema.Literals(["password", "oauth2"])
+
+type AuthMethod = typeof AuthMethod.Type
+
+const OAuthConfig = Schema.Struct({
+  provider: Schema.Literal("gmail"),
+  clientId: Schema.String,
+})
+
+type OAuthConfig = typeof OAuthConfig.Type
+
 const AccountConfig = Schema.Struct({
   id: AccountId,
   label: Schema.String,
   name: Schema.optionalKey(Schema.String),
   email: Schema.String,
+  auth: AuthMethod.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed("password"))),
+  oauth: Schema.optionalKey(OAuthConfig),
   saveSent: Schema.Boolean.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(true))),
   imap: ServerConfig,
   smtp: ServerConfig,
-})
+}).check(
+  Schema.makeFilter((account) =>
+    account.auth === "oauth2" && account.oauth === undefined
+      ? { path: ["oauth"], issue: "oauth settings are required when auth is oauth2" }
+      : undefined,
+  ),
+)
 
 type AccountConfig = typeof AccountConfig.Type
 
@@ -75,11 +94,13 @@ export {
   AccountConfig,
   AppConfig,
   AppConfigFile,
+  AuthMethod,
   defaultEditor,
   defaultNotifications,
   defaultSend,
   EditorConfig,
   NotificationsConfig,
+  OAuthConfig,
   SendConfig,
   ServerConfig,
   SyncConfig,

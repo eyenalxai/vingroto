@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
-import { AppConfig, ServerConfig } from "../config/schema"
+import { AppConfig, AuthMethod, OAuthConfig, ServerConfig } from "../config/schema"
 
 const AccountSave = Schema.Struct({
   label: Schema.String,
@@ -9,6 +9,8 @@ const AccountSave = Schema.Struct({
   saveSent: Schema.Boolean.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(true))),
   imap: ServerConfig,
   smtp: ServerConfig,
+  auth: Schema.optionalKey(AuthMethod),
+  oauth: Schema.optionalKey(OAuthConfig),
   username: Schema.String,
   password: Schema.optionalKey(Schema.String),
 })
@@ -18,7 +20,7 @@ type AccountSave = typeof AccountSave.Type
 const NewAccount = Schema.Struct({
   ...AccountSave.fields,
   email: Schema.String,
-  password: Schema.String,
+  password: Schema.optionalKey(Schema.String),
 })
 
 type NewAccount = typeof NewAccount.Type

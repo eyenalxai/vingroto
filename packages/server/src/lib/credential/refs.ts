@@ -4,4 +4,15 @@ const usernameReference = (accountId: AccountId) => `account:${accountId}:userna
 
 const passwordReference = (accountId: AccountId) => `account:${accountId}:password`
 
-export { passwordReference, usernameReference }
+const oauthClientSecretReference = (accountId: AccountId) =>
+  `account:${accountId}:oauth-client-secret`
+
+const oauthRefreshTokenReference = (accountId: AccountId) =>
+  `account:${accountId}:oauth-refresh-token`
+
+export {
+  oauthClientSecretReference,
+  oauthRefreshTokenReference,
+  passwordReference,
+  usernameReference,
+}
