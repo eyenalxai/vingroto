@@ -3,7 +3,7 @@ import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 
 import { AccountConfig } from "../../config/schema"
 import { AccountId } from "../../ids"
-import { AccountSave, DiscoveryResult, NewAccount } from "../accounts"
+import { AccountSave, DiscoveryResult, NewAccount, OAuthAuthorize } from "../accounts"
 import {
   AccountNotFoundError,
   CredentialsError,
@@ -32,6 +32,23 @@ const create = HttpApiEndpoint.post("account.create", "/api/accounts", {
     identifier: "account.create",
     summary: "Create account",
     description: "Create a new account from its configuration.",
+  }),
+)
+
+const authorizeOAuth = HttpApiEndpoint.post(
+  "account.oauth.authorize",
+  "/api/accounts/oauth/authorize",
+  {
+    payload: OAuthAuthorize,
+    success: Schema.Void,
+    error: [InvalidRequestError, CredentialsError, InternalError],
+  },
+).annotateMerge(
+  OpenApi.annotations({
+    identifier: "account.oauth.authorize",
+    summary: "Authorize an account with Google",
+    description:
+      "Run the Google sign-in flow and store the refresh token and client secret for the account.",
   }),
 )
 
@@ -72,6 +89,13 @@ const username = HttpApiEndpoint.get("account.username", "/api/accounts/:account
   }),
 )
 
-const AccountGroup = HttpApiGroup.make("accounts").add(discover, create, update, reorder, username)
+const AccountGroup = HttpApiGroup.make("accounts").add(
+  discover,
+  create,
+  authorizeOAuth,
+  update,
+  reorder,
+  username,
+)
 
 export { AccountGroup }

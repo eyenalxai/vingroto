@@ -1,3 +1,4 @@
+import type { OAuthAuthorize } from "@vingroto/core/protocol/accounts"
 import type { ServerEvent } from "@vingroto/core/protocol/events"
 import type { ListScope } from "@vingroto/core/protocol/mail"
 import type { HttpClientError } from "effect/unstable/http"
@@ -166,6 +167,8 @@ const MailClientLayer = Layer.unwrap(
         ),
       )
 
+    const authorizeAccount = (input: OAuthAuthorize) =>
+      clientMethod("authorizeAccount", api.accounts["account.oauth.authorize"]({ payload: input }))
     const mailClient = MailClient.of({
       accountUsername: (id) =>
         readMethod(
@@ -174,6 +177,7 @@ const MailClientLayer = Layer.unwrap(
             Effect.map((username) => Option.fromNullOr(username)),
           ),
         ),
+      authorizeAccount,
       cancelOutbox: (outboxId) =>
         clientMethod("cancelOutbox", api.outbox["outbox.cancel"]({ params: { outboxId } })),
       createAccount: (input) =>

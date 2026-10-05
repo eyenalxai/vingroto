@@ -10,6 +10,7 @@ import type {
   AccountSave,
   DiscoveryResult,
   NewAccount,
+  OAuthAuthorize,
   ServerStatus,
 } from "@vingroto/core/protocol/accounts"
 import type {
@@ -110,6 +111,7 @@ interface MailClientShape {
   ) => Effect.Effect<void, MailClientError>
   readonly sync: (request: SyncRequest) => Effect.Effect<readonly SyncReport[], MailClientError>
   readonly discover: (email: string) => Effect.Effect<DiscoveryResult, MailClientError>
+  readonly authorizeAccount: (input: OAuthAuthorize) => Effect.Effect<void, MailClientError>
   readonly createAccount: (input: NewAccount) => Effect.Effect<AccountConfig, MailClientError>
   readonly updateAccount: (
     id: AccountId,

@@ -1,3 +1,5 @@
+import type { OAuthAuthorize } from "@vingroto/core/protocol/accounts"
+
 import { describeError } from "@vingroto/core/errors"
 import {
   AccountNotFoundError,
@@ -7,11 +9,14 @@ import {
 import * as Effect from "effect/Effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 
+import type { GoogleOAuthShape } from "@/lib/oauth/service"
+
 import { Accounts } from "@/lib/accounts"
 import { ServerApi } from "@/lib/api/api"
 import { internalFailure } from "@/lib/api/internal-error"
 import { invalidField } from "@/lib/api/invalid-request"
 import { Discovery } from "@/lib/mail/autoconfig"
+import { GoogleOAuth } from "@/lib/oauth/service"
 
 const credentialStoreMessage = "the credential store could not be used"
 
@@ -23,6 +28,33 @@ const credentialStoreFailure = (error: {
     Effect.annotateLogs({ operation: error.operation, reason: describeError(error) }),
     Effect.flatMap(() => Effect.fail(new CredentialsError({ message: credentialStoreMessage }))),
   )
+
+const authorizeOAuthAccount = Effect.fn("AccountHandlers.authorizeOAuthAccount")(
+  function* authorizeOAuthAccount(oauth: GoogleOAuthShape, payload: OAuthAuthorize) {
+    const email = payload.email.trim()
+    if (email.length === 0) {
+      return yield* invalidField("Body", "email", "an email address is required")
+    }
+    const clientId = payload.clientId.trim()
+    if (clientId.length === 0) {
+      return yield* invalidField("Body", "clientId", "a client id is required")
+    }
+    return yield* Effect.catchTags(
+      oauth.authorize({
+        clientId,
+        email,
+        ...(payload.clientSecret === undefined ? {} : { clientSecret: payload.clientSecret }),
+      }),
+      {
+        OAuthAuthorizationFailed: (error) =>
+          Effect.fail(new CredentialsError({ message: error.message })),
+        OAuthReauthorizationRequired: (error) =>
+          Effect.fail(new CredentialsError({ message: error.message })),
+      },
+      internalFailure,
+    )
+  },
+)
 
 const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =>
   handlers
@@ -47,6 +79,9 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
         },
         internalFailure,
       ),
+    )
+    .handle("account.oauth.authorize", ({ payload }) =>
+      Effect.flatMap(GoogleOAuth, (oauth) => authorizeOAuthAccount(oauth, payload)),
     )
     .handle("account.update", ({ params, payload }) =>
       Effect.catchTags(
@@ -93,4 +128,4 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
     ),
 )
 
-export { AccountHandlers }
+export { AccountHandlers, authorizeOAuthAccount }

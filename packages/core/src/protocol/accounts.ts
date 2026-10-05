@@ -25,6 +25,14 @@ const NewAccount = Schema.Struct({
 
 type NewAccount = typeof NewAccount.Type
 
+const OAuthAuthorize = Schema.Struct({
+  email: Schema.String,
+  clientId: Schema.String,
+  clientSecret: Schema.optionalKey(Schema.String),
+})
+
+type OAuthAuthorize = typeof OAuthAuthorize.Type
+
 const DiscoveredServers = Schema.Struct({
   imap: ServerConfig,
   smtp: ServerConfig,
@@ -62,4 +70,12 @@ const ServerStatus = Schema.Struct({
 
 type ServerStatus = typeof ServerStatus.Type
 
-export { AccountSave, ConfigState, DiscoveredServers, DiscoveryResult, NewAccount, ServerStatus }
+export {
+  AccountSave,
+  ConfigState,
+  DiscoveredServers,
+  DiscoveryResult,
+  NewAccount,
+  OAuthAuthorize,
+  ServerStatus,
+}
