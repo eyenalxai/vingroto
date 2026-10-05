@@ -16,6 +16,7 @@ import type { MailboxSnapshot, MailboxWindowResult } from "@/lib/mail/imap-types
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
 import { Imap } from "@/lib/mail/imap"
+import { reconcileMailboxFlags } from "@/lib/mail/sync-flags"
 import { initialWindow, toWindowRequest } from "@/lib/mail/sync-windows"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
 import { listAccountMailboxes, setMailboxSyncState, upsertMailboxes } from "@/lib/store/mailboxes"
@@ -158,6 +159,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
         const rowsByPath = new Map(stored.map((row) => [row.path, row]))
         const errors: SyncFailure[] = []
         const recreated: Mailbox[] = []
+        const flagTargets: Mailbox[] = []
         let fetched = 0
         let storedCount = 0
 
@@ -193,6 +195,9 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
               recreated.push(row)
               return
             }
+            if (!reset) {
+              flagTargets.push(row)
+            }
             const outcome = reset
               ? yield* storeReplacement(account, row, result.snapshot)
               : yield* storeSnapshot(account, row, result.snapshot)
@@ -220,6 +225,13 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
                 processResult(rowsByPath.get(result.path), result, true),
               ),
             )
+        }
+        if (flagTargets.length > 0) {
+          const flagFailures = yield* reconcileMailboxFlags(imap, account, flagTargets)
+          for (const failure of flagFailures) {
+            errors.push(mailboxFailure(account.id, failure.path, failure.message))
+            yield* reportMailboxError(account, failure.path, failure.message)
+          }
         }
         yield* Effect.logDebug("account synced").pipe(
           Effect.annotateLogs({

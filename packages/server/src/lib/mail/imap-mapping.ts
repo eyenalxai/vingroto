@@ -5,7 +5,7 @@ import { Uid } from "@vingroto/core/ids"
 import * as DateTime from "effect/DateTime"
 import * as Option from "effect/Option"
 
-import type { MailboxInfo, MessageEnvelope } from "@/lib/mail/imap-types"
+import type { MailboxInfo, MessageEnvelope, MessageFlags } from "@/lib/mail/imap-types"
 
 const systemFlags = {
   answered: String.raw`\Answered`,
@@ -60,6 +60,14 @@ const toTimestamp = (value: Date | string | undefined): number | undefined => {
   return Option.isSome(date) ? DateTime.toEpochMillis(date.value) : undefined
 }
 
+const readFlags = (flags: ReadonlySet<string>) => ({
+  seen: flags.has(systemFlags.seen),
+  answered: flags.has(systemFlags.answered),
+  flagged: flags.has(systemFlags.flagged),
+  draft: flags.has(systemFlags.draft),
+  keywords: [...flags].filter((flag) => !systemFlagNames.has(flag)),
+})
+
 const toMessageEnvelope = (message: FetchMessageObject): MessageEnvelope => {
   const envelope = message.envelope
   const flags = message.flags ?? new Set<string>()
@@ -73,12 +81,13 @@ const toMessageEnvelope = (message: FetchMessageObject): MessageEnvelope => {
     cc: toMailAddresses(envelope?.cc),
     date: toTimestamp(envelope?.date) ?? toTimestamp(message.internalDate),
     size: message.size,
-    seen: flags.has(systemFlags.seen),
-    answered: flags.has(systemFlags.answered),
-    flagged: flags.has(systemFlags.flagged),
-    draft: flags.has(systemFlags.draft),
-    keywords: [...flags].filter((flag) => !systemFlagNames.has(flag)),
+    ...readFlags(flags),
   }
 }
 
-export { toMailboxInfos, toMessageEnvelope }
+const toMessageFlags = (message: FetchMessageObject): MessageFlags => ({
+  uid: Uid.make(message.uid),
+  ...readFlags(message.flags ?? new Set<string>()),
+})
+
+export { toMailboxInfos, toMessageEnvelope, toMessageFlags }

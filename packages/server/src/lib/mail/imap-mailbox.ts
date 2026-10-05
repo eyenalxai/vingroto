@@ -6,15 +6,18 @@ import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 
 import type {
+  MailboxFlagsRequest,
+  MailboxFlagsResult,
   MailboxSnapshot,
   MailboxWindowRequest,
   MailboxWindowResult,
   MessageEnvelope,
+  MessageFlags,
 } from "@/lib/mail/imap-types"
 
 import { commandTimeout, guardRead, withMailboxLock } from "@/lib/mail/imap-command"
-import { toMessageEnvelope } from "@/lib/mail/imap-mapping"
-import { ImapError, mailboxWindowResult } from "@/lib/mail/imap-types"
+import { toMessageEnvelope, toMessageFlags } from "@/lib/mail/imap-mapping"
+import { ImapError, mailboxFlagsResult, mailboxWindowResult } from "@/lib/mail/imap-types"
 
 const fetchBatchSize = 200
 
@@ -116,4 +119,58 @@ const fetchMailboxResult = Effect.fn("Imap.fetchMailboxWindow")(function* resolv
   return outcome
 })
 
-export { fetchEnvelopes, fetchMailboxResult }
+const flagsQuery: FetchQueryObject = {
+  uid: true,
+  flags: true,
+}
+
+const fetchMailboxFlags = (
+  client: ImapFlow,
+  account: AccountConfig,
+  request: MailboxFlagsRequest,
+) =>
+  withMailboxLock(
+    client,
+    account,
+    request.path,
+    true,
+    Effect.gen(function* readMailboxFlags() {
+      const mailbox = client.mailbox
+      if (mailbox === false) {
+        return yield* new ImapError({
+          accountId: account.id,
+          operation: `select ${request.path}`,
+          message: "the mailbox could not be opened",
+        })
+      }
+      const flags: MessageFlags[] = []
+      for (let index = 0; index < request.uids.length; index += fetchBatchSize) {
+        const batch = request.uids.slice(index, index + fetchBatchSize)
+        const fetched = yield* guardRead(account, "fetch flags", commandTimeout, () =>
+          Array.fromAsync(client.fetch(batch, flagsQuery, { uid: true })),
+        )
+        for (const message of fetched) {
+          flags.push(toMessageFlags(message))
+        }
+      }
+      return flags
+    }),
+  )
+
+const fetchMailboxFlagsResult = Effect.fn("Imap.fetchMailboxFlags")(function* resolveMailboxFlags(
+  client: ImapFlow,
+  account: AccountConfig,
+  request: MailboxFlagsRequest,
+) {
+  const outcome = yield* fetchMailboxFlags(client, account, request).pipe(
+    Effect.map((flags): MailboxFlagsResult => mailboxFlagsResult.ok({ path: request.path, flags })),
+    Effect.catch((error) =>
+      Effect.succeed<MailboxFlagsResult>(
+        mailboxFlagsResult.error({ path: request.path, message: error.message }),
+      ),
+    ),
+  )
+  return outcome
+})
+
+export { fetchEnvelopes, fetchMailboxFlagsResult, fetchMailboxResult }
