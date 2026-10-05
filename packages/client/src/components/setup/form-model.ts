@@ -3,8 +3,6 @@ import type { AccountSave, NewAccount, OAuthAuthorize } from "@vingroto/core/pro
 
 import * as Data from "effect/Data"
 
-import { authForDraft } from "@/components/setup/credential-fields"
-
 type Security = "tls" | "starttls" | "none"
 
 type TextFieldId =
@@ -207,7 +205,7 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
   if (!emailPattern.test(email)) {
     return validationResult.error({ message: "enter a valid email address" })
   }
-  const oauth = authForDraft(draft) === "oauth2"
+  const oauth = draft.auth === "oauth2"
   const clientId = draft.oauthClientId.trim()
   if (oauth && clientId.length === 0) {
     return validationResult.error({ message: "enter the OAuth client ID" })

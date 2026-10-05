@@ -16,7 +16,7 @@ import type {
 import type { AppRuntimeError } from "@/lib/runtime"
 
 import { useRuntime } from "@/components/runtime-provider"
-import { authForDraft, credentialFields, cycleAuth } from "@/components/setup/credential-fields"
+import { credentialFields, cycleAuth } from "@/components/setup/credential-fields"
 import {
   cycleSecurity,
   emptyDraft,
@@ -61,7 +61,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     step() === "credentials" ? credentialFields(draft) : serverFields,
   )
   const focusedField = createMemo(() => fields()[focusIndex()])
-  const auth = createMemo(() => authForDraft(draft))
+  const auth = createMemo(() => draft.auth)
 
   createEffect(() => {
     const count = fields().length

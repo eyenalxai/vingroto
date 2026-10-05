@@ -133,13 +133,13 @@ Credentials are written to the OS keyring (`secret-tool`) and never to disk in p
 
 ### Gmail with Google sign-in
 
-A Gmail address (`@gmail.com` or `@googlemail.com`) adds a **Google OAuth** choice to the wizard's **Authentication** row, so the account can sign in with Google instead of a password or an app password. Sign-in uses an OAuth client from your own Google Cloud project, because the mail scope vingroto needs (`https://mail.google.com/`) is restricted: a client shipped with vingroto would need Google's verification, while a personal one is covered by the personal-use exception. Create it once:
+A **Google OAuth** choice sits on the wizard's **Authentication** row for every address, so an account hosted by Google (`@gmail.com`, `@googlemail.com` or a Google Workspace domain) can sign in with Google instead of a password or an app password. Sign-in uses an OAuth client from your own Google Cloud project, because the mail scope vingroto needs (`https://mail.google.com/`) is restricted: a client shipped with vingroto would need Google's verification, while a personal one is covered by the personal-use exception. Create it once:
 
 1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project.
 2. Open **Google Auth platform**, click **Get started**, and fill in the app name and contact emails. Choose the **External** audience and add your own address under **Test users**.
 3. Set the publishing status to **In production**. This is your own client for personal use (well under 100 users), so it needs no verification and its refresh token does not expire after seven days.
 4. Under **Clients**, create a client with application type **Desktop app**, then copy its **Client ID** and **Client secret**. Google shows the secret only once, and it is optional for a desktop client, so the wizard accepts an empty secret.
-5. In vingroto press `ctrl+x a`, enter the Gmail address, choose **Google OAuth**, paste the client ID (and secret, if you have it) and save. The daemon opens your browser at Google's consent screen and the status bar shows `waiting for browser authorization…` until you sign in and grant access; the account is then created and synced.
+5. In vingroto press `ctrl+x a`, enter the Google-hosted address, choose **Google OAuth**, paste the client ID (and secret, if you have it) and save. The daemon opens your browser at Google's consent screen and the status bar shows `waiting for browser authorization…` until you sign in and grant access; the account is then created and synced.
 
 The daemon stores the refresh token and the client secret in the OS keyring, never in the config file, and the client never sees them. If Google later revokes the authorization (a password change, six months of disuse, or access revoked in your Google account), syncing reports `authorization expired · re-authorize in settings`, and the **Re-authorize** row in settings runs the sign-in again.
 
