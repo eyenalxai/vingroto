@@ -24,6 +24,11 @@ interface MailboxWindowRequest {
   readonly fromUid: Uid | undefined
 }
 
+interface MailboxFlagsRequest {
+  readonly path: string
+  readonly uids: readonly Uid[]
+}
+
 interface MessageEnvelope {
   readonly uid: Uid
   readonly messageId: string | undefined
@@ -34,6 +39,15 @@ interface MessageEnvelope {
   readonly cc: readonly MailAddress[]
   readonly date: number | undefined
   readonly size: number | undefined
+  readonly seen: boolean
+  readonly answered: boolean
+  readonly flagged: boolean
+  readonly draft: boolean
+  readonly keywords: readonly string[]
+}
+
+interface MessageFlags {
+  readonly uid: Uid
   readonly seen: boolean
   readonly answered: boolean
   readonly flagged: boolean
@@ -64,6 +78,13 @@ type MailboxWindowResult = Data.TaggedEnum<{
 
 const mailboxWindowResult = Data.taggedEnum<MailboxWindowResult>()
 
+type MailboxFlagsResult = Data.TaggedEnum<{
+  ok: { readonly path: string; readonly flags: readonly MessageFlags[] }
+  error: { readonly path: string; readonly message: string }
+}>
+
+const mailboxFlagsResult = Data.taggedEnum<MailboxFlagsResult>()
+
 type MessageSourceResult = Data.TaggedEnum<{
   ok: {
     readonly mailboxPath: string
@@ -86,15 +107,19 @@ interface MessageSourceRequest {
 
 export {
   ImapError,
+  mailboxFlagsResult,
   mailboxWindowResult,
   messageSourceResult,
   type FlagMode,
   type ImapServiceError,
+  type MailboxFlagsRequest,
+  type MailboxFlagsResult,
   type MailboxInfo,
   type MailboxSnapshot,
   type MailboxWindowRequest,
   type MailboxWindowResult,
   type MessageEnvelope,
+  type MessageFlags,
   type MessageSourceRequest,
   type MessageSourceResult,
 }

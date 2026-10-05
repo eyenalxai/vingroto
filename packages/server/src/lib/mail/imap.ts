@@ -12,6 +12,8 @@ import { ImapFlow } from "imapflow"
 import type {
   FlagMode,
   ImapServiceError,
+  MailboxFlagsRequest,
+  MailboxFlagsResult,
   MailboxInfo,
   MailboxWindowRequest,
   MailboxWindowResult,
@@ -32,7 +34,7 @@ import {
   guardRead,
   releaseClient,
 } from "@/lib/mail/imap-command"
-import { fetchMailboxResult } from "@/lib/mail/imap-mailbox"
+import { fetchMailboxFlagsResult, fetchMailboxResult } from "@/lib/mail/imap-mailbox"
 import { toMailboxInfos } from "@/lib/mail/imap-mapping"
 import {
   groupRequestsByMailbox,
@@ -54,6 +56,10 @@ interface ImapShape {
     account: AccountConfig,
     requests: readonly MailboxWindowRequest[],
   ) => Stream.Stream<MailboxWindowResult, ImapServiceError>
+  readonly fetchMessageFlags: (
+    account: AccountConfig,
+    requests: readonly MailboxFlagsRequest[],
+  ) => Stream.Stream<MailboxFlagsResult, ImapServiceError>
   readonly fetchMessageSource: (
     account: AccountConfig,
     mailboxPath: string,
@@ -179,6 +185,19 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
               }),
             ),
           ).pipe(Stream.withSpan("Imap.fetchMailboxWindows"))
+        },
+        fetchMessageFlags: (account, requests) => {
+          const nonEmpty = requests.filter((request) => request.uids.length > 0)
+          if (nonEmpty.length === 0) {
+            return Stream.empty
+          }
+          return withClientStream(account, (client) =>
+            Stream.fromIterable(nonEmpty).pipe(
+              Stream.mapEffect((request) => fetchMailboxFlagsResult(client, account, request), {
+                concurrency: 1,
+              }),
+            ),
+          ).pipe(Stream.withSpan("Imap.fetchMessageFlags"))
         },
         fetchMessageSource: Effect.fn("Imap.fetchMessageSource")(function* fetchMessageSource(
           account: AccountConfig,

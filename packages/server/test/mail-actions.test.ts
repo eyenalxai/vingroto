@@ -62,6 +62,7 @@ const recordStores = (calls: StoreCall[]): Layer.Layer<Imap> =>
       appendMessage: () => Effect.die("appendMessage must not be called"),
       fetchEnvelopes: () => Effect.die("fetchEnvelopes must not be called"),
       fetchMailboxWindows: () => Stream.empty,
+      fetchMessageFlags: () => Stream.empty,
       fetchMessageSource: () => Effect.succeed(Buffer.alloc(0)),
       fetchMessageSources: () => Stream.empty,
       listMailboxes: () => Effect.succeed([]),
