@@ -4,7 +4,7 @@ How the engineering skills should consume this repo's domain documentation when 
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root: this repo's domain vocabulary (the glossary).
+- **`GLOSSARY.md`** at the repo root: this repo's domain vocabulary (the glossary).
 - **`docs/adr/`**: read ADRs that touch the area you're about to work in.
 
 This is a single-context repo: one vocabulary file and one ADR directory, both at the root. If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
@@ -13,7 +13,7 @@ This is a single-context repo: one vocabulary file and one ADR directory, both a
 
 ```
 /
-├── CONTEXT.md
+├── GLOSSARY.md
 └── docs/adr/
     ├── 0001-rpc-errors-cross-the-wire-as-messages.md
     └── 0002-mailboxes-are-cached-in-windows.md
@@ -21,7 +21,7 @@ This is a single-context repo: one vocabulary file and one ADR directory, both a
 
 ## Use the glossary's vocabulary
 
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`, including the `_Avoid_` synonyms it lists. Don't drift to synonyms the glossary explicitly avoids.
+When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`, including the `_Avoid_` synonyms it lists. Don't drift to synonyms the glossary explicitly avoids.
 
 If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 

@@ -1,6 +1,6 @@
 # vingroto
 
-A terminal mail client: an OpenTUI (Solid) TUI talks to a long-running daemon over a local Effect HTTP API. The daemon owns the configuration file, the OS keyring, the SQLite cache and every IMAP/SMTP connection; clients are stateless and only speak the API. `README.md` documents the product, `CONTEXT.md` the domain vocabulary.
+A terminal mail client: an OpenTUI (Solid) TUI talks to a long-running daemon over a local Effect HTTP API. The daemon owns the configuration file, the OS keyring, the SQLite cache and every IMAP/SMTP connection; clients are stateless and only speak the API. `README.md` documents the product, `GLOSSARY.md` the domain vocabulary.
 
 ## Workspace
 
@@ -57,7 +57,7 @@ Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context: vocabulary in `CONTEXT.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
+Single-context: vocabulary in `GLOSSARY.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
 
 # Learning more about Effect
 
