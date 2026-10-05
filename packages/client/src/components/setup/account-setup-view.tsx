@@ -1,3 +1,5 @@
+import type { AuthMethod } from "@vingroto/core/config/schema"
+
 import { useTerminalDimensions } from "@opentui/solid"
 import { For, Show } from "solid-js"
 
@@ -11,6 +13,7 @@ import { useTheme } from "@/components/theme-provider"
 interface AccountSetupViewProps {
   readonly mode: "initial" | "add"
   readonly step: "credentials" | "servers"
+  readonly auth: AuthMethod
   readonly fields: readonly FieldDescriptor[]
   readonly focusedId: FieldId | undefined
   readonly valueOf: (id: FieldId) => string
@@ -70,7 +73,9 @@ const AccountSetupView = (props: AccountSetupViewProps) => {
             }
           >
             <text fg={theme.muted}>
-              enter your email and password. mail servers are detected automatically.
+              {props.auth === "oauth2"
+                ? "sign in with Google: enter your OAuth client ID; the client secret is optional."
+                : "enter your email and password. mail servers are detected automatically."}
             </text>
           </Show>
           <box flexDirection="column">

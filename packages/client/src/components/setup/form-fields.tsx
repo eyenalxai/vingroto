@@ -1,5 +1,6 @@
 import type { FieldDescriptor } from "@/components/setup/form-model"
 
+import { authLabel } from "@/components/setup/credential-fields"
 import { maskSecret, securityLabel, storedSecretMask } from "@/components/setup/form-model"
 import { Spinner } from "@/components/spinner"
 import { useTheme } from "@/components/theme-provider"
@@ -21,6 +22,8 @@ const FieldRow = <Id extends string>(props: FieldRowProps<Id>) => {
   const valueColor = () => (props.focused ? theme.text : theme.muted)
   const secretText = () =>
     props.value === "" && props.stored === true ? storedSecretMask : maskSecret(props.value)
+  const choiceText = () =>
+    props.field.kind === "auth" ? authLabel(props.value) : securityLabel(props.value)
   if (props.pending === true) {
     return (
       <box flexDirection="row" gap={1}>
@@ -84,7 +87,7 @@ const FieldRow = <Id extends string>(props: FieldRowProps<Id>) => {
         <text fg={valueColor()} wrapMode="none" truncate>
           {props.field.kind === "secret"
             ? `${secretText()}${props.focused ? "▏" : ""}`
-            : securityLabel(props.value)}
+            : choiceText()}
         </text>
       </box>
     </box>

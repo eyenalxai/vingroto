@@ -12,7 +12,8 @@ import type { AccountDraft, FieldId } from "@/components/setup/form-model"
 import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
 import { draftFromAccount, draftsMatch } from "@/components/settings/account-draft"
-import { applySecretKey, cycleSecurity, validateEditDraft } from "@/components/setup/form-model"
+import { cycleSecurity, validateEditDraft } from "@/components/setup/form-model"
+import { applySecretKey } from "@/components/setup/secret-key"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
 
@@ -138,6 +139,9 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
     if (draft === undefined) {
       return ""
     }
+    if (field === "auth") {
+      return draft.auth
+    }
     if (field === "imapSecurity") {
       return draft.imapSecurity
     }
@@ -163,6 +167,7 @@ const useAccountProfile = (options: UseAccountProfileOptions) => {
 
   const input = (accountId: AccountId, field: FieldId, next: string) => {
     if (
+      field === "auth" ||
       field === "imapSecurity" ||
       field === "smtpSecurity" ||
       field === "password" ||

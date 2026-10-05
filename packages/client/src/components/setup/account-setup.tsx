@@ -21,7 +21,7 @@ const AccountSetup = (props: AccountSetupProps) => {
   const renderer = useRenderer()
   const form = useAccountSetup({ accounts: props.accounts, onSaved: props.onSaved })
 
-  const handleSecurity = (id: FieldId, event: KeyEvent) => {
+  const handleChoice = (id: FieldId, event: KeyEvent) => {
     const backward = event.name === "left" || event.name === "h"
     const forward = event.name === "right" || event.name === "l" || event.name === "space"
     if (!backward && !forward) {
@@ -45,7 +45,7 @@ const AccountSetup = (props: AccountSetupProps) => {
       event.preventDefault()
       if (form.step() === "servers") {
         form.goToStep("credentials")
-      } else {
+      } else if (!form.cancel()) {
         props.onCancel?.()
       }
       return true
@@ -73,8 +73,8 @@ const AccountSetup = (props: AccountSetupProps) => {
       form.applySecret(event)
       return
     }
-    if (active.kind === "security") {
-      handleSecurity(active.id, event)
+    if (active.kind === "security" || active.kind === "auth") {
+      handleChoice(active.id, event)
     }
   }
 
@@ -94,7 +94,7 @@ const AccountSetup = (props: AccountSetupProps) => {
     }
     const text = new TextDecoder().decode(event.bytes).replaceAll("\r", "").replaceAll("\n", "")
     if (text.length > 0) {
-      form.appendPassword(text)
+      form.appendSecret(text)
     }
   })
 
@@ -103,6 +103,9 @@ const AccountSetup = (props: AccountSetupProps) => {
   })
 
   const hint = () => {
+    if (form.authorizing()) {
+      return "esc cancel sign-in · ctrl+c quit app"
+    }
     if (form.step() === "credentials") {
       const cancel = props.onCancel === undefined ? "" : " · esc cancel"
       return `tab next · ⏎ continue${cancel} · ctrl+c quit app`
@@ -114,6 +117,7 @@ const AccountSetup = (props: AccountSetupProps) => {
     <AccountSetupView
       mode={props.mode}
       step={form.step()}
+      auth={form.auth()}
       fields={form.fields()}
       focusedId={form.focusedField()?.id}
       valueOf={form.fieldValue}

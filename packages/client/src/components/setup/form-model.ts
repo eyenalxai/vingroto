@@ -1,8 +1,9 @@
-import type { KeyEvent } from "@opentui/core"
-import type { ServerConfig } from "@vingroto/core/config/schema"
-import type { AccountSave, NewAccount } from "@vingroto/core/protocol/accounts"
+import type { AuthMethod, ServerConfig } from "@vingroto/core/config/schema"
+import type { AccountSave, NewAccount, OAuthAuthorize } from "@vingroto/core/protocol/accounts"
 
 import * as Data from "effect/Data"
+
+import { authForDraft } from "@/components/setup/credential-fields"
 
 type Security = "tls" | "starttls" | "none"
 
@@ -13,14 +14,16 @@ type TextFieldId =
   | "username"
   | "imapHost"
   | "imapPort"
+  | "oauthClientId"
   | "smtpHost"
   | "smtpPort"
 type SecurityFieldId = "imapSecurity" | "smtpSecurity"
-type SecretFieldId = "password"
+type AuthFieldId = "auth"
+type SecretFieldId = "password" | "oauthClientSecret"
 type BooleanFieldId = "saveSent"
-type FieldId = TextFieldId | SecurityFieldId | SecretFieldId | BooleanFieldId
+type FieldId = TextFieldId | SecurityFieldId | AuthFieldId | SecretFieldId | BooleanFieldId
 
-type FieldKind = "text" | "secret" | "security" | "boolean" | "readonly"
+type FieldKind = "text" | "secret" | "security" | "auth" | "boolean" | "readonly"
 
 interface FieldDescriptor<Id extends string = FieldId> {
   readonly id: Id
@@ -31,7 +34,10 @@ interface FieldDescriptor<Id extends string = FieldId> {
 
 interface AccountDraft {
   email: string
+  auth: AuthMethod
   password: string
+  oauthClientId: string
+  oauthClientSecret: string
   label: string
   name: string
   username: string
@@ -45,7 +51,7 @@ interface AccountDraft {
 }
 
 type ValidationResult = Data.TaggedEnum<{
-  ok: { readonly value: NewAccount }
+  ok: { readonly value: NewAccount; readonly authorization: OAuthAuthorize | undefined }
   error: { readonly message: string }
 }>
 
@@ -57,11 +63,6 @@ type EditValidationResult = Data.TaggedEnum<{
 }>
 
 const editValidationResult = Data.taggedEnum<EditValidationResult>()
-
-const credentialFields = [
-  { id: "email", label: "Email", kind: "text", placeholder: "you@example.com" },
-  { id: "password", label: "Password", kind: "secret" },
-] as const satisfies readonly FieldDescriptor[]
 
 const profileFields = [
   { id: "label", label: "Mailbox name", kind: "text", placeholder: "defaults to email" },
@@ -101,7 +102,10 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u
 
 const emptyDraft = (): AccountDraft => ({
   email: "",
+  auth: "password",
   password: "",
+  oauthClientId: "",
+  oauthClientSecret: "",
   label: "",
   name: "",
   username: "",
@@ -140,38 +144,6 @@ const cycleSecurity = (value: Security, delta: number): Security => {
   const index = securityOrder.indexOf(value)
   const next = (index + delta + securityOrder.length) % securityOrder.length
   return securityOrder[next] ?? "tls"
-}
-
-const isPrintable = (event: KeyEvent) => {
-  if (event.ctrl || event.meta || event.option || event.super === true) {
-    return false
-  }
-  if (event.sequence.length === 0) {
-    return false
-  }
-  for (const character of event.sequence) {
-    const code = character.codePointAt(0) ?? 0
-    if (code < 32 || code === 127) {
-      return false
-    }
-  }
-  return true
-}
-
-const applySecretKey = (value: string, event: KeyEvent): string | undefined => {
-  if (event.ctrl && event.name === "u") {
-    return ""
-  }
-  if (event.ctrl && event.name === "w") {
-    return value.replace(/\s*\S+\s*$/u, "")
-  }
-  if (event.name === "backspace" || event.name === "delete") {
-    return value.slice(0, -1)
-  }
-  if (isPrintable(event)) {
-    return value + event.sequence
-  }
-  return undefined
 }
 
 const parsePort = (value: string): number | undefined => {
@@ -232,15 +204,37 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
   if (!emailPattern.test(email)) {
     return validationResult.error({ message: "enter a valid email address" })
   }
-  if (draft.password.length === 0) {
+  const oauth = authForDraft(draft) === "oauth2"
+  const clientId = draft.oauthClientId.trim()
+  if (oauth && clientId.length === 0) {
+    return validationResult.error({ message: "enter the OAuth client ID" })
+  }
+  if (!oauth && draft.password.length === 0) {
     return validationResult.error({ message: "enter the account password" })
   }
   const profile = validateProfile(draft)
   if (profile._tag === "error") {
     return validationResult.error({ message: profile.message })
   }
+  if (oauth) {
+    return validationResult.ok({
+      value: {
+        email,
+        auth: "oauth2",
+        oauth: { provider: "gmail", clientId },
+        ...profile.value,
+        saveSent: draft.saveSent,
+      },
+      authorization: {
+        email,
+        clientId,
+        ...(draft.oauthClientSecret.length === 0 ? {} : { clientSecret: draft.oauthClientSecret }),
+      },
+    })
+  }
   return validationResult.ok({
     value: { email, password: draft.password, ...profile.value, saveSent: draft.saveSent },
+    authorization: undefined,
   })
 }
 
@@ -259,8 +253,6 @@ const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
 }
 
 export {
-  applySecretKey,
-  credentialFields,
   cycleSecurity,
   editFields,
   emptyDraft,
@@ -272,6 +264,7 @@ export {
   validateDraft,
   validateEditDraft,
   type AccountDraft,
+  type AuthFieldId,
   type BooleanFieldId,
   type EditValidationResult,
   type FieldDescriptor,

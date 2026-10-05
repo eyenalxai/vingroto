@@ -3,27 +3,28 @@ import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { DiscoveryResult } from "@vingroto/core/protocol/accounts"
 
 import { Effect, Fiber } from "effect"
-import { createMemo, createSignal } from "solid-js"
+import { createEffect, createMemo, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 
 import type {
   AccountDraft,
   FieldDescriptor,
   FieldId,
+  SecretFieldId,
   TextFieldId,
 } from "@/components/setup/form-model"
 import type { AppRuntimeError } from "@/lib/runtime"
 
 import { useRuntime } from "@/components/runtime-provider"
+import { authForDraft, credentialFields, cycleAuth } from "@/components/setup/credential-fields"
 import {
-  applySecretKey,
-  credentialFields,
   cycleSecurity,
   emptyDraft,
   isServerField,
   serverFields,
-  validateDraft,
 } from "@/components/setup/form-model"
+import { applySecretKey } from "@/components/setup/secret-key"
+import { useAccountSave } from "@/components/setup/use-account-save"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
 
@@ -39,7 +40,6 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
   const [focusIndex, setFocusIndex] = createSignal(0)
   const [status, setStatus] = createSignal("")
   const [statusError, setStatusError] = createSignal(false)
-  const [busy, setBusy] = createSignal(false)
   const [discovering, setDiscovering] = createSignal(false)
   const [source, setSource] = createSignal<string | undefined>()
   const [serversEdited, setServersEdited] = createSignal(false)
@@ -50,12 +50,30 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     setStatusError(isError)
   }
 
+  const accountSave = useAccountSave({
+    draft,
+    discovering,
+    onSaved: options.onSaved,
+    report,
+  })
+
   const fields = createMemo<readonly FieldDescriptor[]>(() =>
-    step() === "credentials" ? credentialFields : serverFields,
+    step() === "credentials" ? credentialFields(draft) : serverFields,
   )
   const focusedField = createMemo(() => fields()[focusIndex()])
+  const auth = createMemo(() => authForDraft(draft))
+
+  createEffect(() => {
+    const count = fields().length
+    if (focusIndex() >= count) {
+      setFocusIndex(count - 1)
+    }
+  })
 
   const fieldValue = (id: FieldId): string => {
+    if (id === "auth") {
+      return draft.auth
+    }
     if (id === "imapSecurity") {
       return draft.imapSecurity
     }
@@ -90,6 +108,10 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
   }
 
   const cycleField = (id: FieldId, delta: number) => {
+    if (id === "auth") {
+      setDraft("auth", (current) => cycleAuth(current, delta))
+      return
+    }
     if (id === "imapSecurity") {
       setDraft("imapSecurity", (current) => cycleSecurity(current, delta))
       return
@@ -156,46 +178,6 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     discoveryFiber = runtime.runFork(program)
   }
 
-  const save = () => {
-    if (busy()) {
-      return
-    }
-    if (discovering()) {
-      report("waiting for server detection to finish…")
-      return
-    }
-    const result = validateDraft(draft)
-    if (result._tag === "error") {
-      report(result.message, true)
-      return
-    }
-    setBusy(true)
-    report("saving account…")
-    const program = Effect.gen(function* persistAccount() {
-      const client = yield* MailClient
-      yield* client.createAccount(result.value).pipe(
-        Effect.tap((account) =>
-          Effect.sync(() => {
-            report(`saved ${account.label}`)
-            options.onSaved(account)
-          }),
-        ),
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            report(`could not save · ${describeClientFailure(error).message}`, true)
-          }),
-        ),
-      )
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          setBusy(false)
-        }),
-      ),
-    )
-    runtime.runFork(program)
-  }
-
   const enter = () => {
     const active = focusedField()
     if (active === undefined) {
@@ -211,14 +193,21 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
       return
     }
     if (focusIndex() === fields().length - 1) {
-      save()
+      accountSave.save()
       return
     }
     moveFocus(1)
   }
 
   const input = (id: FieldId, value: string) => {
-    if (id === "imapSecurity" || id === "smtpSecurity" || id === "password" || id === "saveSent") {
+    if (
+      id === "auth" ||
+      id === "imapSecurity" ||
+      id === "smtpSecurity" ||
+      id === "password" ||
+      id === "oauthClientSecret" ||
+      id === "saveSent"
+    ) {
       return
     }
     setDraft(id, value)
@@ -227,27 +216,47 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     }
   }
 
+  const secretField = (): SecretFieldId | undefined => {
+    const active = focusedField()
+    if (active === undefined) {
+      return undefined
+    }
+    return active.id === "password" || active.id === "oauthClientSecret" ? active.id : undefined
+  }
+
   const applySecret = (event: KeyEvent) => {
-    const next = applySecretKey(draft.password, event)
+    const id = secretField()
+    if (id === undefined) {
+      return
+    }
+    const next = applySecretKey(draft[id], event)
     if (next !== undefined) {
-      setDraft("password", next)
+      setDraft(id, next)
     }
   }
 
-  const appendPassword = (text: string) => {
-    setDraft("password", (current: string) => current + text)
+  const appendSecret = (text: string) => {
+    const id = secretField()
+    if (id === undefined) {
+      return
+    }
+    setDraft(id, (current: string) => current + text)
   }
 
   const dispose = () => {
     if (discoveryFiber !== null) {
       runtime.runFork(Fiber.interrupt(discoveryFiber))
     }
+    accountSave.dispose()
   }
 
   return {
-    appendPassword,
+    appendSecret,
     applySecret,
-    busy,
+    auth,
+    authorizing: accountSave.authorizing,
+    busy: accountSave.busy,
+    cancel: accountSave.cancel,
     cycleField,
     discovering,
     dispose,
@@ -259,7 +268,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     goToStep,
     input,
     moveFocus,
-    save,
+    save: accountSave.save,
     source,
     status,
     statusError,
