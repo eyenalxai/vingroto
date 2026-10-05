@@ -124,13 +124,12 @@ class Outbox extends Context.Service<Outbox, OutboxShape>()("@vingroto/server/li
       const failAttempt = Effect.fn("Outbox.failAttempt")(function* failAttempt(
         entry: OutboxEntry,
         reason: string,
+        retryable: boolean,
       ) {
         const now = yield* Clock.currentTimeMillis
         const attempts = entry.attempts + 1
-        const delay =
-          attempts < maximumAttempts
-            ? yield* nextRetryDelay(attempts)
-            : Option.none<Duration.Duration>()
+        const retry = retryable && attempts < maximumAttempts
+        const delay = retry ? yield* nextRetryDelay(attempts) : Option.none<Duration.Duration>()
         if (Option.isNone(delay)) {
           yield* markOutboxAttempt({
             id: entry.id,
@@ -161,12 +160,16 @@ class Outbox extends Context.Service<Outbox, OutboxShape>()("@vingroto/server/li
         const config = yield* readConfig
         const account = config.accounts.find((candidate) => candidate.id === entry.accountId)
         if (account === undefined) {
-          yield* failAttempt(entry, `account ${entry.accountId} is not configured`)
+          yield* failAttempt(entry, `account ${entry.accountId} is not configured`, true)
           return
         }
         const outcome = yield* mailer.send(account, toOutgoingMessage(entry)).pipe(Effect.result)
         if (outcome._tag === "Failure") {
-          yield* failAttempt(entry, describeError(outcome.failure))
+          const reauthorizationRequired = outcome.failure._tag === "OAuthReauthorizationRequired"
+          const reason = reauthorizationRequired
+            ? `${outcome.failure.message}; re-authorize the account in settings`
+            : describeError(outcome.failure)
+          yield* failAttempt(entry, reason, !reauthorizationRequired)
           return
         }
         yield* deleteOutboxEntry(entry.id)
