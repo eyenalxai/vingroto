@@ -131,6 +131,23 @@ On the first run vingroto asks for an account. Enter the email address and passw
 
 Credentials are written to the OS keyring (`secret-tool`) and never to disk in plaintext. An account's `username` defaults to its email address.
 
+### Gmail with Google sign-in
+
+A Gmail address (`@gmail.com` or `@googlemail.com`) adds a **Google OAuth** choice to the wizard's **Authentication** row, so the account can sign in with Google instead of a password or an app password. Sign-in uses an OAuth client from your own Google Cloud project, because the mail scope vingroto needs (`https://mail.google.com/`) is restricted: a client shipped with vingroto would need Google's verification, while a personal one is covered by the personal-use exception. Create it once:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project.
+2. Open **Google Auth platform**, click **Get started**, and fill in the app name and contact emails. Choose the **External** audience and add your own address under **Test users**.
+3. Set the publishing status to **In production**. This is your own client for personal use (well under 100 users), so it needs no verification and its refresh token does not expire after seven days.
+4. Under **Clients**, create a client with application type **Desktop app**, then copy its **Client ID** and **Client secret**. Google shows the secret only once, and it is optional for a desktop client, so the wizard accepts an empty secret.
+5. In vingroto press `ctrl+x a`, enter the Gmail address, choose **Google OAuth**, paste the client ID (and secret, if you have it) and save. The daemon opens your browser at Google's consent screen and the status bar shows `waiting for browser authorization…` until you sign in and grant access; the account is then created and synced.
+
+The daemon stores the refresh token and the client secret in the OS keyring, never in the config file, and the client never sees them. If Google later revokes the authorization (a password change, six months of disuse, or access revoked in your Google account), syncing reports `authorization expired · re-authorize in settings`, and the **Re-authorize** row in settings runs the sign-in again.
+
+Two caveats:
+
+- A client left at the **Testing** publishing status expires its authorization, and the refresh token, seven days after consent. The **In production** step above is what keeps the account signed in.
+- A Google Workspace administrator can block third-party OAuth apps or high-risk scopes; the consent screen then refuses the app, and only the admin can allowlist it.
+
 ## Configuration
 
 `$XDG_CONFIG_HOME/<app>/config.json`: `~/.config/vingroto/config.json` for the installed package and `~/.config/vingroto-dev/config.json` from a checkout. It is written by the daemon during account setup and holds no secrets:
@@ -184,7 +201,7 @@ Mailboxes can be muted with `i` (or from the settings screen). A muted mailbox i
 
 `ctrl+x s` opens a full-screen settings screen: the sections **Accounts**, **Mailboxes**, **Composer**, **Sending**, **Sync** and **Notifications** in the left pane and the selected section in the right pane. `up`/`down` (or `j`/`k`) move the section cursor and preview its content immediately, `tab`, `right` or `enter` move into the content pane, and `left`, `tab` or `escape` step back. Below 64 columns the screen falls back to one pane at a time: the section list, then the section opened with `enter`, back with `escape`.
 
-- **Accounts** — one collapsed group per account showing its name, email, a spinner while it saves and a `●` while it has unsaved edits. `space` (or `enter`) expands the group: the mailbox name (`label`), sender name, read-only email, username, password, IMAP and SMTP hosts, ports and security, and whether a copy of sent mail is saved (`saveSent`). Renaming an account happens on its **Mailbox name** row inside the group. The password is kept when the field is left empty. `enter` edits a text or number row and `escape` restores the previous value; `enter` cycles a security row or toggles **Save sent copy**; `ctrl+s` saves the account; `shift+up`/`shift+down` on the group header move the account and `left` collapses it.
+- **Accounts** — one collapsed group per account showing its name, email, a spinner while it saves and a `●` while it has unsaved edits. `space` (or `enter`) expands the group: the mailbox name (`label`), sender name, read-only email, username, password, IMAP and SMTP hosts, ports and security, and whether a copy of sent mail is saved (`saveSent`). A Google OAuth account shows a read-only **Authentication** row instead of the password row and gains a **Re-authorize** action: `enter` re-runs the browser sign-in with the stored client ID and replaces the stored refresh token. Renaming an account happens on its **Mailbox name** row inside the group. The password is kept when the field is left empty. `enter` edits a text or number row and `escape` restores the previous value; `enter` cycles a security row or toggles **Save sent copy**; `ctrl+s` saves the account; `shift+up`/`shift+down` on the group header move the account and `left` collapses it.
 - **Mailboxes** — one collapsed group per account with its mailbox count and unread total, expanding into one row per synced mailbox with its unread count and mute state; an account with no synced mailboxes says `no mailboxes synced yet` inside the group. `enter` mutes or unmutes a mailbox right away.
 - **Composer** — the **Editor** setting: `builtin` edits the composer body in its text area, `system` edits it in the system editor. `enter` cycles the value and `ctrl+s` saves it.
 - **Sending** — how long a message waits before it is sent (`delaySeconds`); `0` sends immediately. `ctrl+s` saves it.

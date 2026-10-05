@@ -8,6 +8,14 @@ A terminal mail client: clients talk to a long-running daemon over a local HTTP 
 A configured mail identity: label, optional sender name, email and mail servers. Accounts are matched by email address.
 _Avoid_: Profile, login
 
+**Authorization**:
+An account's grant to access Google on the user's behalf, held as a refresh token in the OS keyring. It can be revoked in the user's Google account or expire, and a sync failure says when it must be replaced.
+_Avoid_: OAuth token, Google connection
+
+**Re-authorization**:
+Running Google sign-in again for an account to replace an expired or revoked authorization, leaving the account's other settings alone.
+_Avoid_: Re-login, re-authenticate
+
 **Sent copy**:
 The copy of an outgoing message kept in the account's Sent mailbox. Each account decides whether it is kept.
 _Avoid_: Outbox
