@@ -15,11 +15,13 @@ import type { ConfigInvalid, ConfigUnreadable } from "@/lib/config/load"
 import type { KeyringError } from "@/lib/credential/keyring"
 import type { CredentialNotFound } from "@/lib/credential/service"
 import type { ImapError } from "@/lib/mail/imap-types"
+import type { OAuthError } from "@/lib/oauth/errors"
 import type { MessageActionTarget } from "@/lib/store/message-action-targets"
 
 import { loadConfig } from "@/lib/config/load"
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
+import { oauthActionFailure } from "@/lib/mail/auth"
 import { Imap } from "@/lib/mail/imap"
 import { listMailboxes } from "@/lib/store/mailboxes"
 import {
@@ -83,38 +85,46 @@ const imapFailureHandlers = (
   account: AccountConfig,
   mailboxPath: string,
   errors: ActionFailure[],
-) => ({
-  ImapError: (error: ImapError) =>
+) => {
+  const oauthFailure = (error: OAuthError) =>
     Effect.sync(() => {
-      errors.push({
-        _tag: "imap",
-        accountId: account.id,
-        mailboxPath,
-        operation: error.operation,
-        message: error.message,
-      })
-    }),
-  KeyringError: (error: KeyringError) =>
-    Effect.sync(() => {
-      errors.push({
-        _tag: "keyring",
-        accountId: account.id,
-        mailboxPath,
-        operation: error.operation,
-        message: error.message,
-      })
-    }),
-  CredentialNotFound: (error: CredentialNotFound) =>
-    Effect.sync(() => {
-      errors.push({
-        _tag: "credential-missing",
-        accountId: account.id,
-        mailboxPath,
-        reference: error.reference,
-        message: error.message,
-      })
-    }),
-})
+      errors.push(oauthActionFailure(account.id, mailboxPath, error))
+    })
+  return {
+    ImapError: (error: ImapError) =>
+      Effect.sync(() => {
+        errors.push({
+          _tag: "imap",
+          accountId: account.id,
+          mailboxPath,
+          operation: error.operation,
+          message: error.message,
+        })
+      }),
+    KeyringError: (error: KeyringError) =>
+      Effect.sync(() => {
+        errors.push({
+          _tag: "keyring",
+          accountId: account.id,
+          mailboxPath,
+          operation: error.operation,
+          message: error.message,
+        })
+      }),
+    CredentialNotFound: (error: CredentialNotFound) =>
+      Effect.sync(() => {
+        errors.push({
+          _tag: "credential-missing",
+          accountId: account.id,
+          mailboxPath,
+          reference: error.reference,
+          message: error.message,
+        })
+      }),
+    OAuthAuthorizationFailed: oauthFailure,
+    OAuthReauthorizationRequired: oauthFailure,
+  }
+}
 
 const cacheFailure = (account: AccountConfig, error: unknown, errors: ActionFailure[]) =>
   Effect.sync(() => {

@@ -12,9 +12,11 @@ import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
 
 import type { MailboxSnapshot, MailboxWindowResult } from "@/lib/mail/imap-types"
+import type { OAuthError } from "@/lib/oauth/errors"
 
 import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
+import { oauthSyncFailure } from "@/lib/mail/auth"
 import { Imap } from "@/lib/mail/imap"
 import { initialWindow, toWindowRequest } from "@/lib/mail/sync-windows"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
@@ -64,6 +66,17 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
           yield* events.publish({ _tag: "mailbox-error", accountId: account.id, path, message })
         },
       )
+
+      const reportOAuthFailure = Effect.fn("Sync.reportOAuthFailure")(function* reportOAuthError(
+        account: AccountConfig,
+        error: OAuthError,
+      ) {
+        yield* events.publish({ _tag: "sync-error", accountId: account.id, message: error.message })
+        return {
+          ...emptyReport(account),
+          errors: [oauthSyncFailure(account.id, error)],
+        } satisfies SyncReport
+      })
 
       const announceStored = Effect.fn("Sync.announceStored")(function* announceMailboxStored(
         account: AccountConfig,
@@ -250,6 +263,9 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
             return emptyReport(account)
           }
           return yield* syncAccount(account, config, paths).pipe(
+            Effect.catchTag(["OAuthAuthorizationFailed", "OAuthReauthorizationRequired"], (error) =>
+              reportOAuthFailure(account, error),
+            ),
             Effect.catch((error) =>
               Effect.gen(function* reportFailure() {
                 const message = describeError(error)

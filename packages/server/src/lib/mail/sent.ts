@@ -151,6 +151,10 @@ class SentCopies extends Context.Service<SentCopies, SentCopiesShape>()(
                 ),
               CredentialNotFound: (error) =>
                 Effect.fail(toAppendFailure(account, mailbox.path, error.message)),
+              OAuthAuthorizationFailed: (error) =>
+                Effect.fail(toAppendFailure(account, mailbox.path, error.message)),
+              OAuthReauthorizationRequired: (error) =>
+                Effect.fail(toAppendFailure(account, mailbox.path, error.message)),
             }),
           )
           if (uid === undefined) {

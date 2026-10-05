@@ -1,5 +1,6 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
 import type { Uid } from "@vingroto/core/ids"
+import type { AuthOptions } from "imapflow"
 
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -22,6 +23,7 @@ import type {
 
 import { passwordReference, usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
+import { imapAuthFor } from "@/lib/mail/auth"
 import { moveMessages, updateFlags } from "@/lib/mail/imap-actions"
 import { appendToMailbox } from "@/lib/mail/imap-append"
 import {
@@ -40,6 +42,7 @@ import {
   readMessageSource,
 } from "@/lib/mail/imap-message"
 import { fetchMailboxEnvelopes, searchMailbox } from "@/lib/mail/imap-search"
+import { GoogleOAuth } from "@/lib/oauth/service"
 
 const connectRetrySchedule = Schedule.exponential("500 millis").pipe(
   Schedule.jittered,
@@ -97,13 +100,13 @@ interface ImapShape {
 
 // A failed or abandoned connect leaves the socket in an unknown state.
 // Each attempt gets a fresh client and the previous one is closed before retrying.
-const connectOnce = (account: AccountConfig, username: string, password: string) =>
+const connectOnce = (account: AccountConfig, auth: AuthOptions) =>
   Effect.suspend(() => {
     const client = new ImapFlow({
       host: account.imap.host,
       port: account.imap.port,
       secure: account.imap.security === "tls",
-      auth: { user: username, pass: password },
+      auth,
       logger: false,
       disableAutoIdle: true,
     })
@@ -120,6 +123,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
     Imap,
     Effect.gen(function* makeImap() {
       const credential = yield* Credential
+      const oauth = yield* GoogleOAuth
 
       const connect = Effect.fn("Imap.connect")(function* openConnection(account: AccountConfig) {
         yield* Effect.logDebug("connecting to the IMAP server").pipe(
@@ -130,8 +134,11 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
           }),
         )
         const username = yield* credential.get(usernameReference(account.id))
-        const password = yield* credential.get(passwordReference(account.id))
-        return yield* connectOnce(account, username, password).pipe(
+        const secret =
+          account.auth === "oauth2"
+            ? yield* oauth.accessToken(account)
+            : yield* credential.get(passwordReference(account.id))
+        return yield* connectOnce(account, imapAuthFor(account, username, secret)).pipe(
           Effect.retry(connectRetrySchedule),
         )
       })

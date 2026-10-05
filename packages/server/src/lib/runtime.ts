@@ -42,6 +42,8 @@ const ServerLoggingLayer = LoggingLayer.server.pipe(Layer.provide(ServicesLayer)
 
 const DesktopLayer = DesktopNotifications.layer.pipe(Layer.provide(ServicesLayer))
 
+const OAuthLayer = GoogleOAuth.layer.pipe(Layer.provide(ServicesLayer))
+
 const InfraLayer = Layer.mergeAll(
   ServicesLayer,
   LifecycleLayer,
@@ -50,7 +52,10 @@ const InfraLayer = Layer.mergeAll(
   DesktopLayer,
 )
 
-const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(Layer.provideMerge(InfraLayer))
+// IMAP and SMTP mint access tokens through GoogleOAuth, so it belongs to the core services.
+const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(
+  Layer.provideMerge(Layer.mergeAll(InfraLayer, OAuthLayer)),
+)
 
 const NotifyLayer = NewMailNotifier.layer.pipe(Layer.provide(CoreLayer))
 
@@ -73,8 +78,6 @@ const DraftsLayer = Drafts.layer.pipe(Layer.provide(CoreLayer))
 
 const AccountsLayer = Accounts.layer.pipe(Layer.provide(Layer.mergeAll(SchedulerLayer, CoreLayer)))
 
-const OAuthLayer = GoogleOAuth.layer.pipe(Layer.provide(ServicesLayer))
-
 const MailActionsLayer = MailActions.layer.pipe(Layer.provide(CoreLayer))
 
 const MessagesLayer = Messages.layer.pipe(Layer.provide(MailActionsLayer), Layer.provide(CoreLayer))
@@ -92,7 +95,6 @@ const AppLayer = Layer.mergeAll(
   MessagesLayer,
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
   AccountsLayer,
-  OAuthLayer,
   Settings.layer.pipe(Layer.provide(CoreLayer)),
   Search.layer.pipe(Layer.provide(CoreLayer)),
 )

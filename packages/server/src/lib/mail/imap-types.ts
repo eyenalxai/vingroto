@@ -7,6 +7,7 @@ import * as Data from "effect/Data"
 import * as Schema from "effect/Schema"
 
 import type { CredentialError } from "@/lib/credential/service"
+import type { OAuthError } from "@/lib/oauth/errors"
 
 type FlagMode = "add" | "remove"
 
@@ -55,7 +56,7 @@ class ImapError extends Schema.TaggedError<ImapError>()("ImapError", {
   cause: Schema.optionalKey(Schema.Defect()),
 }) {}
 
-type ImapServiceError = ImapError | CredentialError
+type ImapServiceError = ImapError | CredentialError | OAuthError
 
 type MailboxWindowResult = Data.TaggedEnum<{
   ok: { readonly path: string; readonly snapshot: MailboxSnapshot }

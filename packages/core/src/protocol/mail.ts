@@ -114,6 +114,12 @@ const ActionFailure = Schema.Union([
     reference: Schema.String,
     message: Schema.String,
   }),
+  Schema.TaggedStruct("oauth", {
+    accountId: AccountId,
+    mailboxPath: Schema.String,
+    message: Schema.String,
+    reauthorizationRequired: Schema.Boolean,
+  }),
   Schema.TaggedStruct("cache-write", {
     accountId: AccountId,
     message: Schema.String,
@@ -133,6 +139,11 @@ const SyncFailure = Schema.Union([
     accountId: AccountId,
     mailboxPath: Schema.String,
     message: Schema.String,
+  }),
+  Schema.TaggedStruct("oauth", {
+    accountId: AccountId,
+    message: Schema.String,
+    reauthorizationRequired: Schema.Boolean,
   }),
   Schema.TaggedStruct("sync", {
     accountId: AccountId,

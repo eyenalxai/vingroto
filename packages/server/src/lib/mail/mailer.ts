@@ -12,9 +12,12 @@ import * as Schema from "effect/Schema"
 import { createTransport } from "nodemailer"
 
 import type { CredentialError } from "@/lib/credential/service"
+import type { OAuthError } from "@/lib/oauth/errors"
 
 import { passwordReference, usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
+import { smtpAuthFor } from "@/lib/mail/auth"
+import { GoogleOAuth } from "@/lib/oauth/service"
 
 class SmtpError extends Schema.TaggedError<SmtpError>()("SmtpError", {
   accountId: AccountId,
@@ -26,7 +29,7 @@ interface MailerShape {
   readonly send: (
     account: AccountConfig,
     message: OutgoingMessage,
-  ) => Effect.Effect<void, SmtpError | CredentialError>
+  ) => Effect.Effect<void, SmtpError | CredentialError | OAuthError>
   readonly compile: (
     account: AccountConfig,
     message: OutgoingMessage,
@@ -96,19 +99,23 @@ class Mailer extends Context.Service<Mailer, MailerShape>()("@vingroto/server/li
     Mailer,
     Effect.gen(function* makeMailer() {
       const credential = yield* Credential
+      const oauth = yield* GoogleOAuth
 
       const send = Effect.fn("Mailer.send")(function* sendMessage(
         account: AccountConfig,
         message: OutgoingMessage,
       ) {
         const username = yield* credential.get(usernameReference(account.id))
-        const password = yield* credential.get(passwordReference(account.id))
+        const secret =
+          account.auth === "oauth2"
+            ? yield* oauth.accessToken(account)
+            : yield* credential.get(passwordReference(account.id))
         const transport = createTransport({
           host: account.smtp.host,
           port: account.smtp.port,
           secure: account.smtp.security === "tls",
           requireTLS: account.smtp.security === "starttls",
-          auth: { user: username, pass: password },
+          auth: smtpAuthFor(account, username, secret),
         })
         yield* withTransport(
           account,
