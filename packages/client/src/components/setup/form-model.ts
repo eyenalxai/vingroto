@@ -86,15 +86,18 @@ const serverFields = [
 
 const [labelField, nameField, usernameField] = profileFields
 
-const editFields = [
+// Why: an OAuth account shows the sign-in method it uses instead of a password row.
+const editFieldsFor = (auth: AuthMethod): readonly FieldDescriptor[] => [
   labelField,
   nameField,
   { id: "email", label: "Email", kind: "readonly" },
   usernameField,
-  { id: "password", label: "Password", kind: "secret", placeholder: "unchanged" },
+  auth === "oauth2"
+    ? { id: "auth", label: "Authentication", kind: "readonly" }
+    : { id: "password", label: "Password", kind: "secret", placeholder: "unchanged" },
   ...connectionFields,
   { id: "saveSent", label: "Save sent copy", kind: "boolean" },
-] as const satisfies readonly FieldDescriptor[]
+]
 
 const securityOrder: readonly Security[] = ["tls", "starttls", "none"]
 
@@ -239,9 +242,25 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
 }
 
 const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
+  const oauth = draft.auth === "oauth2"
+  const clientId = draft.oauthClientId.trim()
+  if (oauth && clientId.length === 0) {
+    return editValidationResult.error({ message: "enter the OAuth client ID" })
+  }
   const profile = validateProfile(draft)
   if (profile._tag === "error") {
     return editValidationResult.error({ message: profile.message })
+  }
+  if (oauth) {
+    // Why: the server defaults a missing `auth` to password, so an OAuth edit must send it back.
+    return editValidationResult.ok({
+      value: {
+        ...profile.value,
+        auth: "oauth2",
+        oauth: { provider: "gmail", clientId },
+        saveSent: draft.saveSent,
+      },
+    })
   }
   return editValidationResult.ok({
     value: {
@@ -254,7 +273,7 @@ const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
 
 export {
   cycleSecurity,
-  editFields,
+  editFieldsFor,
   emptyDraft,
   isServerField,
   maskSecret,

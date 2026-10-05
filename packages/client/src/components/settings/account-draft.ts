@@ -4,9 +4,11 @@ import type { AccountDraft } from "@/components/setup/form-model"
 
 import { emptyDraft } from "@/components/setup/form-model"
 
-const draftFromAccount = (account: AccountConfig, username: string | undefined): AccountDraft => ({
+const draftFromAccount = (account: AccountConfig, username?: string): AccountDraft => ({
   ...emptyDraft(),
   email: account.email,
+  auth: account.auth,
+  oauthClientId: account.oauth?.clientId ?? "",
   label: account.label,
   name: account.name ?? "",
   username: username ?? account.email,
@@ -21,6 +23,8 @@ const draftFromAccount = (account: AccountConfig, username: string | undefined):
 
 const draftsMatch = (left: AccountDraft, right: AccountDraft): boolean =>
   left.email === right.email &&
+  left.auth === right.auth &&
+  left.oauthClientId === right.oauthClientId &&
   left.password === right.password &&
   left.label === right.label &&
   left.name === right.name &&

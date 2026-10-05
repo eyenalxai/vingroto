@@ -3,9 +3,12 @@ import type { AccountConfig } from "@vingroto/core/config/schema"
 
 import type { useAccountOrder } from "@/components/settings/use-account-order"
 import type { useAccountProfile } from "@/components/settings/use-account-profile"
+import type { useAccountReauthorize } from "@/components/settings/use-account-reauthorize"
 import type { SettingsExpansion } from "@/components/settings/use-settings-expansion"
+import type { FieldId } from "@/components/setup/form-model"
 
-import { editFields, securityLabel } from "@/components/setup/form-model"
+import { authLabel } from "@/components/setup/credential-fields"
+import { editFieldsFor, securityLabel } from "@/components/setup/form-model"
 
 interface SettingsRowBase {
   readonly key: string
@@ -49,6 +52,7 @@ type SettingsRow =
   | (SettingsRowBase & {
       readonly kind: "action"
       readonly label: string
+      readonly hint?: string | undefined
       readonly run: () => void
     })
   | (SettingsRowBase & {
@@ -92,6 +96,7 @@ interface AccountSectionInput {
   readonly accounts: () => readonly AccountConfig[]
   readonly accountOrder: ReturnType<typeof useAccountOrder>
   readonly accountProfile: ReturnType<typeof useAccountProfile>
+  readonly accountReauthorize: ReturnType<typeof useAccountReauthorize>
   readonly expansion: SettingsExpansion
   readonly onAddAccount: () => void
 }
@@ -116,17 +121,29 @@ const sectionItems = (section: SettingsSection): readonly SettingsItem[] => {
   return items
 }
 
-const accountGroup = (account: AccountConfig, input: AccountSectionInput): SettingsGroup => {
-  const groupKey = `account:${account.id}`
-  const save = () => {
-    input.accountProfile.save(account.id)
-  }
+interface AccountRowsPort {
+  readonly value: (field: FieldId) => string
+  readonly applyKey: (event: KeyEvent) => boolean
+  readonly restorePassword: (password: string) => void
+  readonly input: (field: FieldId, next: string) => void
+  readonly cycle: (field: FieldId, delta: number) => void
+  readonly loading: () => boolean
+  readonly save: () => void
+  readonly reauthorize: () => void
+}
+
+const accountRows = (account: AccountConfig, port: AccountRowsPort): readonly SettingsRow[] => {
   const rows: SettingsRow[] = []
-  for (const field of editFields) {
+  for (const field of editFieldsFor(account.auth)) {
     const key = `account:${account.id}:${field.id}`
-    const value = () => input.accountProfile.value(account.id, field.id)
+    const value = () => port.value(field.id)
     if (field.kind === "readonly") {
-      rows.push({ kind: "reading", key, label: field.label, value })
+      rows.push({
+        kind: "reading",
+        key,
+        label: field.label,
+        value: field.id === "auth" ? () => authLabel(value()) : value,
+      })
       continue
     }
     if (field.kind === "security") {
@@ -136,9 +153,9 @@ const accountGroup = (account: AccountConfig, input: AccountSectionInput): Setti
         label: field.label,
         value: () => securityLabel(value()),
         cycle: (delta) => {
-          input.accountProfile.cycle(account.id, field.id, delta)
+          port.cycle(field.id, delta)
         },
-        save,
+        save: port.save,
       })
       continue
     }
@@ -149,9 +166,9 @@ const accountGroup = (account: AccountConfig, input: AccountSectionInput): Setti
         label: field.label,
         value: () => value() === "yes",
         toggle: () => {
-          input.accountProfile.cycle(account.id, field.id, 1)
+          port.cycle(field.id, 1)
         },
-        save,
+        save: port.save,
       })
       continue
     }
@@ -161,11 +178,9 @@ const accountGroup = (account: AccountConfig, input: AccountSectionInput): Setti
         key,
         label: field.label,
         value,
-        applyKey: (event) => input.accountProfile.applyKey(account.id, event),
-        restore: (password) => {
-          input.accountProfile.restorePassword(account.id, password)
-        },
-        save,
+        applyKey: port.applyKey,
+        restore: port.restorePassword,
+        save: port.save,
       })
       continue
     }
@@ -175,13 +190,51 @@ const accountGroup = (account: AccountConfig, input: AccountSectionInput): Setti
       label: field.label,
       value,
       input: (next) => {
-        input.accountProfile.input(account.id, field.id, next)
+        port.input(field.id, next)
       },
       placeholder: field.placeholder,
-      pending: field.id === "username" ? () => input.accountProfile.loading(account.id) : undefined,
-      save,
+      pending: field.id === "username" ? port.loading : undefined,
+      save: port.save,
     })
   }
+  if (account.auth === "oauth2") {
+    rows.push({
+      kind: "action",
+      key: `account:${account.id}:reauthorize`,
+      label: "Re-authorize",
+      hint: "⏎ re-authorize · esc sections",
+      run: port.reauthorize,
+    })
+  }
+  return rows
+}
+
+const accountGroup = (account: AccountConfig, input: AccountSectionInput): SettingsGroup => {
+  const groupKey = `account:${account.id}`
+  const save = () => {
+    if (input.accountReauthorize.busy(account.id)) {
+      return
+    }
+    input.accountProfile.save(account.id)
+  }
+  const rows = accountRows(account, {
+    value: (field) => input.accountProfile.value(account.id, field),
+    applyKey: (event) => input.accountProfile.applyKey(account.id, event),
+    restorePassword: (password) => {
+      input.accountProfile.restorePassword(account.id, password)
+    },
+    input: (field, next) => {
+      input.accountProfile.input(account.id, field, next)
+    },
+    cycle: (field, delta) => {
+      input.accountProfile.cycle(account.id, field, delta)
+    },
+    loading: () => input.accountProfile.loading(account.id),
+    save,
+    reauthorize: () => {
+      input.accountReauthorize.reauthorize(account.id)
+    },
+  })
   return {
     kind: "account",
     key: groupKey,
@@ -191,7 +244,8 @@ const accountGroup = (account: AccountConfig, input: AccountSectionInput): Setti
     },
     summary: () => account.email,
     dirty: () => input.accountProfile.dirty(account.id),
-    pending: () => input.accountProfile.busy(account.id),
+    pending: () =>
+      input.accountProfile.busy(account.id) || input.accountReauthorize.busy(account.id),
     expanded: () => input.expansion.isExpanded(groupKey),
     toggle: () => {
       input.expansion.toggle(groupKey)
@@ -220,10 +274,12 @@ const buildAccountSection = (input: AccountSectionInput): SettingsSection => ({
 })
 
 export {
+  accountRows,
   buildAccountSection,
   sectionItems,
   settingsRowId,
   settingsSectionId,
+  type AccountRowsPort,
   type SettingsGroup,
   type SettingsItem,
   type SettingsRow,

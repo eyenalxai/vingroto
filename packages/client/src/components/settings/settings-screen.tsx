@@ -28,6 +28,7 @@ import {
 } from "@/components/settings/settings-section-builders"
 import { useAccountOrder } from "@/components/settings/use-account-order"
 import { useAccountProfile } from "@/components/settings/use-account-profile"
+import { useAccountReauthorize } from "@/components/settings/use-account-reauthorize"
 import { useArmedDiscard } from "@/components/settings/use-armed-discard"
 import { useEditorSetting } from "@/components/settings/use-editor-setting"
 import { useNotificationsSetting } from "@/components/settings/use-notifications-setting"
@@ -50,6 +51,7 @@ interface SettingsScreenProps {
   readonly onAddAccount: () => void
   readonly onClose: () => void
   readonly onAccountSaved: (account: AccountConfig) => void
+  readonly onAccountReauthorized: (account: AccountConfig) => void
   readonly onMailboxChanged: () => void
   readonly onSyncSaved: () => void
   readonly onSendSaved: () => void
@@ -98,6 +100,13 @@ const SettingsScreen = (props: SettingsScreenProps) => {
       report(`saved ${account.label}`)
       props.onAccountSaved(account)
     },
+    onStatus: report,
+    onDisconnected: props.onDisconnected,
+  })
+  const accountReauthorize = useAccountReauthorize({
+    runtime,
+    accounts: () => accountOrder.accounts(),
+    onAuthorized: props.onAccountReauthorized,
     onStatus: report,
     onDisconnected: props.onDisconnected,
   })
@@ -151,12 +160,14 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   })
 
   onCleanup(accountProfile.dispose)
+  onCleanup(accountReauthorize.dispose)
 
   const accountSection = createMemo(() =>
     buildAccountSection({
       accounts: () => accountOrder.accounts(),
       accountOrder,
       accountProfile,
+      accountReauthorize,
       expansion,
       onAddAccount: props.onAddAccount,
     }),
@@ -186,6 +197,7 @@ const SettingsScreen = (props: SettingsScreenProps) => {
   const layout = createMemo(() => resolveSettingsLayout(dimensions().width))
   const pending = () =>
     accountProfile.busyAny() ||
+    accountReauthorize.busyAny() ||
     syncProfile.busy() ||
     sendProfile.busy() ||
     editorSetting.busy() ||

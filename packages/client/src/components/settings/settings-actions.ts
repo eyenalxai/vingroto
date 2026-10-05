@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { AccountId } from "@vingroto/core/ids"
 
 import * as Effect from "effect/Effect"
 
@@ -11,7 +12,7 @@ interface SettingsActionsOptions {
   readonly onRefreshed: () => void
   readonly onStatus: (message: string) => void
   readonly onAccountAdded: () => void
-  readonly syncWindow: () => void
+  readonly syncWindow: (paths?: readonly string[], accountId?: AccountId) => void
 }
 
 const createSettingsActions = (options: SettingsActionsOptions) => {
@@ -35,6 +36,9 @@ const createSettingsActions = (options: SettingsActionsOptions) => {
   }
 
   return {
+    handleAccountReauthorized: (account: AccountConfig) => {
+      options.syncWindow(undefined, account.id)
+    },
     handleAccountSaved,
     handleAccountUpdated: (account: AccountConfig) => {
       refreshWithStatus(`account ${account.label} updated`)

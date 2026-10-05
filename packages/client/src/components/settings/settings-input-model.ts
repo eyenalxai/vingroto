@@ -38,7 +38,7 @@ const contentHint = (item: SettingsItem | undefined): string => {
   }
   switch (item.row.kind) {
     case "action": {
-      return "⏎ add account · esc sections"
+      return item.row.hint ?? "⏎ add account · esc sections"
     }
     case "choice": {
       return "←→ cycle · ctrl+s save · esc sections"

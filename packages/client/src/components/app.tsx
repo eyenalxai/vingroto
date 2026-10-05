@@ -230,6 +230,7 @@ const App = () => {
                 setSettingsOpen(false)
               }}
               onAccountSaved={settings.handleAccountUpdated}
+              onAccountReauthorized={settings.handleAccountReauthorized}
               onMailboxChanged={store.loadMailboxData}
               onSyncSaved={settings.handleSyncSaved}
               onSendSaved={settings.handleSendSaved}
