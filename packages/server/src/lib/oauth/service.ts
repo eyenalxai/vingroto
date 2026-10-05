@@ -86,11 +86,28 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
             }),
           )
 
+        // Settings re-authorization supplies no secret.
+        // The secret stored at first sign-in still has to reach the code exchange.
+        // An empty string means "nothing stored".
+        const readStoredClientSecret = (accountId: AccountId) =>
+          credential.get(oauthClientSecretReference(accountId)).pipe(
+            Effect.catchTags({
+              CredentialNotFound: () => Effect.succeed(""),
+              KeyringError: (error) =>
+                Effect.fail(
+                  new OAuthAuthorizationFailed({
+                    message: `the OS keyring could not be read: ${error.message}`,
+                  }),
+                ),
+            }),
+          )
+
         const exchangeCode = Effect.fn("GoogleOAuth.exchangeCode")(
           function* exchangeAuthorizationCode(request: {
             readonly accountId: AccountId
             readonly clientId: string
             readonly clientSecret: string | undefined
+            readonly clientSecretToStore: string | undefined
             readonly code: string
             readonly redirectUri: string
             readonly verifier: string
@@ -123,10 +140,10 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
               refreshToken,
               "Google refresh token",
             )
-            if (request.clientSecret !== undefined) {
+            if (request.clientSecretToStore !== undefined) {
               yield* storeSecret(
                 oauthClientSecretReference(request.accountId),
-                request.clientSecret,
+                request.clientSecretToStore,
                 "Google client secret",
               )
             }
@@ -140,7 +157,12 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
           // The account id mirrors the config writer's email-derived id.
           // The refresh token lands under the refs the account created right after this flow will read.
           const accountId = AccountId.make(input.email.trim().toLowerCase())
-          const clientSecret = normalizeClientSecret(input.clientSecret)
+          const suppliedClientSecret = normalizeClientSecret(input.clientSecret)
+          const storedClientSecret =
+            suppliedClientSecret === undefined
+              ? normalizeClientSecret(yield* readStoredClientSecret(accountId))
+              : undefined
+          const clientSecret = suppliedClientSecret ?? storedClientSecret
           return yield* Effect.scoped(
             Effect.gen(function* runSignIn() {
               const verifier = yield* makeCodeVerifier(crypto).pipe(Effect.mapError(cryptoFailure))
@@ -169,6 +191,7 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
                 accountId,
                 clientId: input.clientId,
                 clientSecret,
+                clientSecretToStore: suppliedClientSecret,
                 code,
                 redirectUri: listener.redirectUri,
                 verifier,

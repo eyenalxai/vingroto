@@ -110,6 +110,23 @@ describe("GoogleOAuth authorization", () => {
     })
   })
 
+  test("a stored client secret is reused when re-authorizing without one", async () => {
+    await withTokenEndpoint(async (endpoint) => {
+      const credential = makeFakeCredential()
+      const capture: CapturedAuthorization = {}
+      credential.secrets.set(oauthClientSecretReference(alpha), "stored-secret")
+      endpoint.respond(() =>
+        tokenResponse({ access_token: "at-1", expires_in: 3600, refresh_token: "rt-1" }),
+      )
+      await runOAuth(endpoint, credential, { openBrowser: callbackOpener(capture) }, (oauth) =>
+        oauth.authorize({ clientId, email: alpha }),
+      )
+      expect(endpoint.requests[0]?.get("client_secret")).toBe("stored-secret")
+      expect(credential.secrets.get(oauthClientSecretReference(alpha))).toBe("stored-secret")
+      expect(credential.stored).toEqual([oauthRefreshTokenReference(alpha)])
+    })
+  })
+
   test("the flow times out and closes its loopback listener", async () => {
     await withTokenEndpoint(async (endpoint) => {
       const credential = makeFakeCredential()

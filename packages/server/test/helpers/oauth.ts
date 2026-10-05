@@ -33,10 +33,12 @@ const account: AccountConfig = {
 interface FakeCredential {
   readonly secrets: Map<string, string>
   readonly service: Credential["Service"]
+  readonly stored: string[]
 }
 
 const makeFakeCredential = (): FakeCredential => {
   const secrets = new Map<string, string>()
+  const stored: string[] = []
   const get = Effect.fn("Credential.get")(function* get(reference: string) {
     const secret = secrets.get(reference)
     if (secret === undefined) {
@@ -50,9 +52,10 @@ const makeFakeCredential = (): FakeCredential => {
   const set = Effect.fn("Credential.set")(function* set(reference: string, secret: string) {
     yield* Effect.sync(() => {
       secrets.set(reference, secret)
+      stored.push(reference)
     })
   })
-  return { secrets, service: { get, set } }
+  return { secrets, service: { get, set }, stored }
 }
 
 type TokenResponder = (params: URLSearchParams) => Response | Promise<Response>
