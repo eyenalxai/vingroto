@@ -8,6 +8,7 @@ import type { FieldId } from "@/components/setup/form-model"
 
 import { handleQuitKey } from "@/components/quit-key"
 import { AccountSetupView } from "@/components/setup/account-setup-view"
+import { escapeIntent } from "@/components/setup/use-account-save"
 import { useAccountSetup } from "@/components/setup/use-account-setup"
 
 interface AccountSetupProps {
@@ -43,9 +44,14 @@ const AccountSetup = (props: AccountSetupProps) => {
     }
     if (event.name === "escape") {
       event.preventDefault()
-      if (form.step() === "servers") {
+      const intent = escapeIntent(form.savePhase())
+      if (intent === "cancel-sign-in") {
+        form.cancel()
+      } else if (intent === "keep-saving") {
+        form.report("account is saving…")
+      } else if (form.step() === "servers") {
         form.goToStep("credentials")
-      } else if (!form.cancel()) {
+      } else {
         props.onCancel?.()
       }
       return true
@@ -105,6 +111,9 @@ const AccountSetup = (props: AccountSetupProps) => {
   const hint = () => {
     if (form.authorizing()) {
       return "esc cancel sign-in · ctrl+c quit app"
+    }
+    if (form.busy()) {
+      return "please wait · ctrl+c quit app"
     }
     if (form.step() === "credentials") {
       const cancel = props.onCancel === undefined ? "" : " · esc cancel"

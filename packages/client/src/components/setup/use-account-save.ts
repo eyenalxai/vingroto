@@ -4,26 +4,42 @@ import { Effect, Fiber } from "effect"
 import { createSignal } from "solid-js"
 
 import type { AccountDraft } from "@/components/setup/form-model"
-import type { AppRuntimeError } from "@/lib/runtime"
+import type { AppRuntime, AppRuntimeError } from "@/lib/runtime"
 
-import { useRuntime } from "@/components/runtime-provider"
 import { validateDraft } from "@/components/setup/form-model"
 import { MailClient } from "@/lib/api"
 import { describeClientFailure } from "@/lib/failure"
+
+type SavePhase = "idle" | "authorizing" | "creating"
+
+type EscapeIntent = "leave" | "cancel-sign-in" | "keep-saving"
+
+// Why: escape may interrupt the browser authorization, but never the create that follows it.
+// The daemon can persist the account while the create request is still in flight.
+const escapeIntent = (phase: SavePhase): EscapeIntent => {
+  if (phase === "authorizing") {
+    return "cancel-sign-in"
+  }
+  if (phase === "creating") {
+    return "keep-saving"
+  }
+  return "leave"
+}
 
 interface UseAccountSaveOptions {
   readonly draft: AccountDraft
   readonly discovering: () => boolean
   readonly onSaved: (account: AccountConfig) => void
   readonly report: (message: string, isError?: boolean) => void
+  readonly runtime: AppRuntime
 }
 
-// Why: the OAuth save is two requests, and escape must interrupt the first one without leaving an account.
 const useAccountSave = (options: UseAccountSaveOptions) => {
-  const runtime = useRuntime()
-  const [busy, setBusy] = createSignal(false)
-  const [authorizing, setAuthorizing] = createSignal(false)
+  const [phase, setPhase] = createSignal<SavePhase>("idle")
   let saveFiber: Fiber.Fiber<void, AppRuntimeError> | null = null
+
+  const busy = () => phase() !== "idle"
+  const authorizing = () => phase() === "authorizing"
 
   const save = () => {
     if (busy()) {
@@ -39,8 +55,7 @@ const useAccountSave = (options: UseAccountSaveOptions) => {
       return
     }
     const { authorization, value } = result
-    setBusy(true)
-    setAuthorizing(authorization !== undefined)
+    setPhase(authorization === undefined ? "creating" : "authorizing")
     options.report(
       authorization === undefined ? "saving account…" : "waiting for browser authorization…",
     )
@@ -59,6 +74,10 @@ const useAccountSave = (options: UseAccountSaveOptions) => {
         if (!authorized) {
           return
         }
+        yield* Effect.sync(() => {
+          setPhase("creating")
+          options.report("saving account…")
+        })
       }
       yield* client.createAccount(value).pipe(
         Effect.tap((account) =>
@@ -76,12 +95,11 @@ const useAccountSave = (options: UseAccountSaveOptions) => {
     }).pipe(
       Effect.ensuring(
         Effect.sync(() => {
-          setBusy(false)
-          setAuthorizing(false)
+          setPhase("idle")
         }),
       ),
     )
-    saveFiber = runtime.runFork(program)
+    saveFiber = options.runtime.runFork(program)
   }
 
   const cancel = (): boolean => {
@@ -90,19 +108,24 @@ const useAccountSave = (options: UseAccountSaveOptions) => {
     }
     const fiber = saveFiber
     saveFiber = null
-    setAuthorizing(false)
-    runtime.runFork(Fiber.interrupt(fiber))
+    options.runtime.runFork(Fiber.interrupt(fiber))
     options.report("Google sign-in cancelled")
     return true
   }
 
   const dispose = () => {
     if (saveFiber !== null) {
-      runtime.runFork(Fiber.interrupt(saveFiber))
+      options.runtime.runFork(Fiber.interrupt(saveFiber))
     }
   }
 
-  return { authorizing, busy, cancel, dispose, save }
+  return { authorizing, busy, cancel, dispose, phase, save }
 }
 
-export { useAccountSave, type UseAccountSaveOptions }
+export {
+  escapeIntent,
+  useAccountSave,
+  type EscapeIntent,
+  type SavePhase,
+  type UseAccountSaveOptions,
+}

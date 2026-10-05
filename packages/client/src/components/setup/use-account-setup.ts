@@ -55,6 +55,7 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     discovering,
     onSaved: options.onSaved,
     report,
+    runtime,
   })
 
   const fields = createMemo<readonly FieldDescriptor[]>(() =>
@@ -268,7 +269,9 @@ const useAccountSetup = (options: UseAccountSetupOptions) => {
     goToStep,
     input,
     moveFocus,
+    report,
     save: accountSave.save,
+    savePhase: accountSave.phase,
     source,
     status,
     statusError,
