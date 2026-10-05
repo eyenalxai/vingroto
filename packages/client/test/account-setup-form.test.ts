@@ -36,7 +36,7 @@ const servers = {
 } as const
 
 describe("account setup form model", () => {
-  test("password mode validates and maps exactly like before", () => {
+  test("password mode validates and maps with the password auth method", () => {
     const missing = validateDraft(baseDraft({ email: "user@example.com" }))
     expect(missing._tag).toBe("error")
     if (missing._tag === "error") {
@@ -46,6 +46,7 @@ describe("account setup form model", () => {
     const result = validateOk(baseDraft({ email: "user@example.com", password: "hunter2" }))
     expect(result.value).toStrictEqual({
       email: "user@example.com",
+      auth: "password",
       password: "hunter2",
       label: "user@example.com",
       username: "user@example.com",
@@ -136,7 +137,7 @@ describe("account setup form model", () => {
       baseDraft({ email: "user@gmail.com", password: "hunter2", oauthClientId: "leftover" }),
     )
     expect(result.value.password).toBe("hunter2")
-    expect(result.value.auth).toBeUndefined()
+    expect(result.value.auth).toBe("password")
     expect(result.value.oauth).toBeUndefined()
     expect(result.authorization).toBeUndefined()
   })
@@ -149,7 +150,7 @@ describe("account setup form model", () => {
     })
     expect(authForDraft(stale)).toBe("password")
     const result = validateOk({ ...stale, password: "hunter2" })
-    expect(result.value.auth).toBeUndefined()
+    expect(result.value.auth).toBe("password")
     expect(result.value.oauth).toBeUndefined()
     expect(result.value.password).toBe("hunter2")
   })

@@ -26,7 +26,7 @@ const tokenParams = (
 const normalizeClientSecret = (clientSecret: string | undefined): string | undefined =>
   clientSecret === undefined || clientSecret.length === 0 ? undefined : clientSecret
 
-const requestTokens = Effect.fn("GoogleOAuth.requestTokens")(function* postTokenRequest(
+const requestTokens = Effect.fn("OAuth.requestTokens")(function* postTokenRequest(
   client: HttpClient.HttpClient,
   endpoint: string,
   params: readonly (readonly [string, string])[],

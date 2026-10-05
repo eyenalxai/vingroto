@@ -9,14 +9,14 @@ import {
 import * as Effect from "effect/Effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 
-import type { GoogleOAuthShape } from "@/lib/oauth/service"
+import type { OAuthShape } from "@/lib/oauth"
 
 import { Accounts } from "@/lib/accounts"
 import { ServerApi } from "@/lib/api/api"
 import { internalFailure } from "@/lib/api/internal-error"
 import { invalidField } from "@/lib/api/invalid-request"
 import { Discovery } from "@/lib/mail/autoconfig"
-import { GoogleOAuth } from "@/lib/oauth/service"
+import { OAuth } from "@/lib/oauth"
 
 const credentialStoreMessage = "the credential store could not be used"
 
@@ -30,7 +30,7 @@ const credentialStoreFailure = (error: {
   )
 
 const authorizeOAuthAccount = Effect.fn("AccountHandlers.authorizeOAuthAccount")(
-  function* authorizeOAuthAccount(oauth: GoogleOAuthShape, payload: OAuthAuthorize) {
+  function* authorizeOAuthAccount(oauth: OAuthShape, payload: OAuthAuthorize) {
     const email = payload.email.trim()
     if (email.length === 0) {
       return yield* invalidField("Body", "email", "an email address is required")
@@ -66,7 +66,7 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
         Accounts.pipe(Effect.flatMap((accounts) => accounts.create(payload))),
         {
           AccountAuthInvalid: (error) =>
-            Effect.fail(new InvalidRequestError({ message: error.message })),
+            Effect.fail(invalidField("Body", error.field, error.message)),
           CredentialNotFound: (error) =>
             Effect.fail(new CredentialsError({ message: error.message })),
           KeyringError: credentialStoreFailure,
@@ -81,7 +81,7 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
       ),
     )
     .handle("account.oauth.authorize", ({ payload }) =>
-      Effect.flatMap(GoogleOAuth, (oauth) => authorizeOAuthAccount(oauth, payload)),
+      Effect.flatMap(OAuth, (oauth) => authorizeOAuthAccount(oauth, payload)),
     )
     .handle("account.update", ({ params, payload }) =>
       Effect.catchTags(
@@ -90,7 +90,7 @@ const AccountHandlers = HttpApiBuilder.group(ServerApi, "accounts", (handlers) =
           AccountNotFound: (error) =>
             Effect.fail(new AccountNotFoundError({ accountId: error.id, message: error.message })),
           AccountAuthInvalid: (error) =>
-            Effect.fail(new InvalidRequestError({ message: error.message })),
+            Effect.fail(invalidField("Body", error.field, error.message)),
           CredentialNotFound: (error) =>
             Effect.fail(new CredentialsError({ message: error.message })),
           KeyringError: credentialStoreFailure,

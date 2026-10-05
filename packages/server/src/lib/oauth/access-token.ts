@@ -5,6 +5,7 @@ import type { HttpClient } from "effect/unstable/http"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
 import * as Semaphore from "effect/Semaphore"
 
 import type { Credential } from "@/lib/credential/service"
@@ -12,6 +13,7 @@ import type { OAuthError } from "@/lib/oauth/errors"
 
 import { oauthClientSecretReference, oauthRefreshTokenReference } from "@/lib/credential/refs"
 import { OAuthAuthorizationFailed, OAuthReauthorizationRequired } from "@/lib/oauth/errors"
+import { readOptionalSecret } from "@/lib/oauth/secrets"
 import { normalizeClientSecret, requestTokens, tokenParams } from "@/lib/oauth/tokens"
 
 const REFRESH_WINDOW_MILLIS = Duration.toMillis(Duration.minutes(5))
@@ -45,41 +47,20 @@ const makeAccessTokenProvider = (deps: AccessTokenDeps) => {
     return created
   }
 
-  // An empty string means "no secret stored"; `normalizeClientSecret` turns it back into absent.
-  const readSecret = (reference: string) =>
-    credential.get(reference).pipe(
-      Effect.catchTags({
-        CredentialNotFound: () => Effect.succeed(""),
-        KeyringError: (error) =>
-          Effect.fail(
-            new OAuthAuthorizationFailed({
-              message: `the OS keyring could not be read: ${error.message}`,
-            }),
-          ),
-      }),
-    )
-
   const readRefreshToken = (account: AccountConfig) =>
-    credential.get(oauthRefreshTokenReference(account.id)).pipe(
-      Effect.catchTags({
-        CredentialNotFound: () =>
-          Effect.fail(
+    readOptionalSecret(credential, oauthRefreshTokenReference(account.id)).pipe(
+      Effect.flatMap((token) =>
+        Effect.fromOption(
+          token,
+          () =>
             new OAuthReauthorizationRequired({
               message: `${account.email} has no stored Google refresh token; re-authorize the account`,
             }),
-          ),
-        KeyringError: (error) =>
-          Effect.fail(
-            new OAuthAuthorizationFailed({
-              message: `the OS keyring could not be read: ${error.message}`,
-            }),
-          ),
-      }),
+        ),
+      ),
     )
 
-  const refresh = Effect.fn("GoogleOAuth.refresh")(function* refreshAccessToken(
-    account: AccountConfig,
-  ) {
+  const refresh = Effect.fn("OAuth.refresh")(function* refreshAccessToken(account: AccountConfig) {
     const oauth = account.oauth
     if (oauth === undefined) {
       return yield* new OAuthAuthorizationFailed({
@@ -87,8 +68,11 @@ const makeAccessTokenProvider = (deps: AccessTokenDeps) => {
       })
     }
     const refreshToken = yield* readRefreshToken(account)
-    const storedSecret = yield* readSecret(oauthClientSecretReference(account.id))
-    const clientSecret = normalizeClientSecret(storedSecret)
+    const storedSecret = yield* readOptionalSecret(
+      credential,
+      oauthClientSecretReference(account.id),
+    )
+    const clientSecret = normalizeClientSecret(Option.getOrUndefined(storedSecret))
     const payload = yield* requestTokens(
       client,
       tokenEndpoint,
@@ -122,7 +106,7 @@ const makeAccessTokenProvider = (deps: AccessTokenDeps) => {
   })
 
   const accessToken: (account: AccountConfig) => Effect.Effect<string, OAuthError> = Effect.fn(
-    "GoogleOAuth.accessToken",
+    "OAuth.accessToken",
   )(function* accessTokenForAccount(account: AccountConfig) {
     if (account.oauth === undefined) {
       return yield* new OAuthAuthorizationFailed({

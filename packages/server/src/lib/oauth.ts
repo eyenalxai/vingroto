@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { OAuthAuthorize } from "@vingroto/core/protocol/accounts"
 import type { PlatformError } from "effect/PlatformError"
 
 import { describeError } from "@vingroto/core/errors"
@@ -9,6 +10,7 @@ import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import { FetchHttpClient, HttpClient } from "effect/unstable/http"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 
@@ -22,6 +24,7 @@ import { openWithXdg } from "@/lib/oauth/browser"
 import { OAuthAuthorizationFailed } from "@/lib/oauth/errors"
 import { acquireLoopbackListener } from "@/lib/oauth/listener"
 import { codeChallengeS256, makeCodeVerifier, makeState } from "@/lib/oauth/pkce"
+import { readOptionalSecret } from "@/lib/oauth/secrets"
 import { normalizeClientSecret, requestTokens, tokenParams } from "@/lib/oauth/tokens"
 
 const GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -29,13 +32,7 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 const MAIL_SCOPE = "https://mail.google.com/"
 const DEFAULT_FLOW_DEADLINE = Duration.minutes(5)
 
-interface OAuthAuthorizeInput {
-  readonly email: string
-  readonly clientId: string
-  readonly clientSecret?: string
-}
-
-interface GoogleOAuthOptions {
+interface OAuthOptions {
   readonly authorizationEndpoint: string
   readonly tokenEndpoint: string
   readonly flowDeadline: Duration.Input
@@ -44,8 +41,8 @@ interface GoogleOAuthOptions {
   ) => Effect.Effect<void, OAuthAuthorizationFailed, HttpClient.HttpClient>
 }
 
-interface GoogleOAuthShape {
-  readonly authorize: (input: OAuthAuthorizeInput) => Effect.Effect<void, OAuthError>
+interface OAuthShape {
+  readonly authorize: (input: OAuthAuthorize) => Effect.Effect<void, OAuthError>
   readonly accessToken: (account: AccountConfig) => Effect.Effect<string, OAuthError>
 }
 
@@ -54,13 +51,11 @@ const cryptoFailure = (error: PlatformError) =>
     message: `could not build the PKCE challenge: ${describeError(error)}`,
   })
 
-class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
-  "@vingroto/server/lib/oauth/service/GoogleOAuth",
-) {
-  static readonly layerWith = (options: Partial<GoogleOAuthOptions> = {}) =>
+class OAuth extends Context.Service<OAuth, OAuthShape>()("@vingroto/server/lib/oauth") {
+  static readonly layerWith = (options: Partial<OAuthOptions> = {}) =>
     Layer.effect(
-      GoogleOAuth,
-      Effect.gen(function* makeGoogleOAuth() {
+      OAuth,
+      Effect.gen(function* makeOAuth() {
         const credential = yield* Credential
         const crypto = yield* Crypto
         const spawner = yield* ChildProcessSpawner
@@ -88,21 +83,12 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
 
         // Settings re-authorization supplies no secret.
         // The secret stored at first sign-in still has to reach the code exchange.
-        // An empty string means "nothing stored".
         const readStoredClientSecret = (accountId: AccountId) =>
-          credential.get(oauthClientSecretReference(accountId)).pipe(
-            Effect.catchTags({
-              CredentialNotFound: () => Effect.succeed(""),
-              KeyringError: (error) =>
-                Effect.fail(
-                  new OAuthAuthorizationFailed({
-                    message: `the OS keyring could not be read: ${error.message}`,
-                  }),
-                ),
-            }),
+          readOptionalSecret(credential, oauthClientSecretReference(accountId)).pipe(
+            Effect.map((secret) => normalizeClientSecret(Option.getOrUndefined(secret))),
           )
 
-        const exchangeCode = Effect.fn("GoogleOAuth.exchangeCode")(
+        const exchangeCode = Effect.fn("OAuth.exchangeCode")(
           function* exchangeAuthorizationCode(request: {
             readonly accountId: AccountId
             readonly clientId: string
@@ -151,8 +137,8 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
           },
         )
 
-        const authorize = Effect.fn("GoogleOAuth.authorize")(function* authorizeGoogleAccount(
-          input: OAuthAuthorizeInput,
+        const authorize = Effect.fn("OAuth.authorize")(function* authorizeGoogleAccount(
+          input: OAuthAuthorize,
         ) {
           // The account id mirrors the config writer's email-derived id.
           // The refresh token lands under the refs the account created right after this flow will read.
@@ -160,7 +146,7 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
           const suppliedClientSecret = normalizeClientSecret(input.clientSecret)
           const storedClientSecret =
             suppliedClientSecret === undefined
-              ? normalizeClientSecret(yield* readStoredClientSecret(accountId))
+              ? yield* readStoredClientSecret(accountId)
               : undefined
           const clientSecret = suppliedClientSecret ?? storedClientSecret
           return yield* Effect.scoped(
@@ -210,11 +196,11 @@ class GoogleOAuth extends Context.Service<GoogleOAuth, GoogleOAuthShape>()(
           )
         })
 
-        return GoogleOAuth.of({ accessToken, authorize })
+        return OAuth.of({ accessToken, authorize })
       }),
     ).pipe(Layer.provide(FetchHttpClient.layer))
 
-  static readonly layer = GoogleOAuth.layerWith()
+  static readonly layer = OAuth.layerWith()
 }
 
-export { GoogleOAuth, type GoogleOAuthOptions, type GoogleOAuthShape, type OAuthAuthorizeInput }
+export { OAuth, type OAuthOptions, type OAuthShape }

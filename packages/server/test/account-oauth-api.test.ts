@@ -12,7 +12,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime"
 import { HttpClientRequest, HttpServer } from "effect/unstable/http"
 import { HttpApiBuilder, HttpApiMiddleware, HttpApiTest } from "effect/unstable/httpapi"
 
-import type { GoogleOAuthShape, OAuthAuthorizeInput } from "@/lib/oauth/service"
+import type { OAuthShape } from "@/lib/oauth"
 
 import { authorizeOAuthAccount } from "@/lib/api/accounts"
 import { authorizationLayer } from "@/lib/api/authorization"
@@ -30,14 +30,14 @@ interface AuthorizeCall {
 
 interface OAuthStub {
   readonly calls: AuthorizeCall[]
-  readonly service: GoogleOAuthShape
+  readonly service: OAuthShape
 }
 
 const makeOAuthStub = (
-  authorize: (input: OAuthAuthorizeInput) => Effect.Effect<void, OAuthAuthorizationFailed>,
+  authorize: (input: OAuthAuthorize) => Effect.Effect<void, OAuthAuthorizationFailed>,
 ): OAuthStub => {
   const calls: AuthorizeCall[] = []
-  const record = (input: OAuthAuthorizeInput) => {
+  const record = (input: OAuthAuthorize) => {
     calls.push({
       clientId: input.clientId,
       clientSecret: input.clientSecret,
@@ -48,7 +48,7 @@ const makeOAuthStub = (
   return { calls, service: { accessToken: unused, authorize: record } }
 }
 
-const makeTestHandlers = (oauth: GoogleOAuthShape) =>
+const makeTestHandlers = (oauth: OAuthShape) =>
   HttpApiBuilder.group(Api, "accounts", (handlers) =>
     handlers.handleAll({
       "account.create": () => unused(),
@@ -71,7 +71,7 @@ const clientAuthorization = HttpApiMiddleware.layerClient(Authorization, ({ next
 )
 
 const runApi = async <A, E>(
-  oauth: GoogleOAuthShape,
+  oauth: OAuthShape,
   use: (client: ApiClient) => Effect.Effect<A, E>,
 ): Promise<A> => {
   const handlers = makeTestHandlers(oauth).pipe(Layer.provideMerge(authorizationLayer(token)))

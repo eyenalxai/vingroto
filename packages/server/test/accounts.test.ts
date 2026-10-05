@@ -129,6 +129,17 @@ describe("account auth config", () => {
 })
 
 describe("account auth protocol", () => {
+  test("a NewAccount without auth decodes as a password account", async () => {
+    const decoded = await Effect.runPromise(
+      Schema.decodeEffect(NewAccount)({
+        ...baseAccount,
+        email: alpha,
+        password: "app-password",
+      }),
+    )
+    expect(decoded.auth).toBe("password")
+  })
+
   test("an oauth2 NewAccount decodes without a password", async () => {
     const decoded = await Effect.runPromise(
       Schema.decodeEffect(NewAccount)({
@@ -162,7 +173,7 @@ describe("account auth protocol", () => {
           return { error, exists }
         }),
       )
-      expect(outcome.error._tag).toBe("AccountAuthInvalid")
+      expect(outcome.error).toMatchObject({ _tag: "AccountAuthInvalid", field: "password" })
       expect(outcome.exists).toBe(false)
       expect(fake.secrets.size).toBe(0)
     })
@@ -209,7 +220,12 @@ describe("account persistence", () => {
             credential: fake.service,
             fs,
           })
-          yield* submit({ ...baseAccount, email: alpha, password: "app-password" })
+          yield* submit({
+            ...baseAccount,
+            email: alpha,
+            auth: "password",
+            password: "app-password",
+          })
           return yield* readConfig(fs, fixture.paths.config)
         }),
       )
@@ -235,7 +251,7 @@ describe("account persistence", () => {
           return { error, exists }
         }),
       )
-      expect(outcome.error._tag).toBe("AccountAuthInvalid")
+      expect(outcome.error).toMatchObject({ _tag: "AccountAuthInvalid", field: "oauth" })
       expect(outcome.exists).toBe(false)
       expect(fake.secrets.size).toBe(0)
     })
@@ -249,8 +265,17 @@ describe("account persistence", () => {
           const deps = { configPath: fixture.paths.config, credential: fake.service, fs }
           const submit = makeSubmitAccount(deps)
           const update = makeUpdateAccount(deps)
-          yield* submit({ ...baseAccount, email: alpha, password: "app-password" })
-          const renamed = yield* update(alpha, { ...baseAccount, label: "Renamed" })
+          yield* submit({
+            ...baseAccount,
+            email: alpha,
+            auth: "password",
+            password: "app-password",
+          })
+          const renamed = yield* update(alpha, {
+            ...baseAccount,
+            auth: "password",
+            label: "Renamed",
+          })
           const error = yield* Effect.flip(update(alpha, { ...baseAccount, auth: "oauth2" }))
           const config = yield* readConfig(fs, fixture.paths.config)
           return { config, error, renamed }
@@ -260,7 +285,7 @@ describe("account persistence", () => {
       expect(fake.secrets.get(passwordReference(alpha))).toBe("app-password")
       expect(outcome.config.accounts[0]?.label).toBe("Renamed")
       expect(outcome.config.accounts[0]?.auth).toBe("password")
-      expect(outcome.error._tag).toBe("AccountAuthInvalid")
+      expect(outcome.error).toMatchObject({ _tag: "AccountAuthInvalid", field: "oauth" })
     })
   })
 })

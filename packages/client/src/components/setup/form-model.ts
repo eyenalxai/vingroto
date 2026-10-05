@@ -219,15 +219,10 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
   if (profile._tag === "error") {
     return validationResult.error({ message: profile.message })
   }
+  const saved = { ...profile.value, saveSent: draft.saveSent }
   if (oauth) {
     return validationResult.ok({
-      value: {
-        email,
-        auth: "oauth2",
-        oauth: { provider: "gmail", clientId },
-        ...profile.value,
-        saveSent: draft.saveSent,
-      },
+      value: { email, auth: "oauth2", oauth: { provider: "gmail", clientId }, ...saved },
       authorization: {
         email,
         clientId,
@@ -236,7 +231,7 @@ const validateDraft = (draft: AccountDraft): ValidationResult => {
     })
   }
   return validationResult.ok({
-    value: { email, password: draft.password, ...profile.value, saveSent: draft.saveSent },
+    value: { email, auth: "password", password: draft.password, ...saved },
     authorization: undefined,
   })
 }
@@ -252,7 +247,6 @@ const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
     return editValidationResult.error({ message: profile.message })
   }
   if (oauth) {
-    // Why: the server defaults a missing `auth` to password, so an OAuth edit must send it back.
     return editValidationResult.ok({
       value: {
         ...profile.value,
@@ -265,6 +259,7 @@ const validateEditDraft = (draft: AccountDraft): EditValidationResult => {
   return editValidationResult.ok({
     value: {
       ...profile.value,
+      auth: "password",
       saveSent: draft.saveSent,
       ...(draft.password.length === 0 ? {} : { password: draft.password }),
     },

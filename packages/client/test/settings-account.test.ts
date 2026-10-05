@@ -85,7 +85,7 @@ describe("account settings edit validation", () => {
     })
   })
 
-  test("a password edit is unchanged", () => {
+  test("a password edit carries the password auth method and the changed password", () => {
     const draft = { ...draftFromAccount(passwordAccount), password: "hunter2" }
     expect(editOk(draft)).toStrictEqual({
       label: "Personal",
@@ -93,6 +93,7 @@ describe("account settings edit validation", () => {
       imap: { host: "imap.example.com", port: 993, security: "tls" },
       smtp: { host: "smtp.example.com", port: 465, security: "tls" },
       saveSent: true,
+      auth: "password",
       password: "hunter2",
     })
   })

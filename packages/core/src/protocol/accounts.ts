@@ -9,7 +9,7 @@ const AccountSave = Schema.Struct({
   saveSent: Schema.Boolean.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(true))),
   imap: ServerConfig,
   smtp: ServerConfig,
-  auth: Schema.optionalKey(AuthMethod),
+  auth: AuthMethod.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed("password"))),
   oauth: Schema.optionalKey(OAuthConfig),
   username: Schema.String,
   password: Schema.optionalKey(Schema.String),

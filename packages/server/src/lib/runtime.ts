@@ -22,7 +22,7 @@ import { SyncEngine } from "@/lib/mail/sync"
 import { Messages } from "@/lib/messages"
 import { DesktopNotifications } from "@/lib/notify/desktop"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
-import { GoogleOAuth } from "@/lib/oauth/service"
+import { OAuth } from "@/lib/oauth"
 import { Outbox } from "@/lib/outbox"
 import { Scheduler } from "@/lib/scheduler"
 import { Settings } from "@/lib/settings"
@@ -42,7 +42,7 @@ const ServerLoggingLayer = LoggingLayer.server.pipe(Layer.provide(ServicesLayer)
 
 const DesktopLayer = DesktopNotifications.layer.pipe(Layer.provide(ServicesLayer))
 
-const OAuthLayer = GoogleOAuth.layer.pipe(Layer.provide(ServicesLayer))
+const OAuthLayer = OAuth.layer.pipe(Layer.provide(ServicesLayer))
 
 const InfraLayer = Layer.mergeAll(
   ServicesLayer,
@@ -52,7 +52,7 @@ const InfraLayer = Layer.mergeAll(
   DesktopLayer,
 )
 
-// IMAP and SMTP mint access tokens through GoogleOAuth, so it belongs to the core services.
+// IMAP and SMTP mint access tokens through OAuth, so it belongs to the core services.
 const CoreLayer = Layer.mergeAll(Database.layer, Imap.layer).pipe(
   Layer.provideMerge(Layer.mergeAll(InfraLayer, OAuthLayer)),
 )

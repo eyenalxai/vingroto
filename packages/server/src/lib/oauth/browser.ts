@@ -8,7 +8,7 @@ import { OAuthAuthorizationFailed } from "@/lib/oauth/errors"
 // A failed open must still tell the user where to go.
 // The authorization URL travels in the failure message rather than dying with the closed listener.
 const openWithXdg = (spawner: ChildProcessSpawner["Service"]) =>
-  Effect.fn("GoogleOAuth.openBrowser")(function* openInSystemBrowser(url: string) {
+  Effect.fn("OAuth.openBrowser")(function* openInSystemBrowser(url: string) {
     const result = yield* runProcess(spawner, "xdg-open", [url]).pipe(
       Effect.catchTag("PlatformError", (error) =>
         Effect.fail(

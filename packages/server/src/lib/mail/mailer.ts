@@ -14,10 +14,10 @@ import { createTransport } from "nodemailer"
 import type { CredentialError } from "@/lib/credential/service"
 import type { OAuthError } from "@/lib/oauth/errors"
 
-import { passwordReference, usernameReference } from "@/lib/credential/refs"
+import { usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
-import { smtpAuthFor } from "@/lib/mail/auth"
-import { GoogleOAuth } from "@/lib/oauth/service"
+import { accountSecret, smtpAuthFor } from "@/lib/mail/auth"
+import { OAuth } from "@/lib/oauth"
 
 class SmtpError extends Schema.TaggedError<SmtpError>()("SmtpError", {
   accountId: AccountId,
@@ -99,17 +99,14 @@ class Mailer extends Context.Service<Mailer, MailerShape>()("@vingroto/server/li
     Mailer,
     Effect.gen(function* makeMailer() {
       const credential = yield* Credential
-      const oauth = yield* GoogleOAuth
+      const oauth = yield* OAuth
 
       const send = Effect.fn("Mailer.send")(function* sendMessage(
         account: AccountConfig,
         message: OutgoingMessage,
       ) {
         const username = yield* credential.get(usernameReference(account.id))
-        const secret =
-          account.auth === "oauth2"
-            ? yield* oauth.accessToken(account)
-            : yield* credential.get(passwordReference(account.id))
+        const secret = yield* accountSecret({ credential, oauth }, account)
         const transport = createTransport({
           host: account.smtp.host,
           port: account.smtp.port,

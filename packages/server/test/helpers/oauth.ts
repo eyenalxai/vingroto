@@ -9,12 +9,12 @@ import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
 import { FetchHttpClient, HttpClient } from "effect/unstable/http"
 
-import type { GoogleOAuthShape } from "@/lib/oauth/service"
+import type { OAuthShape } from "@/lib/oauth"
 
 import { oauthRefreshTokenReference } from "@/lib/credential/refs"
 import { Credential, CredentialNotFound } from "@/lib/credential/service"
+import { OAuth } from "@/lib/oauth"
 import { OAuthAuthorizationFailed } from "@/lib/oauth/errors"
-import { GoogleOAuth } from "@/lib/oauth/service"
 
 const alpha = AccountId.make("alpha@example.com")
 const clientId = "alpha-client.apps.googleusercontent.com"
@@ -121,7 +121,7 @@ const makeRuntime = (
   options: OAuthTestOptions,
 ) =>
   ManagedRuntime.make(
-    GoogleOAuth.layerWith({
+    OAuth.layerWith({
       ...(options.flowDeadline === undefined ? {} : { flowDeadline: options.flowDeadline }),
       ...(options.openBrowser === undefined ? {} : { openBrowser: options.openBrowser }),
       tokenEndpoint: endpoint.url,
@@ -136,11 +136,11 @@ const runOAuth = async <A, E>(
   endpoint: FakeTokenEndpoint,
   credential: FakeCredential,
   options: OAuthTestOptions,
-  program: (oauth: GoogleOAuthShape) => Effect.Effect<A, E>,
+  program: (oauth: OAuthShape) => Effect.Effect<A, E>,
 ): Promise<A> => {
   const runtime = makeRuntime(endpoint, credential, options)
   try {
-    return await runtime.runPromise(Effect.flatMap(GoogleOAuth, program))
+    return await runtime.runPromise(Effect.flatMap(OAuth, program))
   } finally {
     await runtime.dispose()
   }

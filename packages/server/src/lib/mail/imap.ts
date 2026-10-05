@@ -21,9 +21,9 @@ import type {
   MessageSourceResult,
 } from "@/lib/mail/imap-types"
 
-import { passwordReference, usernameReference } from "@/lib/credential/refs"
+import { usernameReference } from "@/lib/credential/refs"
 import { Credential } from "@/lib/credential/service"
-import { imapAuthFor } from "@/lib/mail/auth"
+import { accountSecret, imapAuthFor } from "@/lib/mail/auth"
 import { moveMessages, updateFlags } from "@/lib/mail/imap-actions"
 import { appendToMailbox } from "@/lib/mail/imap-append"
 import {
@@ -42,7 +42,7 @@ import {
   readMessageSource,
 } from "@/lib/mail/imap-message"
 import { fetchMailboxEnvelopes, searchMailbox } from "@/lib/mail/imap-search"
-import { GoogleOAuth } from "@/lib/oauth/service"
+import { OAuth } from "@/lib/oauth"
 
 const connectRetrySchedule = Schedule.exponential("500 millis").pipe(
   Schedule.jittered,
@@ -123,7 +123,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
     Imap,
     Effect.gen(function* makeImap() {
       const credential = yield* Credential
-      const oauth = yield* GoogleOAuth
+      const oauth = yield* OAuth
 
       const connect = Effect.fn("Imap.connect")(function* openConnection(account: AccountConfig) {
         yield* Effect.logDebug("connecting to the IMAP server").pipe(
@@ -134,10 +134,7 @@ class Imap extends Context.Service<Imap, ImapShape>()("@vingroto/server/lib/mail
           }),
         )
         const username = yield* credential.get(usernameReference(account.id))
-        const secret =
-          account.auth === "oauth2"
-            ? yield* oauth.accessToken(account)
-            : yield* credential.get(passwordReference(account.id))
+        const secret = yield* accountSecret({ credential, oauth }, account)
         return yield* connectOnce(account, imapAuthFor(account, username, secret)).pipe(
           Effect.retry(connectRetrySchedule),
         )
