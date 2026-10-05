@@ -44,7 +44,7 @@ Protocol specifics from the same page:
 Error response: the server sends a `+`/`334` challenge whose payload is `base64({JSON-Body})` with `status`, `schemes`, and `scope`. Documented example after decoding:
 
 ```json
-{"status":"401","schemes":"bearer","scope":"https://mail.google.com/"}
+{ "status": "401", "schemes": "bearer", "scope": "https://mail.google.com/" }
 ```
 
 The client must reply with an empty response (`\r\n`) to this challenge, after which the server ends the exchange with `A01 NO SASL authentication failed` (IMAP) or `535 5.7.1 ... BadCredentials` (SMTP).
@@ -58,9 +58,9 @@ The client must reply with an empty response (`\r\n`) to this challenge, after w
   ```js
   // XOAUTH2 payload (Google-specific): simpler format, also \x01-delimited.
   // Format: "user=<user>" \x01 "auth=Bearer <token>" \x01 \x01
-  oauthbearer = [`user=${username}`, `auth=Bearer ${accessToken}`, '', ''].join('\x01');
-  command = 'XOAUTH2';
-  breaker = '';
+  oauthbearer = [`user=${username}`, `auth=Bearer ${accessToken}`, "", ""].join("\x01")
+  command = "XOAUTH2"
+  breaker = ""
   ```
 - The payload is base64-encoded and sent as the `AUTHENTICATE XOAUTH2 <base64>` argument (lines 64–68). On a `+` continuation the server's base64 JSON error is parsed into `err.oauthError`, then the breaker is written (lines 69–88).
 - The OAUTHBEARER payload follows RFC 7628: `n,a=<user>,\x01host=...\x01port=...\x01auth=Bearer <token>\x01\x01`, with `host`/`port` taken from the live connection (lines 34–53).
@@ -69,8 +69,13 @@ The client must reply with an empty response (`\r\n`) to this challenge, after w
 
 - `buildXOAuth2Token` (lines 285–288) builds exactly Google's format and base64-encodes it:
   ```js
-  const authData = ['user=' + (this.options.user || ''), 'auth=Bearer ' + (accessToken || this.accessToken), '', ''];
-  return Buffer.from(authData.join('\x01'), 'utf-8').toString('base64');
+  const authData = [
+    "user=" + (this.options.user || ""),
+    "auth=Bearer " + (accessToken || this.accessToken),
+    "",
+    "",
+  ]
+  return Buffer.from(authData.join("\x01"), "utf-8").toString("base64")
   ```
 - The SMTP connection sends `AUTH XOAUTH2 <token>` (`dist/esm/smtp-connection/index.js:1627`), selecting XOAUTH2 automatically when `auth.oauth2` is present (`smtp-connection/index.js:404–405`).
 
@@ -131,17 +136,17 @@ OOB status details ("Out-Of-Band (OOB) flow Migration Guide", <https://developer
 - Desktop clients are told to migrate to the loopback IP address flow.
 - `redirect_uri` values `urn:ietf:wg:oauth:2.0:oob`, `urn:ietf:wg:oauth:2.0:oob:auto`, `oob` identify the dead flow.
 
-Google's own Python sample has adapted by *not* using OOB and *not* using a Desktop client: its header says "NOTE: The OAuth2 OOB flow isn't a thing anymore. You will need to set the application type to 'Web application' and then add `https://google.github.io/gmail-oauth2-tools/html/oauth2.dance.html` as an authorised redirect URI" (<https://raw.githubusercontent.com/google/gmail-oauth2-tools/master/python/oauth2.py>).
+Google's own Python sample has adapted by _not_ using OOB and _not_ using a Desktop client: its header says "NOTE: The OAuth2 OOB flow isn't a thing anymore. You will need to set the application type to 'Web application' and then add `https://google.github.io/gmail-oauth2-tools/html/oauth2.dance.html` as an authorised redirect URI" (<https://raw.githubusercontent.com/google/gmail-oauth2-tools/master/python/oauth2.py>).
 
 ### 2.2 Endpoints
 
 Current documented endpoints:
 
-| Purpose | URL | Source |
-| --- | --- | --- |
-| Authorization | `https://accounts.google.com/o/oauth2/v2/auth` (HTTPS only; refuses plain HTTP) | native-app page |
-| Token (code exchange and refresh) | `https://oauth2.googleapis.com/token` | native-app page |
-| Revocation | `https://oauth2.googleapis.com/revoke` (POST, token as parameter; access or refresh token) | native-app page |
+| Purpose                           | URL                                                                                        | Source          |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | --------------- |
+| Authorization                     | `https://accounts.google.com/o/oauth2/v2/auth` (HTTPS only; refuses plain HTTP)            | native-app page |
+| Token (code exchange and refresh) | `https://oauth2.googleapis.com/token`                                                      | native-app page |
+| Revocation                        | `https://oauth2.googleapis.com/revoke` (POST, token as parameter; access or refresh token) | native-app page |
 
 Older/alternate endpoints still found in working implementations (all appear to remain functional):
 
@@ -170,7 +175,7 @@ The native-app page's parameter table for installed apps: `client_id` (required)
 
 The web-server page (<https://developers.google.com/identity/protocols/oauth2/web-server>) documents the general parameters that other implementations commonly also send from desktop clients:
 
-- `access_type`: `online` (default) or `offline`. "Set the value to `offline` if your application needs to refresh access tokens when the user is not present at the browser. ... This value instructs the Google authorization server to return a refresh token *and* an access token the first time that your application exchanges an authorization code for tokens."
+- `access_type`: `online` (default) or `offline`. "Set the value to `offline` if your application needs to refresh access tokens when the user is not present at the browser. ... This value instructs the Google authorization server to return a refresh token _and_ an access token the first time that your application exchanges an authorization code for tokens."
 - `prompt`: space-delimited list; `none`, `consent`, `select_account`. "If you don't specify this parameter, the user will be prompted only the first time your project requests access."
 - `include_granted_scopes`: enables incremental authorization (web-server context).
 - `state`: recommended, CSRF mitigation; returned in the query component of `redirect_uri`.
@@ -185,15 +190,15 @@ Code exchange: `POST https://oauth2.googleapis.com/token` with `client_id`, `cli
 
 Token response fields (native-app and web-server pages):
 
-| Field | Meaning |
-| --- | --- |
-| `access_token` | Bearer token for API/protocol calls |
-| `expires_in` | Remaining access-token lifetime in seconds |
-| `id_token` | Only if an identity scope (`openid`, `profile`, `email`) was requested |
-| `refresh_token` | Long-lived token; "Refresh tokens are valid until the user revokes access or the refresh token expires." Installed apps: "always returned" |
-| `refresh_token_expires_in` | Only set for time-based access grants |
-| `scope` | Space-delimited granted scopes |
-| `token_type` | "always `Bearer`, even when DPoP is used" |
+| Field                      | Meaning                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `access_token`             | Bearer token for API/protocol calls                                                                                                        |
+| `expires_in`               | Remaining access-token lifetime in seconds                                                                                                 |
+| `id_token`                 | Only if an identity scope (`openid`, `profile`, `email`) was requested                                                                     |
+| `refresh_token`            | Long-lived token; "Refresh tokens are valid until the user revokes access or the refresh token expires." Installed apps: "always returned" |
+| `refresh_token_expires_in` | Only set for time-based access grants                                                                                                      |
+| `scope`                    | Space-delimited granted scopes                                                                                                             |
+| `token_type`               | "always `Bearer`, even when DPoP is used"                                                                                                  |
 
 Refresh response: a new `access_token` + `expires_in` (+ `scope`, `token_type`); no new refresh token in the sample (<https://developers.google.com/identity/protocols/oauth2/native-app>). Store both tokens "in a secure, long-lived location" (native-app page).
 
@@ -224,7 +229,7 @@ Related console behavior: "The console does not require any additional informati
 
 In practice the implementations read:
 
-- Thunderbird ships a hardcoded Google client ID *and* secret (`OAuth2Providers.sys.mjs:230–241`) and sends the secret on refresh (`OAuth2.sys.mjs:424–438`), with the comment "Don't copy these values for your own application - register one for yourself!" (`OAuth2Providers.sys.mjs:221–225`).
+- Thunderbird ships a hardcoded Google client ID _and_ secret (`OAuth2Providers.sys.mjs:230–241`) and sends the secret on refresh (`OAuth2.sys.mjs:424–438`), with the comment "Don't copy these values for your own application - register one for yourself!" (`OAuth2Providers.sys.mjs:221–225`).
 - aerc, mutt, and nodemailer all pass whatever `client_secret` the user configured (possibly empty) to the token endpoint (`aerc/lib/auth/sasl.go:50–57`; mutt `registrations` with empty secret; `nodemailer/dist/esm/xoauth2/index.js:207–212`).
 
 ---
@@ -250,11 +255,11 @@ In practice the implementations read:
 
 **Verification types and timelines** (<https://support.google.com/cloud/answer/13463817>):
 
-| Verification | Purpose | Expected time |
-| --- | --- | --- |
-| Brand Verification | identity/intent, logo, name, URLs, domain ownership | 2–3 business days |
-| Sensitive Scope Verification | sensitive scope use, limited use, minimum scope | 10 business days |
-| Restricted Scope Verification | restricted scope use; "An additional Security assessment is required to demonstrate a minimum level of capability in handling data securely and deleting user data upon user request." | 6 weeks |
+| Verification                  | Purpose                                                                                                                                                                                | Expected time     |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| Brand Verification            | identity/intent, logo, name, URLs, domain ownership                                                                                                                                    | 2–3 business days |
+| Sensitive Scope Verification  | sensitive scope use, limited use, minimum scope                                                                                                                                        | 10 business days  |
+| Restricted Scope Verification | restricted scope use; "An additional Security assessment is required to demonstrate a minimum level of capability in handling data securely and deleting user data upon user request." | 6 weeks           |
 
 - "All apps that integrate with Google APIs are required to comply with Google's API Services User Data Policy regardless of whether they have been verified" (<https://support.google.com/cloud/answer/13464323>).
 - Exceptions where verification is not mandatory (<https://support.google.com/cloud/answer/13464323>): Personal Use apps (fewer than 100 users), Development/Testing/Staging apps, Service-owned Data Only, Internal Use apps, and Workspace admin-trusted/marketplace-installed apps. Personal-use apps still hit the unverified-app screen and the 100-user cap.
@@ -361,14 +366,14 @@ Thunderbird **ships its own OAuth client credentials** for major providers, incl
 
 ### 4.5 Common patterns across implementations
 
-| | aerc | mutt | Google Python sample | Thunderbird |
-| --- | --- | --- | --- | --- |
-| Who owns the OAuth client | user | user | user | vendor (shipped) |
-| Client type recommended | any | Web/Desktop (script's default redirect is OOB) | Web application (per current header) | Desktop-style, built-in |
-| Browser flow | none; refresh token obtained externally | manual code, loopback+PKCE, or device code | hosted redirect page + manual code paste | external browser + loopback |
-| Token storage | refresh token in `$XDG_CACHE_HOME/aerc/…` mode 0600 | GPG-encrypted file, mode 0600 | user records tokens manually | Thunderbird login manager |
-| Refresh | `x/oauth2` TokenSource per connection | explicit POST when access token expired | explicit POST | explicit POST |
-| Failure handling | error tells user to delete cache | error tells user to re-run `--authorize` | script exits with error | logs error, re-auth prompt |
+|                           | aerc                                                | mutt                                           | Google Python sample                     | Thunderbird                 |
+| ------------------------- | --------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- | --------------------------- |
+| Who owns the OAuth client | user                                                | user                                           | user                                     | vendor (shipped)            |
+| Client type recommended   | any                                                 | Web/Desktop (script's default redirect is OOB) | Web application (per current header)     | Desktop-style, built-in     |
+| Browser flow              | none; refresh token obtained externally             | manual code, loopback+PKCE, or device code     | hosted redirect page + manual code paste | external browser + loopback |
+| Token storage             | refresh token in `$XDG_CACHE_HOME/aerc/…` mode 0600 | GPG-encrypted file, mode 0600                  | user records tokens manually             | Thunderbird login manager   |
+| Refresh                   | `x/oauth2` TokenSource per connection               | explicit POST when access token expired        | explicit POST                            | explicit POST               |
+| Failure handling          | error tells user to delete cache                    | error tells user to re-run `--authorize`       | script exits with error                  | logs error, re-auth prompt  |
 
 ---
 
