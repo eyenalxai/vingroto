@@ -22,6 +22,7 @@ import { SyncEngine } from "@/lib/mail/sync"
 import { Messages } from "@/lib/messages"
 import { DesktopNotifications } from "@/lib/notify/desktop"
 import { NewMailNotifier } from "@/lib/notify/new-mail"
+import { GoogleOAuth } from "@/lib/oauth/service"
 import { Outbox } from "@/lib/outbox"
 import { Scheduler } from "@/lib/scheduler"
 import { Settings } from "@/lib/settings"
@@ -72,6 +73,8 @@ const DraftsLayer = Drafts.layer.pipe(Layer.provide(CoreLayer))
 
 const AccountsLayer = Accounts.layer.pipe(Layer.provide(Layer.mergeAll(SchedulerLayer, CoreLayer)))
 
+const OAuthLayer = GoogleOAuth.layer.pipe(Layer.provide(ServicesLayer))
+
 const MailActionsLayer = MailActions.layer.pipe(Layer.provide(CoreLayer))
 
 const MessagesLayer = Messages.layer.pipe(Layer.provide(MailActionsLayer), Layer.provide(CoreLayer))
@@ -89,6 +92,7 @@ const AppLayer = Layer.mergeAll(
   MessagesLayer,
   MessageBodies.layer.pipe(Layer.provide(CoreLayer)),
   AccountsLayer,
+  OAuthLayer,
   Settings.layer.pipe(Layer.provide(CoreLayer)),
   Search.layer.pipe(Layer.provide(CoreLayer)),
 )
