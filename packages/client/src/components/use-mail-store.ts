@@ -7,6 +7,7 @@ import { AccountId } from "@vingroto/core/ids"
 import { Effect } from "effect"
 import { createEffect, createMemo, createSignal, untrack } from "solid-js"
 
+import type { NewMailListener } from "@/components/use-mail-sync-events"
 import type { MailClientError } from "@/lib/api"
 import type { MailboxTreeRow, MailViewKind } from "@/lib/mail/mailbox-tree"
 import type { AppRuntime } from "@/lib/runtime"
@@ -36,7 +37,7 @@ interface MailStoreOptions {
   readonly onStatus: (status: string) => void
   readonly onDisconnected: (message: string) => void
   readonly onConfigChanged: () => void
-  readonly onNewMail: (mailbox: Mailbox, visible: boolean) => void
+  readonly onNewMail: NewMailListener
 }
 
 const useMailStore = (options: MailStoreOptions) => {

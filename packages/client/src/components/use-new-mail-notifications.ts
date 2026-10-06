@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { NewestUnseen } from "@vingroto/core/protocol/events"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { useRenderer } from "@opentui/solid"
@@ -9,7 +10,6 @@ import { Cause, Effect, Exit } from "effect"
 import type { AppRuntime } from "@/lib/runtime"
 
 import { useTerminalFocus } from "@/components/use-terminal-focus"
-import { MailClient } from "@/lib/api"
 import { shouldAnnounceNewMail } from "@/lib/notifications"
 
 interface NewMailNotificationsOptions {
@@ -22,33 +22,25 @@ const useNewMailNotifications = (options: NewMailNotificationsOptions) => {
   const renderer = useRenderer()
   const focus = useTerminalFocus()
 
-  const notify = (mailbox: Mailbox, visible: boolean) => {
+  const notify = (mailbox: Mailbox, newestUnseen: NewestUnseen, visible: boolean) => {
     if (!shouldAnnounceNewMail(focus(), visible, mailbox, options.enabled())) {
       return
     }
     const program = Effect.gen(function* raiseNewMailNotification() {
       const exit = yield* Effect.exit(
-        Effect.gen(function* announceNewestMessage() {
-          const client = yield* MailClient
-          const rows = yield* client.listMessages({ kind: "mailbox", mailboxId: mailbox.id }, 1)
-          const newest = rows[0]
-          if (newest === undefined) {
-            return
-          }
+        Effect.sync(() => {
           const accountLabel =
             options.accounts().length > 1
               ? options.accounts().find((account) => account.id === mailbox.accountId)?.label
               : undefined
           const notification = formatNewMailNotification({
             accountLabel,
-            fromAddress: newest.fromAddress,
-            fromName: newest.fromName,
+            fromAddress: newestUnseen.fromAddress,
+            fromName: newestUnseen.fromName,
             mailboxName: mailbox.name,
-            subject: newest.subject,
+            subject: newestUnseen.subject,
           })
-          yield* Effect.sync(() => {
-            renderer.triggerNotification(notification.message, notification.title)
-          })
+          renderer.triggerNotification(notification.message, notification.title)
         }),
       )
       if (Exit.isFailure(exit)) {

@@ -1,5 +1,5 @@
 import type { MailboxId } from "@vingroto/core/ids"
-import type { SyncEvent } from "@vingroto/core/protocol/events"
+import type { NewestUnseen, SyncEvent } from "@vingroto/core/protocol/events"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { describeSyncEvent } from "@vingroto/core/protocol/events"
@@ -7,13 +7,15 @@ import { createSignal, untrack } from "solid-js"
 
 import { findMailboxId, listHasMailbox, parseListKey } from "@/lib/mail/mailbox-tree"
 
+type NewMailListener = (mailbox: Mailbox, newestUnseen: NewestUnseen, visible: boolean) => void
+
 interface MailSyncEventsOptions {
   readonly mailboxes: () => readonly Mailbox[]
   readonly visibleMailboxes: () => readonly Mailbox[]
   readonly selectedListKey: () => string | undefined
   readonly searchActive: () => boolean
   readonly onStatus: (status: string) => void
-  readonly onNewMail: (mailbox: Mailbox, visible: boolean) => void
+  readonly onNewMail: NewMailListener
   readonly onMailboxesChanged: () => void
   readonly onReloadCurrent: () => void
 }
@@ -40,12 +42,16 @@ const useMailSyncEvents = (options: MailSyncEventsOptions) => {
         )
       }
       const target = parseListKey(options.selectedListKey())
-      if (event._tag === "mailbox-done" && event.stored > 0 && !event.reset) {
+      if (event._tag === "mailbox-done" && event.newestUnseen !== null) {
         const mailbox = options
           .mailboxes()
           .find((row) => row.accountId === event.accountId && row.path === event.path)
         if (mailbox !== undefined) {
-          options.onNewMail(mailbox, listHasMailbox(target, options.searchActive(), mailbox))
+          options.onNewMail(
+            mailbox,
+            event.newestUnseen,
+            listHasMailbox(target, options.searchActive(), mailbox),
+          )
         }
       }
       options.onMailboxesChanged()
@@ -73,4 +79,4 @@ const useMailSyncEvents = (options: MailSyncEventsOptions) => {
   return { applySyncEvent, syncingMailboxIds }
 }
 
-export { useMailSyncEvents, type MailSyncEventsOptions }
+export { useMailSyncEvents, type MailSyncEventsOptions, type NewMailListener }

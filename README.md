@@ -156,7 +156,7 @@ Credentials are written to the OS keyring (`secret-tool`) and never to disk in p
 
 ## Notifications
 
-New mail is announced by whichever process can judge it. While no client is attached, the daemon raises a freedesktop notification (`org.freedesktop.Notifications`) over the D-Bus session bus; while a client is attached, the daemon stays silent and the client raises one through the terminal instead. Neither ever announces a muted mailbox, a mailbox's first sync or a UID-validity reset, and a notification never carries sound. `notifications.enabled` in the config file turns new-mail alerts off for both sides.
+New mail is announced by whichever process can judge it. While no client is attached, the daemon raises a freedesktop notification (`org.freedesktop.Notifications`) over the D-Bus session bus; while a client is attached, the daemon stays silent and the client raises one through the terminal instead. Neither ever announces mail that arrived already read, a muted mailbox, a mailbox's first sync or a UID-validity reset, and a notification never carries sound. `notifications.enabled` in the config file turns new-mail alerts off for both sides.
 
 The daemon takes the session bus address from `DBUS_SESSION_BUS_ADDRESS`, falling back to `unix:path=$XDG_RUNTIME_DIR/bus`: a Wayland/systemd user session. It never discovers buses through X11, and a session without a notification daemon simply stays silent.
 
