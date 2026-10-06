@@ -2,6 +2,14 @@ import * as Schema from "effect/Schema"
 
 import { AccountId } from "../ids"
 
+const NewestUnseen = Schema.Struct({
+  fromName: Schema.NullOr(Schema.String),
+  fromAddress: Schema.NullOr(Schema.String),
+  subject: Schema.NullOr(Schema.String),
+})
+
+type NewestUnseen = typeof NewestUnseen.Type
+
 const SyncEvent = Schema.Union([
   Schema.TaggedStruct("mailbox-start", {
     accountId: AccountId,
@@ -13,6 +21,7 @@ const SyncEvent = Schema.Union([
     fetched: Schema.Int,
     stored: Schema.Int,
     reset: Schema.Boolean,
+    newestUnseen: Schema.NullOr(NewestUnseen),
   }),
   Schema.TaggedStruct("mailbox-error", {
     accountId: AccountId,
@@ -44,4 +53,4 @@ const describeSyncEvent = (event: SyncEvent): string =>
     "sync-error": ({ message }) => `sync failed · ${message}`,
   })
 
-export { ServerEvent, SyncEvent, describeSyncEvent }
+export { NewestUnseen, ServerEvent, SyncEvent, describeSyncEvent }

@@ -1,4 +1,5 @@
 import type { AccountId, MailboxId, MessageId, Uid } from "@vingroto/core/ids"
+import type { NewestUnseen } from "@vingroto/core/protocol/events"
 import type { MessageDetail, MessageListItem } from "@vingroto/core/protocol/mail"
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core/errors"
 
@@ -28,6 +29,7 @@ interface MessageStoreInput {
 interface MessageStoreOutcome {
   readonly inserted: number
   readonly updated: number
+  readonly newestUnseen: NewestUnseen | null
 }
 
 interface MailboxReplacement {
@@ -67,9 +69,25 @@ const toMessageValues = (input: MessageStoreInput, envelope: MessageEnvelope, no
   ...toEnvelopeColumns(envelope, now),
 })
 
+const toNewestUnseen = (envelopes: readonly MessageEnvelope[]): NewestUnseen | null => {
+  const newest = envelopes
+    .filter((envelope) => !envelope.seen)
+    .toSorted((left, right) => left.uid - right.uid)
+    .at(-1)
+  if (newest === undefined) {
+    return null
+  }
+  const sender = newest.from[0]
+  return {
+    fromName: sender?.name ?? null,
+    fromAddress: sender?.address ?? null,
+    subject: newest.subject ?? null,
+  }
+}
+
 const storeMessages = Effect.fn("Message.store")(function* store(input: MessageStoreInput) {
   if (input.envelopes.length === 0) {
-    return { inserted: 0, updated: 0 }
+    return { inserted: 0, updated: 0, newestUnseen: null }
   }
   const database = yield* Database
   const now = yield* Clock.currentTimeMillis
@@ -81,6 +99,7 @@ const storeMessages = Effect.fn("Message.store")(function* store(input: MessageS
   const knownUids = new Set(known.map((row) => row.uid))
   const fresh = input.envelopes.filter((envelope) => !knownUids.has(envelope.uid))
   const stale = input.envelopes.filter((envelope) => knownUids.has(envelope.uid))
+  const newestUnseen = toNewestUnseen(fresh)
   yield* database.client.transaction((tx) =>
     Effect.gen(function* storeEnvelopes() {
       if (fresh.length > 0) {
@@ -99,7 +118,7 @@ const storeMessages = Effect.fn("Message.store")(function* store(input: MessageS
       }
     }),
   )
-  return { inserted: fresh.length, updated: stale.length }
+  return { inserted: fresh.length, updated: stale.length, newestUnseen }
 })
 
 const replaceMailboxMessages = Effect.fn("Message.replaceMailboxWindow")(function* replace(

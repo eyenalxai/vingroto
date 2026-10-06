@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@vingroto/core/config/schema"
+import type { NewestUnseen } from "@vingroto/core/protocol/events"
 import type { Mailbox } from "@vingroto/core/protocol/mail"
 
 import { AppPaths } from "@vingroto/core/app-paths"
@@ -10,16 +11,13 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 
 import { loadConfigFile } from "@/lib/config/load"
-import { Database } from "@/lib/db/database"
 import { ServerEvents } from "@/lib/events"
 import { DesktopNotifications } from "@/lib/notify/desktop"
-import { listMessages } from "@/lib/store/messages"
 
 interface StoredMail {
   readonly account: AccountConfig
   readonly mailbox: Mailbox
-  readonly stored: number
-  readonly reset: boolean
+  readonly newestUnseen: NewestUnseen | null
 }
 
 interface NewMailNotifierShape {
@@ -36,17 +34,11 @@ class NewMailNotifier extends Context.Service<NewMailNotifier, NewMailNotifierSh
       const fs = yield* FileSystem.FileSystem
       const events = yield* ServerEvents
       const desktop = yield* DesktopNotifications
-      const database = yield* Database
 
       const announce = Effect.fn("NewMailNotifier.announce")(function* announceStoredMail(
         input: StoredMail,
       ) {
-        if (
-          input.stored === 0 ||
-          input.reset ||
-          input.mailbox.muted ||
-          input.mailbox.syncedAt === null
-        ) {
+        if (input.newestUnseen === null || input.mailbox.muted || input.mailbox.syncedAt === null) {
           return
         }
         const subscribers = yield* events.subscribers
@@ -57,19 +49,13 @@ class NewMailNotifier extends Context.Service<NewMailNotifier, NewMailNotifierSh
         if (!config.notifications.enabled) {
           return
         }
-        const newest = (yield* listMessages(input.mailbox.id, 1).pipe(
-          Effect.provideService(Database, database),
-        ))[0]
-        if (newest === undefined) {
-          return
-        }
         yield* desktop.notify(
           formatNewMailNotification({
             accountLabel: config.accounts.length > 1 ? input.account.label : undefined,
-            fromAddress: newest.fromAddress,
-            fromName: newest.fromName,
+            fromAddress: input.newestUnseen.fromAddress,
+            fromName: input.newestUnseen.fromName,
             mailboxName: input.mailbox.name,
-            subject: newest.subject,
+            subject: input.newestUnseen.subject,
           }),
         )
       })

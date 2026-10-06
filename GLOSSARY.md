@@ -93,7 +93,7 @@ The daemon fetching message bodies ahead of reading, for unread mail in unmuted 
 A mailbox excluded from the Unread views, unread totals, prefetch and notifications, while still listed, readable and showing its own unread count.
 
 **Notification**:
-A desktop alert about new mail. It never fires for a muted mailbox, a mailbox's first sync or a UID-validity reset, and never carries sound.
+An alert about new mail. It never fires for mail that arrived already read, a muted mailbox, a mailbox's first sync or a UID-validity reset, and never carries sound.
 _Avoid_: Alert, attention
 
 **Count tone**:

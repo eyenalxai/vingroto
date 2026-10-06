@@ -1,5 +1,6 @@
 import type { AccountConfig, SyncConfig } from "@vingroto/core/config/schema"
 import type { AccountId } from "@vingroto/core/ids"
+import type { NewestUnseen } from "@vingroto/core/protocol/events"
 import type { Mailbox, SyncFailure, SyncReport } from "@vingroto/core/protocol/mail"
 
 import { describeError } from "@vingroto/core/errors"
@@ -72,7 +73,10 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
         fetched: number,
         stored: number,
         reset: boolean,
+        newestUnseen: NewestUnseen | null,
       ) {
+        // A first sync and a UID-validity reset replace the cache; their stored mail was never "new".
+        const announceTarget = reset || row.syncedAt === null ? null : newestUnseen
         yield* events.publish({
           _tag: "mailbox-done",
           accountId: account.id,
@@ -80,8 +84,9 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
           fetched,
           stored,
           reset,
+          newestUnseen: announceTarget,
         })
-        yield* notifier.mailboxStored({ account, mailbox: row, stored, reset })
+        yield* notifier.mailboxStored({ account, mailbox: row, newestUnseen: announceTarget })
       })
 
       const storeSnapshot = Effect.fn("Sync.storeSnapshot")(function* storeSnapshot(
@@ -112,7 +117,14 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
             stored: outcome.inserted,
           }),
         )
-        yield* announceStored(account, row, snapshot.messages.length, outcome.inserted, false)
+        yield* announceStored(
+          account,
+          row,
+          snapshot.messages.length,
+          outcome.inserted,
+          false,
+          outcome.newestUnseen,
+        )
         return { fetched: snapshot.messages.length, stored: outcome.inserted }
       })
 
@@ -137,7 +149,7 @@ class SyncEngine extends Context.Service<SyncEngine, SyncShape>()(
             fetched,
           }),
         )
-        yield* announceStored(account, row, fetched, fetched, true)
+        yield* announceStored(account, row, fetched, fetched, true, null)
         return { fetched, stored: fetched }
       })
 
