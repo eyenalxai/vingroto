@@ -45,6 +45,15 @@ The workspace runs Effect 4.0.0-rc.115:
 
 The recommended Effect lint rules come from `@effect/tsgo` through `oxlint.config.ts`, so `bun run lint` reports Effect diagnostics without a language-server install. `node_modules/effect/AGENTS.md` resolves from the repository root.
 
+## File naming
+
+- Never repeat a shared leading prefix across sibling files. When two or more files in one directory share a leading hyphenated prefix, group them into a directory named after that prefix and drop the prefix from the filenames: `company-admin-options.ts` and `company-member-access.ts` become `company/admin-options.ts` and `company/member-access.ts`.
+- Stacked prefixes collapse the same way, one directory per prefix segment: `advertisement-lead-chat-inbox-rows.ts` becomes `advertisement/lead/chat/inbox/rows.ts`.
+- When the directory already names the concept (singular or plural), drop the redundant prefix in place: `companies/company-card.tsx` becomes `companies/card.tsx`.
+- A file named exactly after the prefix (or its plural) stays as the entry file next to the group directory: `schedule.ts` next to `schedule/`.
+- React hook files keep the `use-` prefix; only the domain prefix after it is grouped or dropped: `use-advertisement-chat-reply.ts` becomes `advertisement/chat/use-reply.ts`.
+- Cross-directory imports use the `@/*` alias inside a package or the `@vingroto/*` package subpaths; parent-relative imports are lint errors.
+
 ## Agent skills
 
 ### Issue tracker
